@@ -1,0 +1,19 @@
+{
+  "name": "@corvus-skill-manager/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "corvus-skills": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false",
+    "dev": "tsx --conditions development src/index.ts"
+  },
+  "dependencies": {
+    "@corvus-skill-manager/tui": "workspace:*",
+    "ink": "^5.1.0",
+    "react": "^18.3.1"
+  }
+}
