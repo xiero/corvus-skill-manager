@@ -60,6 +60,11 @@ const rawRegistrySchema = z
   })
   .strict();
 
+type RegistryLoadResult =
+  | {status: 'loaded'; skills: unknown[]}
+  | {status: 'missing'}
+  | {status: 'invalid'};
+
 const executableFilePattern = /\.(?:sh|bash|zsh|fish|ps1|bat|cmd|js|mjs|cjs|ts|tsx|py|rb|pl)$/i;
 const suspiciousShellPatterns: Array<{code: string; pattern: RegExp; message: string}> = [
   {
@@ -97,7 +102,18 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
 
   const registry = await loadRegistry(registryPath, result.errors);
 
-  if (registry === undefined) {
+  if (registry.status === 'missing') {
+    result.warnings.push({
+      severity: 'warning',
+      code: 'missing-registry',
+      message: `Missing registry.json at ${registryPath}; discovering SKILL.md files in read-only fallback mode.`,
+      path: registryPath
+    });
+    await discoverSkillsWithoutRegistry(resolvedRoot, result);
+    return result;
+  }
+
+  if (registry.status === 'invalid') {
     return result;
   }
 
@@ -190,19 +206,27 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
 async function loadRegistry(
   registryPath: string,
   errors: SkillDiscoveryIssue[]
-): Promise<{skills: unknown[]} | undefined> {
+): Promise<RegistryLoadResult> {
   let rawRegistry: string;
 
   try {
     rawRegistry = await fs.readFile(registryPath, 'utf8');
   } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      return {status: 'missing'};
+    }
+
     errors.push({
       severity: 'error',
-      code: 'missing-registry',
-      message: `Missing registry.json at ${registryPath}.`,
+      code: 'registry-read-failed',
+      message: `Failed to read registry.json at ${registryPath}: ${error instanceof Error ? error.message : String(error)}.`,
       path: registryPath
     });
-    return undefined;
+    return {status: 'invalid'};
   }
 
   let parsedRegistry: unknown;
@@ -216,7 +240,7 @@ async function loadRegistry(
       message: `registry.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}.`,
       path: registryPath
     });
-    return undefined;
+    return {status: 'invalid'};
   }
 
   const registryResult = rawRegistrySchema.safeParse(parsedRegistry);
@@ -229,10 +253,106 @@ async function loadRegistry(
       path: registryPath
     });
 
-    return undefined;
+    return {status: 'invalid'};
   }
 
-  return registryResult.data;
+  return {status: 'loaded', skills: registryResult.data.skills};
+}
+
+async function discoverSkillsWithoutRegistry(
+  skillpackRoot: string,
+  result: SkillDiscoveryResult
+): Promise<void> {
+  const skillFilePaths = await findSkillFiles(skillpackRoot);
+  const seenSkillIds = new Set<string>();
+
+  if (skillFilePaths.length === 0) {
+    result.errors.push({
+      severity: 'error',
+      code: 'no-skill-files',
+      message: `No SKILL.md files were found under ${skillpackRoot}.`,
+      path: skillpackRoot
+    });
+    return;
+  }
+
+  for (const skillFilePath of skillFilePaths) {
+    const skillPath = path.dirname(skillFilePath);
+    const relativePath = path.relative(skillpackRoot, skillPath);
+    const parsedSkillFile = await readSkillFileByPath(skillFilePath, result.errors);
+
+    if (parsedSkillFile === undefined) {
+      continue;
+    }
+
+    const parsedFrontmatter = skillFrontmatterSchema.safeParse(parsedSkillFile.data);
+
+    if (!parsedFrontmatter.success) {
+      result.errors.push({
+        severity: 'error',
+        code: 'invalid-skill-frontmatter',
+        message: `Invalid frontmatter in ${relativePath}/SKILL.md: ${formatZodIssues(parsedFrontmatter.error)}`,
+        path: skillFilePath
+      });
+      continue;
+    }
+
+    const entryResult = registrySkillEntrySchema.safeParse({
+      id: parsedFrontmatter.data.name,
+      path: relativePath,
+      title: parsedFrontmatter.data.name,
+      description: parsedFrontmatter.data.description,
+      supportedAgents: ['codex'],
+      tags: ['registryless']
+    });
+
+    if (!entryResult.success) {
+      result.errors.push({
+        severity: 'error',
+        code: 'invalid-discovered-skill',
+        message: `Discovered SKILL.md at ${skillFilePath} cannot be represented as a skill: ${formatZodIssues(entryResult.error)}`,
+        path: skillFilePath
+      });
+      continue;
+    }
+
+    const entry = entryResult.data;
+
+    if (seenSkillIds.has(entry.id)) {
+      result.errors.push({
+        severity: 'error',
+        code: 'duplicate-skill-id',
+        message: `Duplicate skill id "${entry.id}" discovered from SKILL.md frontmatter.`,
+        skillId: entry.id,
+        path: skillFilePath
+      });
+      continue;
+    }
+
+    seenSkillIds.add(entry.id);
+    const riskWarnings = await scanSkillRisk({
+      skillId: entry.id,
+      skillPath,
+      skillFileContent: parsedSkillFile.content
+    });
+
+    result.warnings.push(...riskWarnings);
+    result.skills.push({
+      id: entry.id,
+      title: entry.title,
+      description: entry.description,
+      supportedAgents: entry.supportedAgents,
+      tags: entry.tags ?? [],
+      relativePath: entry.path,
+      absolutePath: skillPath,
+      skillFilePath,
+      frontmatter: {
+        name: parsedFrontmatter.data.name,
+        description: parsedFrontmatter.data.description
+      },
+      riskWarnings
+    });
+  }
 }
 
 function validateSkillPath(
@@ -286,11 +406,9 @@ async function readSkillFile(
   entry: RegistrySkillEntry,
   errors: SkillDiscoveryIssue[]
 ): Promise<{content: string; data: unknown} | undefined> {
-  let content: string;
+  const parsed = await readSkillFileByPath(skillFilePath, errors);
 
-  try {
-    content = await fs.readFile(skillFilePath, 'utf8');
-  } catch (error) {
+  if (parsed === undefined) {
     errors.push({
       severity: 'error',
       code: 'missing-skill-file',
@@ -298,6 +416,35 @@ async function readSkillFile(
       skillId: entry.id,
       path: skillFilePath
     });
+  }
+
+  return parsed;
+}
+
+async function readSkillFileByPath(
+  skillFilePath: string,
+  errors: SkillDiscoveryIssue[]
+): Promise<{content: string; data: unknown} | undefined> {
+  let content: string;
+
+  try {
+    content = await fs.readFile(skillFilePath, 'utf8');
+  } catch (error) {
+    if (
+      !(
+        error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'ENOENT'
+      )
+    ) {
+      errors.push({
+        severity: 'error',
+        code: 'skill-file-read-failed',
+        message: `Failed to read SKILL.md at ${skillFilePath}: ${error instanceof Error ? error.message : String(error)}.`,
+        path: skillFilePath
+      });
+    }
+
     return undefined;
   }
 
@@ -361,7 +508,9 @@ async function listFiles(rootPath: string): Promise<string[]> {
   const files: string[] = [];
 
   async function visit(currentPath: string): Promise<void> {
-    const entries = await fs.readdir(currentPath, {withFileTypes: true});
+    const entries = (await fs.readdir(currentPath, {withFileTypes: true})).sort((left, right) =>
+      left.name.localeCompare(right.name)
+    );
 
     for (const entry of entries) {
       const childPath = path.join(currentPath, entry.name);
@@ -379,6 +528,36 @@ async function listFiles(rootPath: string): Promise<string[]> {
 
   await visit(rootPath);
   return files;
+}
+
+async function findSkillFiles(rootPath: string): Promise<string[]> {
+  const skillFilePaths: string[] = [];
+
+  async function visit(currentPath: string): Promise<void> {
+    const entries = (await fs.readdir(currentPath, {withFileTypes: true})).sort((left, right) =>
+      left.name.localeCompare(right.name)
+    );
+
+    for (const entry of entries) {
+      if (entry.name === '.git' || entry.name === 'node_modules') {
+        continue;
+      }
+
+      const childPath = path.join(currentPath, entry.name);
+
+      if (entry.isDirectory()) {
+        await visit(childPath);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name === 'SKILL.md') {
+        skillFilePaths.push(childPath);
+      }
+    }
+  }
+
+  await visit(rootPath);
+  return skillFilePaths;
 }
 
 async function directoryExists(candidatePath: string): Promise<boolean> {

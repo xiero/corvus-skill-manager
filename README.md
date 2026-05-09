@@ -46,7 +46,15 @@ Discovery is read-only. It does not modify `registry.json`, rewrite frontmatter,
 
 The Configure Agents screen lists Codex, Claude, Copilot CLI, OpenCode, Pi Agent, Custom, and Gemini. Gemini is shown as deferred for the MVP and no `.toml` wrappers are generated.
 
-Supported agents can be enabled, assigned a target path, and configured with selected discovered skills. Planning is dry-run only: the app generates create-link and remove-link operations plus warnings/conflicts, but it does not create target directories, create symlinks, remove links, or modify agent folders.
+Supported agents can be enabled, assigned a target path, and configured with selected discovered skills. The app generates create-link and remove-link operations plus warnings/conflicts before anything is applied.
+
+Apply requires explicit confirmation. Confirmed apply can create manager-owned symlinks or Windows junctions, remove only manager-owned links, and write its manifest under:
+
+```text
+~/.agents/corvus-skill-manager/manifest.json
+```
+
+The apply engine refuses to overwrite unmanaged files, unmanaged directories, unmanaged symlinks, or links whose manifest ownership/source does not match the requested operation. It does not write inside the skillpack checkout, execute scripts, generate Gemini wrappers, or use copy fallback.
 
 ## Development
 

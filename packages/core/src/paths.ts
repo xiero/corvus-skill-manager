@@ -4,6 +4,7 @@ import path from 'node:path';
 export const managerStateDirSegments = ['.agents', 'corvus-skill-manager'] as const;
 export const configFileName = 'config.json';
 export const lockFileName = 'lock.json';
+export const manifestFileName = 'manifest.json';
 
 export function expandTilde(inputPath: string, homeDir = os.homedir()): string {
   if (inputPath === '~') {
@@ -31,6 +32,10 @@ export function defaultConfigPath(homeDir = os.homedir()): string {
 
 export function defaultLockPath(homeDir = os.homedir()): string {
   return path.join(defaultManagerStateDir(homeDir), lockFileName);
+}
+
+export function defaultManifestPath(homeDir = os.homedir()): string {
+  return path.join(defaultManagerStateDir(homeDir), manifestFileName);
 }
 
 export function defaultSkillpackCheckoutPath(skillpackId: string, homeDir = os.homedir()): string {

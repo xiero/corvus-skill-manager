@@ -4,16 +4,26 @@ import {
   type AgentAdapter,
   type AgentConfig,
   type AgentId,
+  type ApplyLinkPlanResult,
   type DiscoveredSkill,
   type LinkPlan,
   type ManagerConfig,
+  applyLinkPlan,
   discoverSkillsFromCheckout,
   generateLinkPlan,
   getAgentAdapters,
   saveConfig
 } from '@corvus-skill-manager/core';
 
-type ConfigureMode = 'agents' | 'skills' | 'plan' | 'editing-target' | 'saving';
+type ConfigureMode =
+  | 'agents'
+  | 'skills'
+  | 'plan'
+  | 'confirm-apply'
+  | 'applying'
+  | 'apply-result'
+  | 'editing-target'
+  | 'saving';
 
 interface DraftAgentConfig {
   enabled: boolean;
@@ -46,6 +56,7 @@ export function ConfigureAgentsScreen({
   const [discoveryErrors, setDiscoveryErrors] = useState<string[]>([]);
   const [discoveryWarnings, setDiscoveryWarnings] = useState<string[]>([]);
   const [plan, setPlan] = useState<LinkPlan | undefined>();
+  const [applyResult, setApplyResult] = useState<ApplyLinkPlanResult | undefined>();
   const [message, setMessage] = useState<string | undefined>();
 
   const selectedAdapter = adapters[selectedAgentIndex] ?? adapters[0];
@@ -87,7 +98,7 @@ export function ConfigureAgentsScreen({
   }, [config.skillpack]);
 
   useInput((input, key) => {
-    if (mode === 'saving') {
+    if (mode === 'saving' || mode === 'applying') {
       return;
     }
 
@@ -126,6 +137,32 @@ export function ConfigureAgentsScreen({
     }
 
     if (mode === 'plan') {
+      if (input === 'a') {
+        setMode('confirm-apply');
+        return;
+      }
+
+      if (input === 'b' || input === 'e') {
+        setMode('agents');
+      }
+
+      return;
+    }
+
+    if (mode === 'confirm-apply') {
+      if (input === 'y') {
+        void applyCurrentPlan();
+        return;
+      }
+
+      if (input === 'n' || input === 'b' || input === 'e') {
+        setMode('plan');
+      }
+
+      return;
+    }
+
+    if (mode === 'apply-result') {
       if (input === 'b' || input === 'e') {
         setMode('agents');
       }
@@ -278,6 +315,34 @@ export function ConfigureAgentsScreen({
     }
   }
 
+  async function applyCurrentPlan(): Promise<void> {
+    const currentPlan = plan ?? createPlan();
+
+    if (config.skillpack === undefined) {
+      setMessage('Apply failed: skillpack is not configured.');
+      setMode('plan');
+      return;
+    }
+
+    setMode('applying');
+
+    try {
+      const result = await applyLinkPlan({
+        plan: currentPlan,
+        managerStateDir: config.managerStateDir,
+        skillpackCheckoutPath: config.skillpack.checkoutPath,
+        confirmReplaceBrokenManagedLinks: true
+      });
+
+      setApplyResult(result);
+      setMessage('Apply finished.');
+      setMode('apply-result');
+    } catch (error) {
+      setMessage(`Apply failed: ${error instanceof Error ? error.message : String(error)}`);
+      setMode('plan');
+    }
+  }
+
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
@@ -297,8 +362,10 @@ export function ConfigureAgentsScreen({
       ) : null}
 
       {mode === 'plan' ? <PlanView plan={plan ?? createPlan()} /> : null}
+      {mode === 'confirm-apply' ? <ConfirmApplyView plan={plan ?? createPlan()} /> : null}
+      {mode === 'apply-result' && applyResult !== undefined ? <ApplyResultView result={applyResult} /> : null}
 
-      {mode !== 'skills' && mode !== 'plan' ? (
+      {mode !== 'skills' && mode !== 'plan' && mode !== 'confirm-apply' && mode !== 'apply-result' ? (
         <AgentListView
           adapters={adapters}
           draftAgents={draftAgents}
@@ -424,11 +491,15 @@ function SkillSelectionView({
 }
 
 function PlanView({plan}: {plan: LinkPlan}): React.ReactElement {
+  const createCount = plan.operations.filter((operation) => operation.type === 'create-link').length;
+  const removeCount = plan.operations.filter((operation) => operation.type === 'remove-link').length;
+
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
         <Text bold>Apply Plan Preview</Text>
-        <Text dimColor>This is a dry-run plan. No links or directories are created.</Text>
+        <Text dimColor>Dry-run plan. Press a for an explicit apply confirmation.</Text>
+        <Text dimColor>Creates: {createCount}, removals: {removeCount}</Text>
       </Box>
       <Box flexDirection="column">
         <Text>Operations ({plan.operations.length})</Text>
@@ -441,6 +512,37 @@ function PlanView({plan}: {plan: LinkPlan}): React.ReactElement {
       </Box>
       <IssuePreview title="Conflicts" color="red" issues={plan.conflicts.map((conflict) => conflict.message)} />
       <IssuePreview title="Warnings" color="yellow" issues={plan.warnings.map((warning) => warning.message)} />
+    </Box>
+  );
+}
+
+function ConfirmApplyView({plan}: {plan: LinkPlan}): React.ReactElement {
+  const createCount = plan.operations.filter((operation) => operation.type === 'create-link').length;
+  const removeCount = plan.operations.filter((operation) => operation.type === 'remove-link').length;
+
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
+        <Text bold color="yellow">Confirm Apply</Text>
+        <Text>This will create/remove only manager-owned links from the plan.</Text>
+        <Text>Creates: {createCount}, removals: {removeCount}, conflicts: {plan.conflicts.length}</Text>
+        <Text color="yellow">Press y to apply, n to cancel.</Text>
+      </Box>
+      <PlanView plan={plan} />
+    </Box>
+  );
+}
+
+function ApplyResultView({result}: {result: ApplyLinkPlanResult}): React.ReactElement {
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
+        <Text bold>Apply Result</Text>
+        <Text>Manifest: {result.manifestPath}</Text>
+        <Text>Applied: {result.applied.length}, skipped: {result.skipped.length}</Text>
+      </Box>
+      <IssuePreview title="Applied" color="yellow" issues={result.applied.map((item) => item.message)} />
+      <IssuePreview title="Skipped" color="red" issues={result.skipped.map((item) => item.message)} />
     </Box>
   );
 }
@@ -479,7 +581,19 @@ function helpText(mode: ConfigureMode): string {
   }
 
   if (mode === 'plan') {
-    return 'Press b/e to edit, s to save config, h/q for Home.';
+    return 'Press a to apply with confirmation, b/e to edit, s to save config, h/q Home.';
+  }
+
+  if (mode === 'confirm-apply') {
+    return 'Press y to apply links, n to cancel, h/q for Home.';
+  }
+
+  if (mode === 'applying') {
+    return 'Applying confirmed link plan...';
+  }
+
+  if (mode === 'apply-result') {
+    return 'Press b/e to edit, h/q for Home.';
   }
 
   if (mode === 'saving') {

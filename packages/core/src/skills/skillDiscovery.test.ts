@@ -55,6 +55,58 @@ describe('skill discovery', () => {
     });
   });
 
+  it('discovers SKILL.md files in read-only fallback mode when registry.json is missing', async () => {
+    await writeSkill('commit-message-skill/commit-message', {
+      frontmatter: {
+        name: 'commit-message',
+        description: 'Draft commit messages.'
+      },
+      body: 'Use this skill to inspect staged changes.'
+    });
+    await writeSkill('grill-me', {
+      frontmatter: {
+        name: 'grill-me',
+        description: 'Stress-test a plan.'
+      },
+      body: 'Ask sharp questions.'
+    });
+
+    const result = await discoverSkillsFromCheckout(tempRoot);
+
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: 'missing-registry',
+        message: expect.stringContaining('fallback mode')
+      })
+    ]);
+    expect(result.skills.map((skill) => skill.id)).toEqual(['commit-message', 'grill-me']);
+    expect(result.skills[0]).toMatchObject({
+      title: 'commit-message',
+      description: 'Draft commit messages.',
+      supportedAgents: ['codex'],
+      tags: ['registryless'],
+      relativePath: path.join('commit-message-skill', 'commit-message')
+    });
+  });
+
+  it('reports an actionable error when registry.json and SKILL.md files are both missing', async () => {
+    const result = await discoverSkillsFromCheckout(tempRoot);
+
+    expect(result.skills).toEqual([]);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: 'missing-registry'
+      })
+    ]);
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: 'no-skill-files',
+        message: expect.stringContaining('No SKILL.md files')
+      })
+    ]);
+  });
+
   it('returns an actionable error for invalid registry shape', async () => {
     await fs.writeFile(path.join(tempRoot, 'registry.json'), JSON.stringify({skills: 'nope'}), 'utf8');
 

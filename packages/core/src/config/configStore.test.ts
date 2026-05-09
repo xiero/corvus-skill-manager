@@ -3,9 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {ZodError} from 'zod';
-import {defaultConfigPath, defaultManagerStateDir} from '../paths.js';
+import {defaultConfigPath, defaultManagerStateDir, defaultSkillpackCheckoutPath} from '../paths.js';
+import {defaultSkillpackBranch, defaultSkillpackId, defaultSkillpackRepositoryUrl} from '../skillpackDefaults.js';
 import {createDefaultManagerConfig, parseManagerConfig} from './configSchema.js';
-import {ensureDefaultConfig, loadConfig, saveConfig} from './configStore.js';
+import {ensureDefaultConfig, loadConfig, migrateLoadedConfig, saveConfig} from './configStore.js';
 
 let tempHome: string;
 
@@ -25,6 +26,7 @@ describe('config store', () => {
     });
 
     expect(result.created).toBe(true);
+    expect(result.migrated).toBe(false);
     expect(result.managerStateDir).toBe(defaultManagerStateDir(tempHome));
     expect(result.configPath).toBe(defaultConfigPath(tempHome));
     expect(result.config).toEqual({
@@ -48,6 +50,61 @@ describe('config store', () => {
     const loadedConfig = await loadConfig(configPath);
 
     expect(loadedConfig).toEqual(config);
+  });
+
+  it('migrates the legacy default skillpack checkout out of manager state', async () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const configPath = defaultConfigPath(tempHome);
+    const config = createDefaultManagerConfig({
+      managerStateDir,
+      now: new Date('2026-02-03T04:05:06.000Z')
+    });
+
+    await saveConfig(
+      {
+        ...config,
+        skillpack: {
+          id: defaultSkillpackId,
+          repositoryUrl: defaultSkillpackRepositoryUrl,
+          branch: defaultSkillpackBranch,
+          checkoutPath: path.join(managerStateDir, 'skills')
+        }
+      },
+      {configPath}
+    );
+
+    const result = await ensureDefaultConfig({
+      homeDir: tempHome,
+      now: new Date('2026-03-04T05:06:07.000Z')
+    });
+    const savedConfig = await loadConfig(configPath);
+
+    expect(result.created).toBe(false);
+    expect(result.migrated).toBe(true);
+    expect(result.config.skillpack?.checkoutPath).toBe(defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome));
+    expect(result.config.updatedAt).toBe('2026-03-04T05:06:07.000Z');
+    expect(savedConfig).toEqual(result.config);
+  });
+
+  it('does not migrate custom skillpack checkout paths', () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const config = createDefaultManagerConfig({
+      managerStateDir,
+      now: new Date('2026-02-03T04:05:06.000Z')
+    });
+
+    const migration = migrateLoadedConfig({
+      ...config,
+      skillpack: {
+        id: defaultSkillpackId,
+        repositoryUrl: 'https://example.test/custom.git',
+        branch: defaultSkillpackBranch,
+        checkoutPath: path.join(managerStateDir, 'skills')
+      }
+    });
+
+    expect(migration.migrated).toBe(false);
+    expect(migration.config.skillpack?.checkoutPath).toBe(path.join(managerStateDir, 'skills'));
   });
 
   it('rejects invalid existing config files', async () => {

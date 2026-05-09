@@ -74,15 +74,41 @@ export {
   generateLinkPlan
 } from './links/linkPlan.js';
 export {
+  type ApplyActionResult,
+  type ApplyActionStatus,
+  type ApplyLinkPlanOptions,
+  type ApplyLinkPlanResult,
+  applyLinkPlan
+} from './links/applyEngine.js';
+export {
+  type ManagedLinkManifestEntry,
+  type ManagedLinkType,
+  type ManagerManifest,
+  createEmptyManagerManifest,
+  managedLinkManifestEntrySchema,
+  managedLinkTypeSchema,
+  managerManifestSchema,
+  parseManagerManifest
+} from './manifest/manifestSchema.js';
+export {
+  type ManifestStoreOptions,
+  loadManifest,
+  loadManifestOrDefault,
+  resolveManifestPaths,
+  saveManifest
+} from './manifest/manifestStore.js';
+export {
   assertPathInside,
   configFileName,
   defaultConfigPath,
   defaultLockPath,
+  defaultManifestPath,
   defaultManagerStateDir,
   defaultSkillpackCheckoutPath,
   expandTilde,
   isPathInside,
   lockFileName,
+  manifestFileName,
   managerStateDirSegments,
   resolveUserPath
 } from './paths.js';

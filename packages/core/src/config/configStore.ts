@@ -5,8 +5,13 @@ import {
   configFileName,
   defaultConfigPath,
   defaultManagerStateDir,
+  defaultSkillpackCheckoutPath,
   resolveUserPath
 } from '../paths.js';
+import {
+  defaultSkillpackId,
+  defaultSkillpackRepositoryUrl
+} from '../skillpackDefaults.js';
 import {
   type ManagerConfig,
   createDefaultManagerConfig,
@@ -25,6 +30,12 @@ export interface ConfigLoadResult {
   configPath: string;
   managerStateDir: string;
   created: boolean;
+  migrated: boolean;
+}
+
+interface ConfigMigrationResult {
+  config: ManagerConfig;
+  migrated: boolean;
 }
 
 function resolveStorePaths(options: ConfigStoreOptions = {}): {
@@ -70,7 +81,23 @@ export async function ensureDefaultConfig(options: ConfigStoreOptions = {}): Pro
 
   try {
     const config = await loadConfig(configPath);
-    return {config, configPath, managerStateDir, created: false};
+    const migrationOptions: Pick<ConfigStoreOptions, 'homeDir' | 'now'> = {};
+
+    if (options.homeDir !== undefined) {
+      migrationOptions.homeDir = options.homeDir;
+    }
+
+    if (options.now !== undefined) {
+      migrationOptions.now = options.now;
+    }
+
+    const migration = migrateLoadedConfig(config, migrationOptions);
+
+    if (migration.migrated) {
+      await saveConfig(migration.config, {configPath});
+    }
+
+    return {config: migration.config, configPath, managerStateDir, created: false, migrated: migration.migrated};
   } catch (error) {
     if (!isMissingFileError(error)) {
       throw error;
@@ -81,7 +108,38 @@ export async function ensureDefaultConfig(options: ConfigStoreOptions = {}): Pro
     options.now === undefined ? {managerStateDir} : {managerStateDir, now: options.now}
   );
   await saveConfig(config, {configPath});
-  return {config, configPath, managerStateDir, created: true};
+  return {config, configPath, managerStateDir, created: true, migrated: false};
+}
+
+export function migrateLoadedConfig(
+  config: ManagerConfig,
+  options: Pick<ConfigStoreOptions, 'homeDir' | 'now'> = {}
+): ConfigMigrationResult {
+  if (config.skillpack === undefined) {
+    return {config, migrated: false};
+  }
+
+  const legacyCheckoutPath = path.join(resolveUserPath(config.managerStateDir, options.homeDir), 'skills');
+  const configuredCheckoutPath = resolveUserPath(config.skillpack.checkoutPath, options.homeDir);
+  const shouldMigrateLegacyDefaultSkillpack =
+    config.skillpack.id === defaultSkillpackId &&
+    config.skillpack.repositoryUrl === defaultSkillpackRepositoryUrl &&
+    configuredCheckoutPath === legacyCheckoutPath;
+
+  if (!shouldMigrateLegacyDefaultSkillpack) {
+    return {config, migrated: false};
+  }
+
+  const nextConfig: ManagerConfig = {
+    ...config,
+    updatedAt: (options.now ?? new Date()).toISOString(),
+    skillpack: {
+      ...config.skillpack,
+      checkoutPath: defaultSkillpackCheckoutPath(config.skillpack.id, options.homeDir)
+    }
+  };
+
+  return {config: nextConfig, migrated: true};
 }
 
 function isMissingFileError(error: unknown): boolean {
