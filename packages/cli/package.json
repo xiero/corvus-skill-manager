@@ -1,9 +1,9 @@
 {
-  "name": "@corvus/skill-manager",
+  "name": "@corvus-tools/skill-manager",
   "version": "0.1.0",
   "private": false,
   "type": "module",
-  "description": "Run the Corvus Skill Manager Ink TUI with npx @corvus/skill-manager.",
+  "description": "Run the Corvus Skill Manager Ink TUI with npx @corvus-tools/skill-manager.",
   "license": "MIT",
   "main": "./dist/index.js",
   "bin": {
@@ -28,7 +28,7 @@
     "dev": "tsx --conditions development src/index.ts"
   },
   "dependencies": {
-    "@corvus/skill-manager-tui": "workspace:^",
+    "@corvus-tools/skill-manager-tui": "workspace:^",
     "ink": "^5.1.0",
     "react": "^18.3.1"
   }

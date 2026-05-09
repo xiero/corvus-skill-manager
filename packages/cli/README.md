@@ -1,15 +1,15 @@
-# @corvus/skill-manager
+# @corvus-tools/skill-manager
 
 Run Corvus Skill Manager from npm:
 
 ```bash
-npx @corvus/skill-manager
+npx @corvus-tools/skill-manager
 ```
 
 Or install globally:
 
 ```bash
-npm install -g @corvus/skill-manager
+npm install -g @corvus-tools/skill-manager
 corvus-skills
 ```
 

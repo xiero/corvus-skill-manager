@@ -1,5 +1,5 @@
 {
-  "name": "@corvus/skill-manager-core",
+  "name": "@corvus-tools/skill-manager-core",
   "version": "0.1.0",
   "private": false,
   "type": "module",

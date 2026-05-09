@@ -32,7 +32,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@corvus/skill-manager-tui':
+      '@corvus-tools/skill-manager-tui':
         specifier: workspace:^
         version: link:../tui
       ink:
@@ -56,7 +56,7 @@ importers:
 
   packages/tui:
     dependencies:
-      '@corvus/skill-manager-core':
+      '@corvus-tools/skill-manager-core':
         specifier: workspace:^
         version: link:../core
       ink:

@@ -1,5 +1,5 @@
 {
-  "name": "@corvus/skill-manager-tui",
+  "name": "@corvus-tools/skill-manager-tui",
   "version": "0.1.0",
   "private": false,
   "type": "module",
@@ -30,7 +30,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@corvus/skill-manager-core": "workspace:^",
+    "@corvus-tools/skill-manager-core": "workspace:^",
     "ink": "^5.1.0",
     "react": "^18.3.1"
   },

@@ -13,7 +13,7 @@ import {
   generateLinkPlan,
   getAgentAdapters,
   saveConfig
-} from '@corvus/skill-manager-core';
+} from '@corvus-tools/skill-manager-core';
 
 type ConfigureMode =
   | 'agents'

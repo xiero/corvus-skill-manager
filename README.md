@@ -27,18 +27,18 @@ The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Comm
 After the packages are published to npm, anyone can start the TUI with:
 
 ```bash
-npx @corvus/skill-manager
+npx @corvus-tools/skill-manager
 ```
 
 For a global install:
 
 ```bash
-npm install -g @corvus/skill-manager
+npm install -g @corvus-tools/skill-manager
 corvus-skills
 ```
 
-The npm package exposing the runnable binary is `@corvus/skill-manager`.
-Its single bin is `corvus-skills`, so `npx @corvus/skill-manager` starts the TUI directly.
+The npm package exposing the runnable binary is `@corvus-tools/skill-manager`.
+Its single bin is `corvus-skills`, so `npx @corvus-tools/skill-manager` starts the TUI directly.
 
 ## Local Development
 
@@ -51,10 +51,10 @@ pnpm dev
 For local binary testing after build:
 
 ```bash
-pnpm --filter @corvus/skill-manager exec corvus-skills
+pnpm --filter @corvus-tools/skill-manager exec corvus-skills
 ```
 
-The package exposing the binary is `@corvus/skill-manager`:
+The package exposing the binary is `@corvus-tools/skill-manager`:
 
 ```json
 {
@@ -68,15 +68,15 @@ The package exposing the binary is `@corvus/skill-manager`:
 
 This repo publishes three public npm packages:
 
-1. `@corvus/skill-manager-core`
-2. `@corvus/skill-manager-tui`
-3. `@corvus/skill-manager`
+1. `@corvus-tools/skill-manager-core`
+2. `@corvus-tools/skill-manager-tui`
+3. `@corvus-tools/skill-manager`
 
 Publish them in that order after a clean build/typecheck/test run. The CLI package depends on the TUI package, and the TUI package depends on the core package.
 
 ## First-Run Flow
 
-1. Start the TUI with `npx @corvus/skill-manager`, `pnpm dev`, or `corvus-skills`.
+1. Start the TUI with `npx @corvus-tools/skill-manager`, `pnpm dev`, or `corvus-skills`.
 2. Open **Setup Skillpack**.
 3. Preview setup, then confirm only if the checkout is missing and you want the initial clone.
 4. Open **Configure Agents**.
