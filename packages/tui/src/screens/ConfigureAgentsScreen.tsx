@@ -13,7 +13,7 @@ import {
   generateLinkPlan,
   getAgentAdapters,
   saveConfig
-} from '@corvus-skill-manager/core';
+} from '@corvus/skill-manager-core';
 
 type ConfigureMode =
   | 'agents'
@@ -70,7 +70,7 @@ export function ConfigureAgentsScreen({
   useEffect(() => {
     if (config.skillpack === undefined) {
       setSkills([]);
-      setDiscoveryErrors(['Skillpack is not configured.']);
+      setDiscoveryErrors(['Skillpack is not configured. Use Setup Skillpack first, then return here to select skills.']);
       return;
     }
 
@@ -347,7 +347,7 @@ export function ConfigureAgentsScreen({
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
         <Text bold>Configure Agents</Text>
-        <Text dimColor>No links are created here. This screen only saves config and previews a plan.</Text>
+        <Text dimColor>Select agents and skills here. Links are created only after plan confirmation.</Text>
         {message === undefined ? null : <Text color="cyan">{message}</Text>}
       </Box>
 
@@ -431,6 +431,9 @@ function AgentListView({
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
+        {adapters.every((adapter) => !draftAgents[adapter.id].enabled) ? (
+          <Text color="yellow">No agents enabled. Press Space on a supported agent to enable it.</Text>
+        ) : null}
         {adapters.map((adapter, index) => {
           const draft = draftAgents[adapter.id];
           const selected = index === selectedAgentIndex;
@@ -444,9 +447,13 @@ function AgentListView({
             <Text key={adapter.id} color="cyan">
               {line}
               {editingTarget ? ' [editing]' : ''}
+              {adapter.supportStatus === 'deferred' ? ' - unsupported in MVP' : ''}
             </Text>
           ) : (
-            <Text key={adapter.id}>{line}</Text>
+            <Text key={adapter.id}>
+              {line}
+              {adapter.supportStatus === 'deferred' ? ' - unsupported in MVP' : ''}
+            </Text>
           );
         })}
       </Box>
@@ -474,6 +481,9 @@ function SkillSelectionView({
     <Box flexDirection="column" gap={1}>
       <Text bold>{adapter.displayName} Skills</Text>
       {skills.length === 0 ? <Text color="yellow">No valid skills discovered yet.</Text> : null}
+      {skills.length > 0 && selectedSkillIds.size === 0 ? (
+        <Text color="yellow">No skills selected. Press Space to select at least one skill before saving/applying.</Text>
+      ) : null}
       {skills.map((skill, index) => {
         const selected = index === selectedSkillIndex;
         const enabled = selectedSkillIds.has(skill.id) ? '[x]' : '[ ]';
@@ -500,6 +510,9 @@ function PlanView({plan}: {plan: LinkPlan}): React.ReactElement {
         <Text bold>Apply Plan Preview</Text>
         <Text dimColor>Dry-run plan. Press a for an explicit apply confirmation.</Text>
         <Text dimColor>Creates: {createCount}, removals: {removeCount}</Text>
+        {plan.operations.length === 0 ? (
+          <Text color="yellow">Nothing to apply. Enable an agent and select skills, or review conflicts/warnings.</Text>
+        ) : null}
       </Box>
       <Box flexDirection="column">
         <Text>Operations ({plan.operations.length})</Text>

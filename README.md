@@ -1,76 +1,177 @@
 # Corvus Skill Manager
 
-Corvus Skill Manager is a TUI-first installer and configurator for wiring skillpacks into supported coding agents.
+Corvus Skill Manager is a TUI-first manager for wiring local skillpacks into supported coding agents. It helps you configure one skillpack checkout, discover skills, select which agents should receive which skills, preview a link plan, and apply only confirmed manager-owned links.
 
-## Current Slice
+The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Command workflows such as `corvus-skills update` or `corvus-skills install` are not part of the MVP.
 
-This project currently provides the TypeScript pnpm workspace, a thin `corvus-skills` CLI entrypoint, an Ink TUI shell, manager config creation, initial skillpack setup, and read-only skill discovery.
+## What It Does
 
-```text
-~/.agents/corvus-skill-manager/config.json
+- Creates and loads manager state under `~/.agents/corvus-skill-manager`.
+- Configures a skillpack source and performs the initial clone only when the checkout is absent.
+- Discovers skills from `registry.json`, or from `SKILL.md` files in read-only fallback mode when a registry is missing.
+- Lets you enable supported agents and select skills per agent.
+- Generates a deterministic dry-run link plan.
+- Applies confirmed plans by creating/removing manager-owned symlinks or Windows junctions.
+- Shows read-only Status, Doctor, and Help views.
+
+## What It Does Not Do
+
+- It does not pull, update, reset, repair, format, commit, push, or edit the skillpack checkout after the initial clone.
+- It does not overwrite unmanaged files, directories, or symlinks.
+- It does not execute skill scripts or install dependencies inside the skillpack.
+- It does not generate Gemini `.toml` wrappers in the MVP.
+- It does not provide marketplace, cloud, auth, Express, backend, or copy-fallback behavior.
+
+## Run From npm
+
+After the packages are published to npm, anyone can start the TUI with:
+
+```bash
+npx @corvus/skill-manager
 ```
 
-The CLI does not implement command workflows. It only launches the TUI.
+For a global install:
 
-Agent linking, skill execution, and Gemini support are deferred.
+```bash
+npm install -g @corvus/skill-manager
+corvus-skills
+```
 
-## Skillpack Setup
+The npm package exposing the runnable binary is `@corvus/skill-manager`.
+Its single bin is `corvus-skills`, so `npx @corvus/skill-manager` starts the TUI directly.
 
-The TUI can configure a skillpack id, Git repository URL, branch, and checkout path. The default checkout path is:
+## Local Development
+
+```bash
+pnpm install
+pnpm build
+pnpm dev
+```
+
+For local binary testing after build:
+
+```bash
+pnpm --filter @corvus/skill-manager exec corvus-skills
+```
+
+The package exposing the binary is `@corvus/skill-manager`:
+
+```json
+{
+  "bin": {
+    "corvus-skills": "./dist/index.js"
+  }
+}
+```
+
+## Publishing
+
+This repo publishes three public npm packages:
+
+1. `@corvus/skill-manager-core`
+2. `@corvus/skill-manager-tui`
+3. `@corvus/skill-manager`
+
+Publish them in that order after a clean build/typecheck/test run. The CLI package depends on the TUI package, and the TUI package depends on the core package.
+
+## First-Run Flow
+
+1. Start the TUI with `npx @corvus/skill-manager`, `pnpm dev`, or `corvus-skills`.
+2. Open **Setup Skillpack**.
+3. Preview setup, then confirm only if the checkout is missing and you want the initial clone.
+4. Open **Configure Agents**.
+5. Enable one or more supported agents with Space.
+6. Press Enter on an enabled agent, then select skills with Space.
+7. Press `b`, then `s` to save config.
+8. Review the dry-run plan.
+9. Press `a`, then `y` to apply after explicit confirmation.
+
+If no skills are selected, the plan has no create-link operations and no links are created. Open **Help** in the TUI for the same workflow and common no-op cases.
+
+## Supported Agents
+
+| Agent | MVP status | Default target path |
+| --- | --- | --- |
+| OpenAI Codex CLI | Supported | `~/.agents/skills` |
+| Claude Code | Supported | `~/.claude/skills` |
+| GitHub Copilot CLI | Supported | `~/.copilot/skills` |
+| OpenCode | Supported | `~/.config/opencode/skills` |
+| Pi Agent | Supported | `~/.pi/agent/skills` |
+| Custom | Custom target required | user-provided |
+| Gemini CLI | Deferred | unsupported in MVP |
+
+Gemini remains visible so the MVP can explain its status, but Gemini wrapper generation is intentionally deferred.
+
+## State Files
+
+All manager-owned metadata lives under:
+
+```text
+~/.agents/corvus-skill-manager
+```
+
+The main files are:
+
+- `config.json`: manager config, skillpack source, agent selections
+- `lock.json`: recorded skillpack commit and branch after setup/inspection
+- `manifest.json`: manager-owned link records
+
+Default skillpack checkout path:
 
 ```text
 ~/.agents/skillpacks/<skillpack-id>/repo
 ```
 
-Setup only clones when that checkout path does not exist. Existing checkouts are inspected for commit and dirty state without pull, update, repair, reset, or writes inside the checkout. Lock metadata is written under:
-
-The default skillpack source is displayed as `corvus-skillpack` in the TUI and resolves to:
+Default skillpack source:
 
 ```text
 https://github.com/xiero/skill-collection.git
 ```
 
-```text
-~/.agents/corvus-skill-manager/lock.json
-```
+The TUI displays that source as `corvus-skillpack`.
 
-Agent linking, skill execution, and Gemini support are deferred.
+## Read-Only Skillpack Guarantee
 
-## Skill Discovery
+Initial clone is the only allowed write involving the skillpack path, and only when the checkout does not exist. After clone, the manager treats the checkout as read-only.
 
-The Status screen reads `registry.json` and each referenced `SKILL.md` from the configured local checkout. Discovery validates registry entries, rejects unsafe paths, reports missing skill files, parses minimal frontmatter, and shows non-blocking risk warnings such as `scripts/` directories or executable-looking files.
+Status, Doctor, discovery, planning, and apply do not write inside the skillpack checkout. Apply only writes manager metadata under `~/.agents/corvus-skill-manager` and confirmed manager-owned links inside configured agent target directories.
 
-Discovery is read-only. It does not modify `registry.json`, rewrite frontmatter, execute scripts, install dependencies, or create links.
+## Troubleshooting
 
-## Agent Configuration And Link Planning
+**No links were created**
 
-The Configure Agents screen lists Codex, Claude, Copilot CLI, OpenCode, Pi Agent, Custom, and Gemini. Gemini is shown as deferred for the MVP and no `.toml` wrappers are generated.
+Open Configure Agents, enable an agent, press Enter on that agent, select at least one skill with Space, save with `s`, then review/apply the plan.
 
-Supported agents can be enabled, assigned a target path, and configured with selected discovered skills. The app generates create-link and remove-link operations plus warnings/conflicts before anything is applied.
+**The plan shows conflicts**
 
-Apply requires explicit confirmation. Confirmed apply can create manager-owned symlinks or Windows junctions, remove only manager-owned links, and write its manifest under:
+The target path already contains an unmanaged file, directory, or symlink. The manager will not overwrite it. Move it manually or choose a different target path.
 
-```text
-~/.agents/corvus-skill-manager/manifest.json
-```
+**Missing `registry.json`**
 
-The apply engine refuses to overwrite unmanaged files, unmanaged directories, unmanaged symlinks, or links whose manifest ownership/source does not match the requested operation. It does not write inside the skillpack checkout, execute scripts, generate Gemini wrappers, or use copy fallback.
+The manager falls back to read-only `SKILL.md` discovery. Doctor reports this as a warning because registry-backed discovery is preferred.
 
-## Status and Doctor
+**Gemini is unsupported**
 
-Status and Doctor are read-only views. They inspect manager config, lock state, managed-link manifest, the local skillpack checkout, discovered skills, configured agents, and managed links without repairing or modifying anything.
+Gemini `.toml` wrapper generation is deferred for MVP. Do not expect Gemini link operations.
 
-Status summarizes the configured skillpack, recorded/current commits, dirty state, enabled agents, selected skills, and managed link count. Doctor reports actionable issues such as missing or invalid config, checkout problems, registry/SKILL.md validation failures, dirty checkouts, broken managed links, manifest mismatches, unmanaged target conflicts, and deferred agents.
+**Dirty checkout**
 
-## Help
+Doctor reports dirty skillpack checkouts, but will not reset or repair them. Review the checkout manually.
 
-The TUI Help screen documents the expected workflow: setup the skillpack, enable agents, enter skill selection, select skills, save config, review the dry-run plan, and explicitly confirm apply. It also calls out common no-op cases, especially that enabled agents with no selected skills produce no link operations.
+## Docs
+
+- [Skillpack Contract](docs/skillpack-contract.md)
+- [Managed Manifest Behavior](docs/managed-manifest.md)
+- [Safety Model](docs/safety-model.md)
+- [npm Publishing](docs/npm-publishing.md)
 
 ## Development
 
 ```bash
 pnpm install
-pnpm dev
+pnpm build
 pnpm typecheck
 pnpm test
 ```
+
+CI runs the same install, build, typecheck, and test path.

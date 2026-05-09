@@ -1,8 +1,22 @@
 {
-  "name": "@corvus-skill-manager/core",
+  "name": "@corvus/skill-manager-core",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
+  "description": "Core config, discovery, planning, apply, status, and doctor logic for Corvus Skill Manager.",
+  "license": "MIT",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts.map"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "exports": {
     ".": {
       "development": "./src/index.ts",

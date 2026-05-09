@@ -1,8 +1,22 @@
 {
-  "name": "@corvus-skill-manager/tui",
+  "name": "@corvus/skill-manager-tui",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
+  "description": "Ink TUI for Corvus Skill Manager.",
+  "license": "MIT",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts.map"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -16,7 +30,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@corvus-skill-manager/core": "workspace:*",
+    "@corvus/skill-manager-core": "workspace:^",
     "ink": "^5.1.0",
     "react": "^18.3.1"
   },

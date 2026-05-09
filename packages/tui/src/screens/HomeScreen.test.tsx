@@ -11,10 +11,10 @@ describe('HomeScreen', () => {
         configStatus="created"
         selectedIndex={0}
         menuItems={[
-          {label: 'Setup Skillpack', hint: '(deferred)'},
-          {label: 'Configure Agents', hint: '(settings placeholder)'},
-          {label: 'Status', hint: '(placeholder)'},
-          {label: 'Doctor', hint: '(placeholder)'},
+          {label: 'Setup Skillpack', hint: ''},
+          {label: 'Configure Agents', hint: '(plan links)'},
+          {label: 'Status', hint: '(read-only report)'},
+          {label: 'Doctor', hint: '(read-only checks)'},
           {label: 'Help', hint: '(workflow guide)'},
           {label: 'Exit', hint: ''}
         ]}

@@ -5,7 +5,7 @@ import {
   type ManagerConfig,
   defaultConfigPath,
   ensureDefaultConfig
-} from '@corvus-skill-manager/core';
+} from '@corvus/skill-manager-core';
 import {
   type ConfigStatus,
   type HomeMenuItem,

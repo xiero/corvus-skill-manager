@@ -1,4 +1,5 @@
 export {App, type AppProps} from './App.js';
+export {ErrorBoundary, type ErrorBoundaryProps} from './ErrorBoundary.js';
 export {
   type ConfigStatus,
   type HomeMenuItem,

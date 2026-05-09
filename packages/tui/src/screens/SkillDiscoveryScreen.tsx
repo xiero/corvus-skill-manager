@@ -4,7 +4,7 @@ import {
   type ManagerConfig,
   type SkillDiscoveryResult,
   discoverSkillsFromCheckout
-} from '@corvus-skill-manager/core';
+} from '@corvus/skill-manager-core';
 
 type DiscoveryState =
   | {status: 'not-configured'}

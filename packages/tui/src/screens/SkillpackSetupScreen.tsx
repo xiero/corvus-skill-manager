@@ -14,7 +14,7 @@ import {
   inspectSkillpackCheckout,
   parseSkillpackConfig,
   saveConfig
-} from '@corvus-skill-manager/core';
+} from '@corvus/skill-manager-core';
 
 type FormField = 'id' | 'repositoryUrl' | 'branch' | 'checkoutPath';
 type SetupMode = 'form' | 'preview' | 'running' | 'result';

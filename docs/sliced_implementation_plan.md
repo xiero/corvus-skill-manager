@@ -47,7 +47,7 @@ Excluded:
 
 1. **TUI Shell + Config**
    - Create pnpm TypeScript workspace with `core`, `tui`, and thin `cli` package.
-   - Build Ink app with Welcome, Settings, Status placeholder, and navigation.
+   - Build Ink app with Welcome, early Status/Doctor views, and navigation.
    - Implement Zod config schema, default paths, load/save under `~/.agents/corvus-skill-manager`.
    - Acceptance: `pnpm dev` opens TUI; first run creates valid manager config; tests cover config defaults/load/save.
 

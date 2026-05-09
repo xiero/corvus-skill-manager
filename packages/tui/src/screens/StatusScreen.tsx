@@ -3,7 +3,7 @@ import {Box, Text, useInput} from 'ink';
 import {
   type StatusReport,
   buildStatusReport
-} from '@corvus-skill-manager/core';
+} from '@corvus/skill-manager-core';
 
 type StatusScreenState =
   | {status: 'loading'}

@@ -4,7 +4,7 @@ import {
   type DoctorIssue,
   type DoctorReport,
   buildDoctorReport
-} from '@corvus-skill-manager/core';
+} from '@corvus/skill-manager-core';
 
 type DoctorScreenState =
   | {status: 'loading'}
