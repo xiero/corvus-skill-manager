@@ -98,6 +98,16 @@ export {
   saveManifest
 } from './manifest/manifestStore.js';
 export {
+  type DoctorIssue,
+  type DoctorIssueSeverity,
+  type DoctorReport,
+  type StatusReport,
+  type StatusReportAgent,
+  type StatusReportSkillpack
+} from './reports/reportTypes.js';
+export {type BuildStatusReportOptions, buildStatusReport} from './reports/statusReport.js';
+export {type BuildDoctorReportOptions, buildDoctorReport} from './reports/doctorReport.js';
+export {
   assertPathInside,
   configFileName,
   defaultConfigPath,

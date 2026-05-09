@@ -12,11 +12,13 @@ import {
   HomeScreen
 } from './screens/HomeScreen.js';
 import {ConfigureAgentsScreen} from './screens/ConfigureAgentsScreen.js';
+import {DoctorScreen} from './screens/DoctorScreen.js';
+import {HelpScreen} from './screens/HelpScreen.js';
 import {PlaceholderScreen} from './screens/PlaceholderScreen.js';
-import {SkillDiscoveryScreen} from './screens/SkillDiscoveryScreen.js';
 import {SkillpackSetupScreen} from './screens/SkillpackSetupScreen.js';
+import {StatusScreen} from './screens/StatusScreen.js';
 
-type View = 'home' | 'setup' | 'settings' | 'status' | 'doctor';
+type View = 'home' | 'setup' | 'settings' | 'status' | 'doctor' | 'help';
 
 interface MenuItem extends HomeMenuItem {
   action: View | 'exit';
@@ -37,8 +39,9 @@ export interface AppProps {
 const menuItems: MenuItem[] = [
   {label: 'Setup Skillpack', hint: '', action: 'setup'},
   {label: 'Configure Agents', hint: '(plan links)', action: 'settings'},
-  {label: 'Status', hint: '(discover skills)', action: 'status'},
-  {label: 'Doctor', hint: '(placeholder)', action: 'doctor'},
+  {label: 'Status', hint: '(read-only report)', action: 'status'},
+  {label: 'Doctor', hint: '(read-only checks)', action: 'doctor'},
+  {label: 'Help', hint: '(workflow guide)', action: 'help'},
   {label: 'Exit', hint: '', action: 'exit'}
 ];
 
@@ -96,7 +99,9 @@ export function App({
     if (
       (view === 'setup' && configState.config !== undefined) ||
       (view === 'settings' && configState.config !== undefined) ||
-      view === 'status'
+      view === 'status' ||
+      view === 'doctor' ||
+      view === 'help'
     ) {
       return;
     }
@@ -201,22 +206,33 @@ export function App({
   }
 
   if (view === 'status') {
-    const onBack = (): void => {
-      setView('home');
-    };
-
-    return configState.config === undefined ? (
-      <SkillDiscoveryScreen onBack={onBack} />
-    ) : (
-      <SkillDiscoveryScreen config={configState.config} onBack={onBack} />
+    return (
+      <StatusScreen
+        configPath={configState.configPath}
+        onBack={() => {
+          setView('home');
+        }}
+      />
     );
   }
 
   if (view === 'doctor') {
     return (
-      <PlaceholderScreen
-        title="Doctor"
-        body="Doctor checks will report configuration and filesystem health without modifying anything."
+      <DoctorScreen
+        configPath={configState.configPath}
+        onBack={() => {
+          setView('home');
+        }}
+      />
+    );
+  }
+
+  if (view === 'help') {
+    return (
+      <HelpScreen
+        onBack={() => {
+          setView('home');
+        }}
       />
     );
   }

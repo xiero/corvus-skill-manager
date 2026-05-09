@@ -15,6 +15,7 @@ describe('HomeScreen', () => {
           {label: 'Configure Agents', hint: '(settings placeholder)'},
           {label: 'Status', hint: '(placeholder)'},
           {label: 'Doctor', hint: '(placeholder)'},
+          {label: 'Help', hint: '(workflow guide)'},
           {label: 'Exit', hint: ''}
         ]}
       />
@@ -29,6 +30,7 @@ describe('HomeScreen', () => {
     expect(text).toContain('Configure Agents');
     expect(text).toContain('Status');
     expect(text).toContain('Doctor');
+    expect(text).toContain('Help');
     expect(text).toContain('Exit');
   });
 });

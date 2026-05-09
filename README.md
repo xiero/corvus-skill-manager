@@ -56,6 +56,16 @@ Apply requires explicit confirmation. Confirmed apply can create manager-owned s
 
 The apply engine refuses to overwrite unmanaged files, unmanaged directories, unmanaged symlinks, or links whose manifest ownership/source does not match the requested operation. It does not write inside the skillpack checkout, execute scripts, generate Gemini wrappers, or use copy fallback.
 
+## Status and Doctor
+
+Status and Doctor are read-only views. They inspect manager config, lock state, managed-link manifest, the local skillpack checkout, discovered skills, configured agents, and managed links without repairing or modifying anything.
+
+Status summarizes the configured skillpack, recorded/current commits, dirty state, enabled agents, selected skills, and managed link count. Doctor reports actionable issues such as missing or invalid config, checkout problems, registry/SKILL.md validation failures, dirty checkouts, broken managed links, manifest mismatches, unmanaged target conflicts, and deferred agents.
+
+## Help
+
+The TUI Help screen documents the expected workflow: setup the skillpack, enable agents, enter skill selection, select skills, save config, review the dry-run plan, and explicitly confirm apply. It also calls out common no-op cases, especially that enabled agents with no selected skills produce no link operations.
+
 ## Development
 
 ```bash
