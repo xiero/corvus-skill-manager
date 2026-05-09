@@ -68,3 +68,9 @@ export {
   managerStateDirSegments,
   resolveUserPath
 } from './paths.js';
+export {
+  defaultSkillpackBranch,
+  defaultSkillpackDisplayName,
+  defaultSkillpackId,
+  defaultSkillpackRepositoryUrl
+} from './skillpackDefaults.js';

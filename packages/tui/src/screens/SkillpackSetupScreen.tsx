@@ -6,7 +6,11 @@ import {
   type SkillpackInspection,
   type SkillpackSetupResult,
   applyInitialSkillpackSetup,
+  defaultSkillpackBranch,
   defaultSkillpackCheckoutPath,
+  defaultSkillpackDisplayName,
+  defaultSkillpackId,
+  defaultSkillpackRepositoryUrl,
   inspectSkillpackCheckout,
   parseSkillpackConfig,
   saveConfig
@@ -31,7 +35,7 @@ export interface SkillpackSetupScreenProps {
 
 const fields: Array<{key: FormField; label: string}> = [
   {key: 'id', label: 'Skillpack ID'},
-  {key: 'repositoryUrl', label: 'Git repository URL'},
+  {key: 'repositoryUrl', label: 'Git repository'},
   {key: 'branch', label: 'Branch'},
   {key: 'checkoutPath', label: 'Checkout path'}
 ];
@@ -242,8 +246,9 @@ export function SkillpackSetupScreen({
           const selected = mode === 'form' && selectedIndex === index;
           const editing = editingField === field.key;
           const value = form[field.key] === '' ? '(empty)' : form[field.key];
+          const displayValue = displayFieldValue(field.key, value, editing);
           const valueText =
-            form[field.key] === '' ? <Text color="yellow">{value}</Text> : <Text>{value}</Text>;
+            form[field.key] === '' ? <Text color="yellow">{displayValue}</Text> : <Text>{displayValue}</Text>;
           const fieldText = (
             <>
               {selected ? '>' : ' '} {field.label}: {editing ? '[' : ''}
@@ -280,14 +285,22 @@ export function SkillpackSetupScreen({
 }
 
 function createInitialForm(config: ManagerConfig): SkillpackFormState {
-  const id = config.skillpack?.id ?? 'corvus-skills';
+  const id = config.skillpack?.id ?? defaultSkillpackId;
 
   return {
     id,
-    repositoryUrl: config.skillpack?.repositoryUrl ?? '',
-    branch: config.skillpack?.branch ?? 'main',
+    repositoryUrl: config.skillpack?.repositoryUrl ?? defaultSkillpackRepositoryUrl,
+    branch: config.skillpack?.branch ?? defaultSkillpackBranch,
     checkoutPath: config.skillpack?.checkoutPath ?? defaultSkillpackCheckoutPath(id)
   };
+}
+
+function displayFieldValue(field: FormField, value: string, editing: boolean): string {
+  if (field === 'repositoryUrl' && value === defaultSkillpackRepositoryUrl && !editing) {
+    return defaultSkillpackDisplayName;
+  }
+
+  return value;
 }
 
 function Preview({inspection}: {inspection?: SkillpackInspection}): React.ReactElement {

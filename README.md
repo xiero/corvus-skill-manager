@@ -24,6 +24,12 @@ The TUI can configure a skillpack id, Git repository URL, branch, and checkout p
 
 Setup only clones when that checkout path does not exist. Existing checkouts are inspected for commit and dirty state without pull, update, repair, reset, or writes inside the checkout. Lock metadata is written under:
 
+The default skillpack source is displayed as `corvus-skillpack` in the TUI and resolves to:
+
+```text
+https://github.com/xiero/skill-collection.git
+```
+
 ```text
 ~/.agents/corvus-skill-manager/lock.json
 ```
