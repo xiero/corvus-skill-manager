@@ -3,6 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {
   defaultConfigPath,
   defaultManagerStateDir,
+  defaultSkillpackCheckoutPath,
   expandTilde,
   resolveUserPath
 } from './paths.js';
@@ -31,6 +32,12 @@ describe('paths', () => {
     );
     expect(resolveUserPath('~/.agents/corvus-skill-manager', '/tmp/example-home')).toBe(
       path.join('/tmp/example-home', '.agents', 'corvus-skill-manager')
+    );
+  });
+
+  it('resolves the default skillpack checkout path by skillpack id', () => {
+    expect(defaultSkillpackCheckoutPath('corvus-skills', '/tmp/example-home')).toBe(
+      path.join('/tmp/example-home', '.agents', 'skillpacks', 'corvus-skills', 'repo')
     );
   });
 });

@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {useApp, useInput} from 'ink';
 import {
   type ConfigLoadResult,
+  type ManagerConfig,
   defaultConfigPath,
   ensureDefaultConfig
 } from '@corvus-skill-manager/core';
@@ -11,6 +12,8 @@ import {
   HomeScreen
 } from './screens/HomeScreen.js';
 import {PlaceholderScreen} from './screens/PlaceholderScreen.js';
+import {SkillDiscoveryScreen} from './screens/SkillDiscoveryScreen.js';
+import {SkillpackSetupScreen} from './screens/SkillpackSetupScreen.js';
 
 type View = 'home' | 'setup' | 'settings' | 'status' | 'doctor';
 
@@ -21,6 +24,7 @@ interface MenuItem extends HomeMenuItem {
 interface ConfigState {
   configPath: string;
   status: ConfigStatus;
+  config?: ManagerConfig;
   errorMessage?: string;
 }
 
@@ -30,7 +34,7 @@ export interface AppProps {
 }
 
 const menuItems: MenuItem[] = [
-  {label: 'Setup Skillpack', hint: '(deferred)', action: 'setup'},
+  {label: 'Setup Skillpack', hint: '', action: 'setup'},
   {label: 'Configure Agents', hint: '(settings placeholder)', action: 'settings'},
   {label: 'Status', hint: '(placeholder)', action: 'status'},
   {label: 'Doctor', hint: '(placeholder)', action: 'doctor'},
@@ -66,7 +70,8 @@ export function App({
 
         setConfigState({
           configPath: result.configPath,
-          status: result.created ? 'created' : 'exists'
+          status: result.created ? 'created' : 'exists',
+          config: result.config
         });
       })
       .catch((error: unknown) => {
@@ -87,6 +92,10 @@ export function App({
   }, [initialConfigState, loadConfig]);
 
   useInput((input, key) => {
+    if ((view === 'setup' && configState.config !== undefined) || view === 'status') {
+      return;
+    }
+
     if (input === 'q') {
       exit();
       return;
@@ -131,10 +140,29 @@ export function App({
   );
 
   if (view === 'setup') {
+    if (configState.config === undefined) {
+      return (
+        <PlaceholderScreen
+          title="Setup Skillpack"
+          body="Manager config is still loading. Press h to return Home."
+        />
+      );
+    }
+
     return (
-      <PlaceholderScreen
-        title="Setup Skillpack"
-        body="Skillpack clone and registry discovery are deferred until the next slices."
+      <SkillpackSetupScreen
+        config={configState.config}
+        configPath={configState.configPath}
+        onBack={() => {
+          setView('home');
+        }}
+        onConfigSaved={(config) => {
+          setConfigState((currentState) => ({
+            ...currentState,
+            config,
+            status: 'exists'
+          }));
+        }}
       />
     );
   }
@@ -149,11 +177,14 @@ export function App({
   }
 
   if (view === 'status') {
-    return (
-      <PlaceholderScreen
-        title="Status"
-        body="Status will summarize config, skillpack, and managed links after setup slices are implemented."
-      />
+    const onBack = (): void => {
+      setView('home');
+    };
+
+    return configState.config === undefined ? (
+      <SkillDiscoveryScreen onBack={onBack} />
+    ) : (
+      <SkillDiscoveryScreen config={configState.config} onBack={onBack} />
     );
   }
 
