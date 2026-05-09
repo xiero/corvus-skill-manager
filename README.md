@@ -42,6 +42,12 @@ The Status screen reads `registry.json` and each referenced `SKILL.md` from the 
 
 Discovery is read-only. It does not modify `registry.json`, rewrite frontmatter, execute scripts, install dependencies, or create links.
 
+## Agent Configuration And Link Planning
+
+The Configure Agents screen lists Codex, Claude, Copilot CLI, OpenCode, Pi Agent, Custom, and Gemini. Gemini is shown as deferred for the MVP and no `.toml` wrappers are generated.
+
+Supported agents can be enabled, assigned a target path, and configured with selected discovered skills. Planning is dry-run only: the app generates create-link and remove-link operations plus warnings/conflicts, but it does not create target directories, create symlinks, remove links, or modify agent folders.
+
 ## Development
 
 ```bash

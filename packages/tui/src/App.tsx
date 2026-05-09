@@ -11,6 +11,7 @@ import {
   type HomeMenuItem,
   HomeScreen
 } from './screens/HomeScreen.js';
+import {ConfigureAgentsScreen} from './screens/ConfigureAgentsScreen.js';
 import {PlaceholderScreen} from './screens/PlaceholderScreen.js';
 import {SkillDiscoveryScreen} from './screens/SkillDiscoveryScreen.js';
 import {SkillpackSetupScreen} from './screens/SkillpackSetupScreen.js';
@@ -35,8 +36,8 @@ export interface AppProps {
 
 const menuItems: MenuItem[] = [
   {label: 'Setup Skillpack', hint: '', action: 'setup'},
-  {label: 'Configure Agents', hint: '(settings placeholder)', action: 'settings'},
-  {label: 'Status', hint: '(placeholder)', action: 'status'},
+  {label: 'Configure Agents', hint: '(plan links)', action: 'settings'},
+  {label: 'Status', hint: '(discover skills)', action: 'status'},
   {label: 'Doctor', hint: '(placeholder)', action: 'doctor'},
   {label: 'Exit', hint: '', action: 'exit'}
 ];
@@ -92,7 +93,11 @@ export function App({
   }, [initialConfigState, loadConfig]);
 
   useInput((input, key) => {
-    if ((view === 'setup' && configState.config !== undefined) || view === 'status') {
+    if (
+      (view === 'setup' && configState.config !== undefined) ||
+      (view === 'settings' && configState.config !== undefined) ||
+      view === 'status'
+    ) {
       return;
     }
 
@@ -168,10 +173,29 @@ export function App({
   }
 
   if (view === 'settings') {
+    if (configState.config === undefined) {
+      return (
+        <PlaceholderScreen
+          title="Configure Agents"
+          body="Manager config is still loading. Press h to return Home."
+        />
+      );
+    }
+
     return (
-      <PlaceholderScreen
-        title="Configure Agents"
-        body="Agent target configuration will appear here once link planning exists."
+      <ConfigureAgentsScreen
+        config={configState.config}
+        configPath={configState.configPath}
+        onBack={() => {
+          setView('home');
+        }}
+        onConfigSaved={(config) => {
+          setConfigState((currentState) => ({
+            ...currentState,
+            config,
+            status: 'exists'
+          }));
+        }}
       />
     );
   }

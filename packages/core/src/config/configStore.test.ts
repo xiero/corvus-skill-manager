@@ -4,7 +4,7 @@ import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {ZodError} from 'zod';
 import {defaultConfigPath, defaultManagerStateDir} from '../paths.js';
-import {createDefaultManagerConfig} from './configSchema.js';
+import {createDefaultManagerConfig, parseManagerConfig} from './configSchema.js';
 import {ensureDefaultConfig, loadConfig, saveConfig} from './configStore.js';
 
 let tempHome: string;
@@ -62,5 +62,61 @@ describe('config store', () => {
     );
 
     await expect(ensureDefaultConfig({homeDir: tempHome})).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it('allows agent config without a target path override', () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const config = createDefaultManagerConfig({
+      managerStateDir,
+      now: new Date('2026-02-03T04:05:06.000Z')
+    });
+
+    expect(
+      parseManagerConfig({
+        ...config,
+        agents: {
+          custom: {
+            enabled: false,
+            selectedSkillIds: []
+          },
+          gemini: {
+            enabled: false,
+            selectedSkillIds: []
+          }
+        }
+      })
+    ).toMatchObject({
+      agents: {
+        custom: {
+          enabled: false,
+          selectedSkillIds: []
+        },
+        gemini: {
+          enabled: false,
+          selectedSkillIds: []
+        }
+      }
+    });
+  });
+
+  it('rejects blank agent target path overrides', () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const config = createDefaultManagerConfig({
+      managerStateDir,
+      now: new Date('2026-02-03T04:05:06.000Z')
+    });
+
+    expect(() =>
+      parseManagerConfig({
+        ...config,
+        agents: {
+          custom: {
+            enabled: false,
+            targetPath: '',
+            selectedSkillIds: []
+          }
+        }
+      })
+    ).toThrow(ZodError);
   });
 });

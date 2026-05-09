@@ -7,6 +7,10 @@ export {
 } from './screens/HomeScreen.js';
 export {PlaceholderScreen, type PlaceholderScreenProps} from './screens/PlaceholderScreen.js';
 export {
+  ConfigureAgentsScreen,
+  type ConfigureAgentsScreenProps
+} from './screens/ConfigureAgentsScreen.js';
+export {
   DiscoveryResultView,
   SkillDiscoveryScreen,
   type SkillDiscoveryScreenProps

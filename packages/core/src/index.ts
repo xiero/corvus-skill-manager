@@ -6,14 +6,20 @@ export {
   saveConfig
 } from './config/configStore.js';
 export {
+  type AgentConfig,
+  type AgentIdConfig,
   type ManagerConfig,
   type SkillpackConfig,
+  agentConfigSchema,
+  agentIdSchema,
   createDefaultManagerConfig,
   managerConfigSchema,
   parseManagerConfig,
   parseSkillpackConfig,
   skillpackConfigSchema
 } from './config/configSchema.js';
+export {type AgentAdapter, type AgentId, type AgentSupportStatus} from './agents/AgentAdapter.js';
+export {agentAdapters, getAgentAdapter, getAgentAdapters} from './agents/adapters.js';
 export {
   type CheckoutStatus,
   type SkillpackInspection,
@@ -55,6 +61,18 @@ export {
   type SkillRiskWarning,
   discoverSkillsFromCheckout
 } from './skills/skillDiscovery.js';
+export {
+  type AgentLinkSelection,
+  type GenerateLinkPlanInput,
+  type LinkCreateOperation,
+  type LinkPlan,
+  type LinkPlanIssue,
+  type LinkPlanOperation,
+  type LinkPlanSkill,
+  type LinkRemoveOperation,
+  type TargetState,
+  generateLinkPlan
+} from './links/linkPlan.js';
 export {
   assertPathInside,
   configFileName,
