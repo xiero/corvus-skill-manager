@@ -47,7 +47,7 @@ pnpm --filter @corvus-tools/skill-manager-tui publish --access public
 pnpm --filter @corvus-tools/skill-manager publish --access public
 ```
 
-You must own or have publish access to the `@corvus` npm scope.
+You must own or have publish access to the `@corvus-tools` npm scope.
 
 ## Runtime Command
 
@@ -61,4 +61,11 @@ The package has a single binary:
 }
 ```
 
-Because it has one bin, `npx @corvus-tools/skill-manager` runs the TUI directly. Global installs can also use `corvus-skills`.
+Because it has one bin, `npx @corvus-tools/skill-manager` runs the TUI directly.
+
+Global installs can also use `corvus-skills`.
+
+```bash
+npm install -g @corvus-tools/skill-manager
+corvus-skills
+```
