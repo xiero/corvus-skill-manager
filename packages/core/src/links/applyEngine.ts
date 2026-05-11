@@ -100,7 +100,7 @@ async function planOrApplyCreate(
   const targetPath = resolveUserPath(operation.targetPath);
 
   if (!isPathInside(options.skillpackCheckoutPath, sourcePath)) {
-    return skipped(operation, 'source-outside-skillpack', `Source is outside the configured skillpack checkout: ${sourcePath}`);
+    return skipped(operation, 'source-outside-skillpack', `Source is outside the configured active skillpack snapshot: ${sourcePath}`);
   }
 
   if (!(await pathExists(sourcePath))) {

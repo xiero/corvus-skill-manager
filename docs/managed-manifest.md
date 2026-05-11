@@ -32,8 +32,10 @@ Apply may create:
 Create operations are allowed only when:
 
 - the source path exists
-- the source path is inside the configured skillpack checkout
+- the source path is inside the configured active skillpack snapshot
 - the target path is absent, or the target is a confirmed broken manager-owned link
+
+For the default revision layout, manifest source paths point through `~/.agents/skillpacks/<skillpack-id>/current`. Activating an approved revision switches that manager-owned link, so agent links do not need to be recreated just because the skill collection moved to a new commit.
 
 Apply refuses to overwrite:
 

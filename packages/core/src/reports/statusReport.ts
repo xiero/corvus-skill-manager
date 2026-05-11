@@ -13,6 +13,8 @@ export async function buildStatusReport(options: BuildStatusReportOptions = {}):
 export function statusReportFromContext(context: ReportContext): StatusReport {
   const skillpackConfig = context.config?.skillpack;
   const lockEntry = skillpackConfig === undefined ? undefined : context.lock?.skillpacks[skillpackConfig.id];
+  const remoteCommit = context.remoteUpdate?.remoteCommitHash ?? lockEntry?.remoteCommitHash;
+  const updateAvailable = context.remoteUpdate?.updateAvailable ?? lockEntry?.updateAvailable;
 
   return {
     configPath: context.configPath,
@@ -26,8 +28,13 @@ export function statusReportFromContext(context: ReportContext): StatusReport {
         repositoryUrl: skillpackConfig.repositoryUrl,
         branch: skillpackConfig.branch,
         checkoutPath: skillpackConfig.checkoutPath,
+        ...(lockEntry?.activeRevisionPath === undefined ? {} : {activeRevisionPath: lockEntry.activeRevisionPath}),
         ...(lockEntry?.commitHash === undefined ? {} : {recordedCommit: lockEntry.commitHash}),
         ...(context.checkout?.commitHash === undefined ? {} : {currentCommit: context.checkout.commitHash}),
+        ...(remoteCommit === undefined ? {} : {remoteCommit}),
+        ...(updateAvailable === undefined ? {} : {updateAvailable}),
+        ...(context.remoteUpdate?.status === undefined ? {} : {updateCheckStatus: context.remoteUpdate.status}),
+        ...(context.remoteUpdate?.message === undefined ? {} : {updateMessage: context.remoteUpdate.message}),
         checkoutExists: context.checkout?.exists ?? false,
         checkoutReadable: context.checkout?.readable ?? false,
         ...(context.checkout === undefined ? {} : {dirty: context.checkout.dirty}),

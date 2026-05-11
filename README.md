@@ -1,13 +1,14 @@
 # Corvus Skill Manager
 
-Corvus Skill Manager is a TUI-first manager for wiring local skillpacks into supported coding agents. It helps you configure one skillpack checkout, discover skills, select which agents should receive which skills, preview a link plan, and apply only confirmed manager-owned links.
+Corvus Skill Manager is a TUI-first manager for wiring local skillpacks into supported coding agents. It helps you configure one skillpack snapshot, discover skills, detect remote collection updates, select which agents should receive which skills, preview a link plan, and apply only confirmed manager-owned links.
 
 The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Command workflows such as `corvus-skills update` or `corvus-skills install` are not part of the MVP.
 
 ## What It Does
 
 - Creates and loads manager state under `~/.agents/corvus-skill-manager`.
-- Configures a skillpack source and performs the initial clone only when the checkout is absent.
+- Configures a skillpack source and performs the initial revision clone only when the active snapshot is absent.
+- Detects remote skillpack changes in read-only mode and lets you preview/approve a new local revision snapshot.
 - Discovers skills from `registry.json`, or from `SKILL.md` files in read-only fallback mode when a registry is missing.
 - Lets you enable supported agents and select skills per agent.
 - Generates a deterministic dry-run link plan.
@@ -16,7 +17,8 @@ The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Comm
 
 ## What It Does Not Do
 
-- It does not pull, update, reset, repair, format, commit, push, or edit the skillpack checkout after the initial clone.
+- It does not pull into, reset, repair, format, commit, push, or edit the active skillpack checkout.
+- It does not automatically update the local skill collection; revision activation requires preview and approval in the TUI.
 - It does not overwrite unmanaged files, directories, or symlinks.
 - It does not execute skill scripts or install dependencies inside the skillpack.
 - It does not generate Gemini `.toml` wrappers in the MVP.
@@ -78,7 +80,7 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 
 1. Start the TUI with `npx @corvus-tools/skill-manager`, `pnpm dev`, or `corvus-skills`.
 2. Open **Setup Skillpack**.
-3. Preview setup, then confirm only if the checkout is missing and you want the initial clone.
+3. Preview setup, then confirm only if the active snapshot is missing and you want the initial revision clone.
 4. Open **Configure Agents**.
 5. Enable one or more supported agents with Space.
 6. Press Enter on an enabled agent, then select skills with Space.
@@ -116,10 +118,14 @@ The main files are:
 - `lock.json`: recorded skillpack commit and branch after setup/inspection
 - `manifest.json`: manager-owned link records
 
-Default skillpack checkout path:
+Default skillpack layout:
 
 ```text
-~/.agents/skillpacks/<skillpack-id>/repo
+~/.agents/skillpacks/<skillpack-id>/
+  revisions/
+    <commit>/
+      repo/
+  current -> revisions/<active-commit>/repo
 ```
 
 Default skillpack source:
@@ -130,11 +136,13 @@ https://github.com/xiero/skill-collection.git
 
 The TUI displays that source as `corvus-skillpack`.
 
-## Read-Only Skillpack Guarantee
+## Revision Snapshot Model
 
-Initial clone is the only allowed write involving the skillpack path, and only when the checkout does not exist. After clone, the manager treats the checkout as read-only.
+Initial clone creates an immutable revision under `revisions/<commit>/repo` and points `current` at it. The configured checkout path is `current`.
 
-Status, Doctor, discovery, planning, and apply do not write inside the skillpack checkout. Apply only writes manager metadata under `~/.agents/corvus-skill-manager` and confirmed manager-owned links inside configured agent target directories.
+Status can compare the active commit with the remote branch head without writing to the skillpack. When a remote update is available, Setup Skillpack can download an inactive preview snapshot. The active `current` link changes only after explicit approval.
+
+Status, Doctor, discovery, planning, and apply do not mutate active skillpack revisions. Apply only writes manager metadata under `~/.agents/corvus-skill-manager` and confirmed manager-owned links inside configured agent target directories.
 
 ## Troubleshooting
 
@@ -157,6 +165,10 @@ Gemini `.toml` wrapper generation is deferred for MVP. Do not expect Gemini link
 **Dirty checkout**
 
 Doctor reports dirty skillpack checkouts, but will not reset or repair them. Review the checkout manually.
+
+**Remote update available**
+
+Open Setup Skillpack, preview the update, review added/changed/removed skills, then approve activation if you want `current` to point at the new revision.
 
 ## Docs
 

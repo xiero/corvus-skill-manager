@@ -6,6 +6,7 @@ import {
   defaultConfigPath,
   defaultManagerStateDir,
   defaultSkillpackCheckoutPath,
+  defaultSkillpackRootPath,
   resolveUserPath
 } from '../paths.js';
 import {
@@ -120,11 +121,15 @@ export function migrateLoadedConfig(
   }
 
   const legacyCheckoutPath = path.join(resolveUserPath(config.managerStateDir, options.homeDir), 'skills');
+  const legacyFlatSkillpackPath = path.join(
+    defaultSkillpackRootPath(config.skillpack.id, options.homeDir),
+    'repo'
+  );
   const configuredCheckoutPath = resolveUserPath(config.skillpack.checkoutPath, options.homeDir);
   const shouldMigrateLegacyDefaultSkillpack =
     config.skillpack.id === defaultSkillpackId &&
     config.skillpack.repositoryUrl === defaultSkillpackRepositoryUrl &&
-    configuredCheckoutPath === legacyCheckoutPath;
+    (configuredCheckoutPath === legacyCheckoutPath || configuredCheckoutPath === legacyFlatSkillpackPath);
 
   if (!shouldMigrateLegacyDefaultSkillpack) {
     return {config, migrated: false};

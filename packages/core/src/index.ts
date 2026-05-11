@@ -23,11 +23,23 @@ export {agentAdapters, getAgentAdapter, getAgentAdapters} from './agents/adapter
 export {
   type CheckoutStatus,
   type SkillpackInspection,
+  type SkillpackRemoteUpdateInspection,
+  type SkillpackRemoteUpdateStatus,
+  type SkillpackSnapshotLayout,
   type SkillpackSetupOptions,
   type SkillpackSetupResult,
   type SkillpackSetupStatus,
+  type SkillpackUpdateApplyResult,
+  type SkillpackUpdateApplyStatus,
+  type SkillpackUpdatePreview,
+  type SkillpackUpdatePreviewStatus,
   applyInitialSkillpackSetup,
-  inspectSkillpackCheckout
+  applySkillpackUpdate,
+  inspectSkillpackCheckout,
+  inspectSkillpackRemoteUpdate,
+  prepareSkillpackUpdatePreview,
+  resolveSkillpackSnapshotLayout,
+  skillpackRevisionRepoPath
 } from './git/skillpackSetup.js';
 export {type GitRunner, type GitRunOptions, type GitRunResult, runGit} from './git/gitRunner.js';
 export {
@@ -115,6 +127,9 @@ export {
   defaultManifestPath,
   defaultManagerStateDir,
   defaultSkillpackCheckoutPath,
+  defaultSkillpackCurrentPath,
+  defaultSkillpackRevisionsPath,
+  defaultSkillpackRootPath,
   expandTilde,
   isPathInside,
   lockFileName,

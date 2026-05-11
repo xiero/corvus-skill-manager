@@ -1,12 +1,33 @@
 # Skillpack Contract
 
-Corvus Skill Manager reads a local skillpack checkout. The checkout is owned by the user and is read-only from the manager's perspective after the optional initial clone.
+Corvus Skill Manager reads a local skillpack snapshot. The active snapshot is read-only from the manager's perspective. Updates are modeled as immutable revisions, never as `git pull` against the active checkout.
 
-## Checkout
+## Snapshot Layout
 
-- The configured checkout path should be a git worktree.
-- The manager may clone into the checkout path only when it does not exist.
-- Existing checkouts are inspected only. The manager does not pull, reset, repair, build, install, format, or commit inside them.
+The default local layout is:
+
+```text
+~/.agents/skillpacks/<skillpack-id>/
+  revisions/
+    <commit>/
+      repo/
+        registry.json
+        skills/
+          <skill-id>/
+            SKILL.md
+  current -> revisions/<active-commit>/repo
+```
+
+The configured checkout path is the active `current` path. Discovery and link planning read through that path so existing manager-owned agent links continue to resolve after `current` is repointed.
+
+## Revision Rules
+
+- The active path should resolve to a git worktree.
+- The manager may create the initial revision snapshot only when the active path does not exist.
+- The manager may detect remote changes with read-only git operations such as `git ls-remote`.
+- The manager may clone a new revision only into an absent `revisions/<commit>/repo` snapshot.
+- The manager may switch the `current` link only after the TUI shows a preview and the user approves the update.
+- Existing active checkouts and existing revisions are inspected only. The manager does not pull, reset, repair, build, install, format, or commit inside them.
 
 ## Preferred Registry
 
@@ -40,7 +61,7 @@ Rules:
 - `tags` is optional.
 - Skill paths must be relative.
 - Absolute paths and `../` traversal are rejected.
-- Paths must resolve inside the skillpack checkout.
+- Paths must resolve inside the active skillpack snapshot.
 - Duplicate skill ids are rejected.
 
 ## Skill Files

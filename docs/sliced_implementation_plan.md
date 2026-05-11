@@ -2,17 +2,18 @@
 
 ## Product Summary
 
-Corvus Skill Manager is a TUI-first installer/configurator for wiring a local skillpack into multiple coding agents. Its job is not to author, edit, update, publish, or run skills. It provides a controlled terminal UI where the user selects a skillpack, validates available `SKILL.md` folders, chooses target agents, previews filesystem operations, then creates or removes manager-owned links in agent skill directories.
+Corvus Skill Manager is a TUI-first installer/configurator for wiring a local skillpack into multiple coding agents. Its job is not to author, edit, publish, or run skills. It provides a controlled terminal UI where the user selects a skillpack, validates available `SKILL.md` folders, detects remote collection updates, previews approved revision changes, chooses target agents, previews filesystem operations, then creates or removes manager-owned links in agent skill directories.
 
-The product’s core promise is: keep the skill repository read-only from the manager’s perspective, keep all manager state under `~/.agents/corvus-skill-manager`, and make the installed state auditable through Status and Doctor views.
+The product’s core promise is: keep active skillpack revisions read-only from the manager’s perspective, keep mutable manager metadata under `~/.agents/corvus-skill-manager`, and make the installed state auditable through Status and Doctor views.
 
 ## MVP Boundaries
 
 Included:
 
 - TUI launched by `corvus-skills`; CLI is only the entrypoint.
-- Initial clone of a skillpack into `~/.agents/skillpacks/<id>/repo`.
-- No automatic update, pull, commit, push, formatting, generation, or dependency install inside the skill repo after clone.
+- Initial clone of a skillpack into `~/.agents/skillpacks/<id>/revisions/<commit>/repo` with `current` pointing at the active revision.
+- Read-only remote update detection and TUI-approved revision activation.
+- No automatic update, mutable pull, commit, push, formatting, generation, or dependency install inside the skill repo.
 - `registry.json` loading and validation.
 - `SKILL.md` metadata parsing and static risk scan.
 - Agent selection for Codex, Claude, Copilot CLI, OpenCode, Pi, and Custom.
@@ -26,7 +27,8 @@ Included:
 Excluded:
 
 - Skill repo editing.
-- Skill repo updates after initial clone.
+- Mutable skill repo updates after initial clone.
+- Automatic skill collection updates.
 - Skill generation.
 - Gemini `.toml` wrapper generation.
 - Marketplace, remote registry API, auth, cloud sync, Express backend.
@@ -35,12 +37,12 @@ Excluded:
 
 ## Architectural Risks
 
-- **Write-safety boundary:** the core must make it impossible for normal flows to write inside the skillpack checkout after clone. File operations should be routed through a small, test-covered apply layer.
+- **Write-safety boundary:** the core must make it impossible for normal flows to mutate active skillpack revisions. File operations should be routed through small, test-covered setup/update/apply layers.
 - **Ownership tracking:** removal must only affect targets recorded in the manager manifest and verified as matching the expected source/link shape.
 - **Path traversal:** registry paths must stay inside the skillpack root; absolute paths and `../` escapes must be rejected.
 - **Agent path uncertainty:** some agent paths may change or be user-specific. Adapters should expose defaults but allow override before apply.
 - **Cross-platform links:** Unix symlinks and Windows junction behavior differ. MVP should support symlink/junction planning, with copy fallback deferred unless explicitly allowed later.
-- **Clone vs read-only model:** initial clone is allowed for MVP, but no pull/update behavior should be implemented in early slices.
+- **Revision vs mutable update model:** initial and approved update clones create immutable revision snapshots; no pull/update behavior should mutate an existing checkout.
 - **Gemini mismatch:** Gemini’s `.toml` command model is not link-only, so Gemini should be deferred rather than forced into an inaccurate adapter.
 
 ## Vertical Slice Order
@@ -51,12 +53,21 @@ Excluded:
    - Implement Zod config schema, default paths, load/save under `~/.agents/corvus-skill-manager`.
    - Acceptance: `pnpm dev` opens TUI; first run creates valid manager config; tests cover config defaults/load/save.
 
-2. **Skillpack Setup With Initial Clone**
+2. **Skillpack Setup With Initial Revision**
    - Add TUI flow for repo URL, branch, skillpack ID, and local checkout path.
-   - Clone only when checkout is absent.
+   - Clone only when the active `current` path is absent.
+   - Store snapshots under `revisions/<commit>/repo` and point `current` at the active revision.
    - If checkout exists, inspect commit and dirty state, but do not pull or repair.
    - Write lock state only under manager directory.
-   - Acceptance: fresh setup clones; existing checkout is read-only inspected; dirty checkout is reported; no files are written inside the skill repo after clone.
+   - Acceptance: fresh setup clones a revision; existing checkout is read-only inspected; dirty checkout is reported; no existing revision is mutated.
+
+2a. **Remote Update Preview**
+   - Compare active commit with the remote branch using read-only git operations.
+   - Notify the user in Status/Setup when the remote commit differs.
+   - Download an inactive revision snapshot only when the user asks to preview.
+   - Summarize added, removed, and changed skills before activation.
+   - Switch `current` only after explicit approval.
+   - Acceptance: remote changes are detected without modifying the active snapshot; preview does not repoint `current`; approval activates the new revision.
 
 3. **Registry + Skill Discovery**
    - Load `registry.json`.
@@ -93,8 +104,8 @@ Excluded:
 ## Assumptions Locked For Implementation
 
 - MVP is TUI-first; there is no CLI-only Slice 1.
-- Initial clone is allowed, but no update/pull/reclone behavior is included.
-- After clone, the manager treats the skillpack checkout as read-only.
+- Initial clone and approved update clones are allowed, but no pull/reclone-over-existing behavior is included.
+- After clone, the manager treats every revision checkout as read-only.
 - Gemini is deferred for MVP because generated `.toml` wrappers would violate the current link-only target rule.
 - The manager may write only to its own state directory and agent target directories for confirmed, manager-owned link operations.
 - TypeScript, Node.js, React Ink, Zod, and Vitest are the preferred stack.

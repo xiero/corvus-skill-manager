@@ -4,6 +4,9 @@ import {
   defaultConfigPath,
   defaultManagerStateDir,
   defaultSkillpackCheckoutPath,
+  defaultSkillpackCurrentPath,
+  defaultSkillpackRevisionsPath,
+  defaultSkillpackRootPath,
   expandTilde,
   resolveUserPath
 } from './paths.js';
@@ -35,9 +38,18 @@ describe('paths', () => {
     );
   });
 
-  it('resolves the default skillpack checkout path by skillpack id', () => {
+  it('resolves the default skillpack snapshot paths by skillpack id', () => {
+    expect(defaultSkillpackRootPath('corvus-skills', '/tmp/example-home')).toBe(
+      path.join('/tmp/example-home', '.agents', 'skillpacks', 'corvus-skills')
+    );
+    expect(defaultSkillpackRevisionsPath('corvus-skills', '/tmp/example-home')).toBe(
+      path.join('/tmp/example-home', '.agents', 'skillpacks', 'corvus-skills', 'revisions')
+    );
+    expect(defaultSkillpackCurrentPath('corvus-skills', '/tmp/example-home')).toBe(
+      path.join('/tmp/example-home', '.agents', 'skillpacks', 'corvus-skills', 'current')
+    );
     expect(defaultSkillpackCheckoutPath('corvus-skills', '/tmp/example-home')).toBe(
-      path.join('/tmp/example-home', '.agents', 'skillpacks', 'corvus-skills', 'repo')
+      path.join('/tmp/example-home', '.agents', 'skillpacks', 'corvus-skills', 'current')
     );
   });
 });

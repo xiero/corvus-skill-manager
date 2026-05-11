@@ -81,7 +81,7 @@ function collectSkillpackIssues(context: ReportContext, issues: DoctorIssue[]): 
       severity: 'error',
       code: 'skillpack-not-configured',
       message: 'No skillpack is configured.',
-      action: 'Use Setup Skillpack to configure the source and checkout path.'
+      action: 'Use Setup Skillpack to configure the source and active snapshot path.'
     });
     return;
   }
@@ -102,7 +102,7 @@ function collectSkillpackIssues(context: ReportContext, issues: DoctorIssue[]): 
       severity: 'error',
       code: 'unreadable-skillpack-checkout',
       message: `Skillpack checkout is not readable: ${context.checkout.message}.`,
-      action: 'Check that the checkout path exists, is a git worktree, and is readable.',
+      action: 'Check that the active path resolves to a git worktree and is readable.',
       path: context.checkout.checkoutPath
     });
   }
@@ -213,8 +213,8 @@ async function collectManifestIssues(context: ReportContext, issues: DoctorIssue
       issues.push({
         severity: 'error',
         code: 'source-outside-skillpack',
-        message: `Managed source is outside the configured skillpack checkout: ${entry.sourcePath}.`,
-        action: 'Inspect manifest.json before applying; manager-owned links must point inside the checkout.',
+        message: `Managed source is outside the configured active skillpack snapshot: ${entry.sourcePath}.`,
+        action: 'Inspect manifest.json before applying; manager-owned links must point inside the active snapshot.',
         path: entry.sourcePath,
         agentId: entry.agentId,
         skillId: entry.skillId
@@ -226,7 +226,7 @@ async function collectManifestIssues(context: ReportContext, issues: DoctorIssue
         severity: 'error',
         code: 'missing-source-skill-path',
         message: `Managed source skill path is missing: ${entry.sourcePath}.`,
-        action: 'Re-run discovery/setup and review the skillpack checkout; Doctor will not repair links.',
+        action: 'Re-run discovery/setup and review the active snapshot; Doctor will not repair links.',
         path: entry.sourcePath,
         agentId: entry.agentId,
         skillId: entry.skillId
@@ -319,7 +319,7 @@ function mapDiscoveryError(error: {
     severity: 'error',
     code: error.code,
     message: error.message,
-    action: 'Inspect the skillpack checkout manually; Doctor is read-only.',
+    action: 'Inspect the active skillpack snapshot manually; Doctor is read-only.',
     ...(error.path === undefined ? {} : {path: error.path}),
     ...(error.skillId === undefined ? {} : {skillId: error.skillId})
   };

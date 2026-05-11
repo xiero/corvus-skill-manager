@@ -14,8 +14,13 @@ export interface StatusReportSkillpack {
   repositoryUrl: string;
   branch: string;
   checkoutPath: string;
+  activeRevisionPath?: string;
   recordedCommit?: string;
   currentCommit?: string;
+  remoteCommit?: string;
+  updateAvailable?: boolean;
+  updateCheckStatus?: string;
+  updateMessage?: string;
   checkoutExists: boolean;
   checkoutReadable: boolean;
   dirty?: boolean;

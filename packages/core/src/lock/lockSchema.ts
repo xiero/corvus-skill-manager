@@ -7,6 +7,9 @@ export const skillpackLockEntrySchema = z
     branch: z.string().min(1),
     checkoutPath: z.string().min(1),
     commitHash: z.string().min(1),
+    activeRevisionPath: z.string().min(1).optional(),
+    remoteCommitHash: z.string().min(1).optional(),
+    updateAvailable: z.boolean().optional(),
     dirty: z.boolean(),
     recordedAt: z.string().datetime()
   })

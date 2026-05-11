@@ -86,6 +86,33 @@ describe('config store', () => {
     expect(savedConfig).toEqual(result.config);
   });
 
+  it('migrates the legacy default flat skillpack checkout to the current snapshot link', () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const config = createDefaultManagerConfig({
+      managerStateDir,
+      now: new Date('2026-02-03T04:05:06.000Z')
+    });
+
+    const migration = migrateLoadedConfig(
+      {
+        ...config,
+        skillpack: {
+          id: defaultSkillpackId,
+          repositoryUrl: defaultSkillpackRepositoryUrl,
+          branch: defaultSkillpackBranch,
+          checkoutPath: path.join(tempHome, '.agents', 'skillpacks', defaultSkillpackId, 'repo')
+        }
+      },
+      {
+        homeDir: tempHome,
+        now: new Date('2026-03-04T05:06:07.000Z')
+      }
+    );
+
+    expect(migration.migrated).toBe(true);
+    expect(migration.config.skillpack?.checkoutPath).toBe(defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome));
+  });
+
   it('does not migrate custom skillpack checkout paths', () => {
     const managerStateDir = defaultManagerStateDir(tempHome);
     const config = createDefaultManagerConfig({

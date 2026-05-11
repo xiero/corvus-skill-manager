@@ -4,20 +4,26 @@ import {
   type ManagerConfig,
   type SkillpackConfig,
   type SkillpackInspection,
+  type SkillpackRemoteUpdateInspection,
+  type SkillpackUpdateApplyResult,
+  type SkillpackUpdatePreview,
   type SkillpackSetupResult,
   applyInitialSkillpackSetup,
+  applySkillpackUpdate,
   defaultSkillpackBranch,
   defaultSkillpackCheckoutPath,
   defaultSkillpackDisplayName,
   defaultSkillpackId,
   defaultSkillpackRepositoryUrl,
   inspectSkillpackCheckout,
+  inspectSkillpackRemoteUpdate,
   parseSkillpackConfig,
+  prepareSkillpackUpdatePreview,
   saveConfig
 } from '@corvus-tools/skill-manager-core';
 
 type FormField = 'id' | 'repositoryUrl' | 'branch' | 'checkoutPath';
-type SetupMode = 'form' | 'preview' | 'running' | 'result';
+type SetupMode = 'form' | 'preview' | 'preparing-update-preview' | 'update-preview' | 'applying-update' | 'update-result' | 'running' | 'result';
 
 interface SkillpackFormState {
   id: string;
@@ -37,7 +43,7 @@ const fields: Array<{key: FormField; label: string}> = [
   {key: 'id', label: 'Skillpack ID'},
   {key: 'repositoryUrl', label: 'Git repository'},
   {key: 'branch', label: 'Branch'},
-  {key: 'checkoutPath', label: 'Checkout path'}
+  {key: 'checkoutPath', label: 'Active path'}
 ];
 
 export function SkillpackSetupScreen({
@@ -51,6 +57,9 @@ export function SkillpackSetupScreen({
   const [editingField, setEditingField] = useState<FormField | undefined>();
   const [mode, setMode] = useState<SetupMode>('form');
   const [inspection, setInspection] = useState<SkillpackInspection | undefined>();
+  const [remoteUpdate, setRemoteUpdate] = useState<SkillpackRemoteUpdateInspection | undefined>();
+  const [updatePreview, setUpdatePreview] = useState<SkillpackUpdatePreview | undefined>();
+  const [updateResult, setUpdateResult] = useState<SkillpackUpdateApplyResult | undefined>();
   const [result, setResult] = useState<SkillpackSetupResult | undefined>();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
@@ -68,8 +77,28 @@ export function SkillpackSetupScreen({
       return 'checking checkout';
     }
 
+    if (mode === 'preview' && remoteUpdate?.updateAvailable === true) {
+      return 'remote update available';
+    }
+
     if (inspection !== undefined && mode === 'preview') {
       return statusMessageForInspection(inspection);
+    }
+
+    if (mode === 'preparing-update-preview') {
+      return 'preparing update preview';
+    }
+
+    if (mode === 'update-preview') {
+      return updatePreview?.status === 'update-preview-ready' ? 'update preview ready' : 'update preview unavailable';
+    }
+
+    if (mode === 'applying-update') {
+      return 'activating update';
+    }
+
+    if (mode === 'update-result') {
+      return updateResult?.status === 'update-applied' ? 'update applied' : 'update not applied';
     }
 
     if (mode === 'running') {
@@ -81,10 +110,10 @@ export function SkillpackSetupScreen({
     }
 
     return 'configured';
-  }, [config.skillpack, errorMessage, inspection, mode, result]);
+  }, [config.skillpack, errorMessage, inspection, mode, remoteUpdate, result, updatePreview, updateResult]);
 
   useInput((input, key) => {
-    if (mode === 'running') {
+    if (mode === 'running' || mode === 'preparing-update-preview' || mode === 'applying-update') {
       return;
     }
 
@@ -115,7 +144,15 @@ export function SkillpackSetupScreen({
       if (input === 'e') {
         setMode('form');
         setInspection(undefined);
+        setRemoteUpdate(undefined);
+        setUpdatePreview(undefined);
+        setUpdateResult(undefined);
         setErrorMessage(undefined);
+        return;
+      }
+
+      if (input === 'p') {
+        void previewUpdate();
         return;
       }
 
@@ -125,10 +162,38 @@ export function SkillpackSetupScreen({
       }
     }
 
+    if (mode === 'update-preview') {
+      if (input === 'u') {
+        void confirmUpdate();
+        return;
+      }
+
+      if (input === 'e' || input === 'b') {
+        setMode('preview');
+      }
+
+      return;
+    }
+
+    if (mode === 'update-result') {
+      if (input === 'e') {
+        setMode('form');
+        setResult(undefined);
+        setUpdatePreview(undefined);
+        setUpdateResult(undefined);
+        setErrorMessage(undefined);
+      }
+
+      return;
+    }
+
     if (mode === 'result') {
       if (input === 'e') {
         setMode('form');
         setResult(undefined);
+        setRemoteUpdate(undefined);
+        setUpdatePreview(undefined);
+        setUpdateResult(undefined);
         setErrorMessage(undefined);
       }
 
@@ -189,11 +254,62 @@ export function SkillpackSetupScreen({
       const skillpackConfig = parseForm();
       setMode('preview');
       setInspection(undefined);
+      setRemoteUpdate(undefined);
+      setUpdatePreview(undefined);
+      setUpdateResult(undefined);
       setResult(undefined);
       setErrorMessage(undefined);
-      setInspection(await inspectSkillpackCheckout(skillpackConfig.checkoutPath));
+      const nextInspection = await inspectSkillpackCheckout(skillpackConfig.checkoutPath);
+      setInspection(nextInspection);
+      setRemoteUpdate(await inspectSkillpackRemoteUpdate(skillpackConfig));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function previewUpdate(): Promise<void> {
+    try {
+      const skillpackConfig = parseForm();
+      setMode('preparing-update-preview');
+      setUpdatePreview(undefined);
+      setUpdateResult(undefined);
+      setErrorMessage(undefined);
+      setUpdatePreview(
+        await prepareSkillpackUpdatePreview({
+          config: skillpackConfig,
+          managerStateDir: config.managerStateDir
+        })
+      );
+      setMode('update-preview');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setMode('preview');
+    }
+  }
+
+  async function confirmUpdate(): Promise<void> {
+    try {
+      const skillpackConfig = parseForm();
+      const updatedConfig: ManagerConfig = {
+        ...config,
+        skillpack: skillpackConfig,
+        updatedAt: new Date().toISOString()
+      };
+
+      setMode('applying-update');
+      setErrorMessage(undefined);
+      await saveConfig(updatedConfig, {configPath});
+      onConfigSaved(updatedConfig);
+      setUpdateResult(
+        await applySkillpackUpdate({
+          config: skillpackConfig,
+          managerStateDir: config.managerStateDir
+        })
+      );
+      setMode('update-result');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setMode('update-preview');
     }
   }
 
@@ -208,6 +324,8 @@ export function SkillpackSetupScreen({
 
       setMode('running');
       setErrorMessage(undefined);
+      setUpdatePreview(undefined);
+      setUpdateResult(undefined);
       await saveConfig(updatedConfig, {configPath});
       onConfigSaved(updatedConfig);
       setResult(
@@ -267,7 +385,12 @@ export function SkillpackSetupScreen({
         })}
       </Box>
 
-      {mode === 'preview' ? inspection === undefined ? <Preview /> : <Preview inspection={inspection} /> : null}
+      {mode === 'preview' ? (
+        inspection === undefined ? <Preview /> : <Preview inspection={inspection} remoteUpdate={remoteUpdate} />
+      ) : null}
+      {mode === 'preparing-update-preview' ? <Text>Preparing inactive revision snapshot for preview...</Text> : null}
+      {mode === 'update-preview' && updatePreview !== undefined ? <UpdatePreview preview={updatePreview} /> : null}
+      {mode === 'update-result' && updateResult !== undefined ? <UpdateResult result={updateResult} /> : null}
       {mode === 'result' && result !== undefined ? <Result result={result} /> : null}
 
       <Box flexDirection="column">
@@ -303,17 +426,63 @@ function displayFieldValue(field: FormField, value: string, editing: boolean): s
   return value;
 }
 
-function Preview({inspection}: {inspection?: SkillpackInspection}): React.ReactElement {
+function Preview({
+  inspection,
+  remoteUpdate
+}: {
+  inspection?: SkillpackInspection | undefined;
+  remoteUpdate?: SkillpackRemoteUpdateInspection | undefined;
+}): React.ReactElement {
   if (inspection === undefined) {
-    return <Text>Preview: checking checkout path...</Text>;
+    return <Text>Preview: checking active path...</Text>;
   }
 
   return (
     <Box flexDirection="column">
       <Text bold>Preview</Text>
-      <Text>Checkout path: {inspection.checkoutPath}</Text>
-      <Text>{inspection.exists ? 'Checkout exists; setup will inspect only.' : 'Checkout missing; setup will run initial clone.'}</Text>
+      <Text>Active path: {inspection.checkoutPath}</Text>
+      <Text>
+        {inspection.exists ? 'Active snapshot exists; setup will inspect only unless you preview an update.' : 'Active snapshot missing; setup will create the initial revision snapshot.'}
+      </Text>
+      {remoteUpdate === undefined ? <Text dimColor>Remote update check pending...</Text> : (
+        <Text color={remoteUpdate.updateAvailable ? 'yellow' : remoteUpdate.status === 'remote-unavailable' ? 'red' : 'green'}>
+          {remoteUpdate.message}
+        </Text>
+      )}
       {inspection.dirtyFiles.length > 0 ? <Text color="yellow">Dirty files: {inspection.dirtyFiles.join(', ')}</Text> : null}
+    </Box>
+  );
+}
+
+function UpdatePreview({preview}: {preview: SkillpackUpdatePreview}): React.ReactElement {
+  return (
+    <Box flexDirection="column">
+      <Text bold>Update Preview</Text>
+      <Text color={preview.status === 'update-preview-ready' ? 'green' : 'yellow'}>{preview.message}</Text>
+      <Text>Active commit: {preview.activeCommitHash ?? '(unknown)'}</Text>
+      <Text>Remote commit: {preview.remoteCommitHash ?? '(unknown)'}</Text>
+      {preview.candidateRevisionPath === undefined ? null : <Text>Preview snapshot: {preview.candidateRevisionPath}</Text>}
+      <Text>Added skills: {formatSkillList(preview.addedSkillIds)}</Text>
+      <Text>Changed skills: {formatSkillList(preview.changedSkillIds)}</Text>
+      <Text>Removed skills: {formatSkillList(preview.removedSkillIds)}</Text>
+      {preview.changedFiles.length === 0 ? null : (
+        <Text dimColor>Changed files: {preview.changedFiles.slice(0, 6).join(', ')}{preview.changedFiles.length > 6 ? '...' : ''}</Text>
+      )}
+    </Box>
+  );
+}
+
+function UpdateResult({result}: {result: SkillpackUpdateApplyResult}): React.ReactElement {
+  return (
+    <Box flexDirection="column">
+      <Text bold>Update Result</Text>
+      <Text color={result.status === 'update-applied' ? 'green' : result.status === 'update-failed' ? 'red' : 'yellow'}>
+        {result.message}
+      </Text>
+      {result.previousCommitHash === undefined ? null : <Text>Previous commit: {result.previousCommitHash}</Text>}
+      {result.commitHash === undefined ? null : <Text>Active commit: {result.commitHash}</Text>}
+      {result.activeRevisionPath === undefined ? null : <Text>Active revision: {result.activeRevisionPath}</Text>}
+      {result.lockPath === undefined ? null : <Text>Lock file: {result.lockPath}</Text>}
     </Box>
   );
 }
@@ -323,11 +492,16 @@ function Result({result}: {result: SkillpackSetupResult}): React.ReactElement {
     <Box flexDirection="column">
       <Text bold>Result</Text>
       <Text>{statusMessageForResult(result)}</Text>
+      {result.activeRevisionPath === undefined ? null : <Text>Active revision: {result.activeRevisionPath}</Text>}
       {result.commitHash === undefined ? null : <Text>Commit: {result.commitHash}</Text>}
       {result.lockPath === undefined ? null : <Text>Lock file: {result.lockPath}</Text>}
       {result.dirtyFiles.length > 0 ? <Text color="yellow">Dirty files: {result.dirtyFiles.join(', ')}</Text> : null}
     </Box>
   );
+}
+
+function formatSkillList(skillIds: string[]): string {
+  return skillIds.length === 0 ? '(none)' : skillIds.join(', ');
 }
 
 function statusMessageForInspection(inspection: SkillpackInspection): string {
@@ -348,7 +522,7 @@ function statusMessageForInspection(inspection: SkillpackInspection): string {
 
 function statusMessageForResult(result: SkillpackSetupResult): string {
   if (result.status === 'clone-complete') {
-    return 'initial clone complete';
+    return 'initial revision snapshot active';
   }
 
   if (result.status === 'clone-failed') {
@@ -376,7 +550,23 @@ function helpText(mode: SetupMode, editingField: FormField | undefined): string 
   }
 
   if (mode === 'preview') {
-    return 'Press c to confirm, e to edit, h or q for Home.';
+    return 'Press c for initial setup/inspection, p to preview remote update, e to edit, h or q for Home.';
+  }
+
+  if (mode === 'preparing-update-preview') {
+    return 'Preparing update preview...';
+  }
+
+  if (mode === 'update-preview') {
+    return 'Press u to activate this revision, b/e to return, h or q for Home.';
+  }
+
+  if (mode === 'applying-update') {
+    return 'Activating selected revision...';
+  }
+
+  if (mode === 'update-result') {
+    return 'Press e to edit, h or q for Home.';
   }
 
   if (mode === 'result') {

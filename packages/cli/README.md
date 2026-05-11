@@ -15,6 +15,6 @@ corvus-skills
 
 The CLI is intentionally thin. It launches the Ink TUI and does not implement separate command workflows.
 
-Corvus Skill Manager configures a local skillpack checkout, discovers skills, lets you choose target agents, previews link operations, and applies only confirmed manager-owned links.
+Corvus Skill Manager configures a local skillpack snapshot, discovers skills, detects remote collection updates, lets you choose target agents, previews link operations, and applies only confirmed manager-owned links.
 
-The skillpack checkout is read-only after the optional initial clone. The manager does not pull, update, reset, repair, edit, install dependencies, or execute scripts inside the checkout.
+The active skillpack checkout is read-only. Updates use immutable `revisions/<commit>/repo` snapshots and an approved `current` link switch; the manager does not pull, reset, repair, edit, install dependencies, or execute scripts inside the checkout.

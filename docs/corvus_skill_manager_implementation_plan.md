@@ -72,24 +72,27 @@ Minden saját állapot a user home alatti manager könyvtárban él:
   cache/
 ```
 
-A skillpack checkout pedig kezelhető read-only assetként:
+A skillpack checkout revision-alapú, read-only assetként kezelhető:
 
 ```text
-~/.agents/skillpacks/<skillpack-id>/repo
+~/.agents/skillpacks/<skillpack-id>/
+  revisions/<commit>/repo
+  current -> revisions/<active-commit>/repo
 ```
 
-### 2.3 A skill repo kezelése read-only pull/clone modellben
+### 2.3 A skill repo kezelése read-only revision modellben
 
 A manager csak ezt teheti:
 
-- ha nincs lokális checkout: clone;
-- ha van lokális checkout: fetch/pull vagy újraclone a választott read-only policy szerint;
-- csak tiszta munkafát fogad el;
-- ha dirty a checkout, nem javítja, hanem jelzi.
+- ha nincs aktív `current`: initial clone egy `revisions/<commit>/repo` snapshotba;
+- remote változást read-only módon detektál, például `git ls-remote` alapján;
+- update preview kérésre új, inaktív revision snapshotot klónoz;
+- explicit jóváhagyás után a manager-owned `current` linket átállítja;
+- ha dirty vagy sérült a checkout, nem javítja, hanem jelzi.
 
 Viszont a user kérése alapján még szigorúbb változat javasolt:
 
-> MVP-ben a manager **ne update-eljen automatikusan**. Első installkor klónoz, utána csak státuszt jelez. Külön “reinstall from remote” lehet később, explicit user actionként, de nem “update repo”.
+> MVP-ben a manager **ne update-eljen automatikusan**. Első installkor klónoz, utána remote változást jelez, preview-t ad, és csak explicit user action után aktivál új snapshotot.
 
 Így a manager nem válik véletlenül repo-kezelő eszközzé.
 
@@ -1055,17 +1058,17 @@ A TUI-ból megadható legyen egy GitHub repo URL, amit a manager lokálisan kló
 2. Repo URL input.
 3. Branch input.
 4. Local path számítás.
-5. `cloneSkillpack()`.
+5. `cloneSkillpackRevision()`.
 6. `inspectRepo()` commit hash olvasással.
 7. `ensureReadOnlyCheckout()` dirty state ellenőrzéssel.
 8. Lock file írás a manager saját könyvtárába.
 
 ### Acceptance criteria
 
-- Friss installnál klónozza a repót.
+- Friss installnál commit-alapú revision snapshotot klónoz.
 - Létező checkoutnál nem pullol automatikusan.
 - Dirty checkout esetén figyelmeztet.
-- A skill repo alá nem ír semmit.
+- Meglévő skill repo revision alá nem ír semmit.
 
 ---
 
@@ -1343,12 +1346,12 @@ Az MVP legjobb formája:
 
 ```text
 TUI-first
-read-only skillpack checkout
+read-only skillpack revisions
 multi-agent adapter layer
 symlink-first install
-Geminihez generated command wrapper
+Gemini deferred for MVP
 no Express
-no repo modification
+no mutable repo modification
 doctor/status beépítve
 ```
 

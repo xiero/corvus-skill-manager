@@ -38,8 +38,20 @@ export function defaultManifestPath(homeDir = os.homedir()): string {
   return path.join(defaultManagerStateDir(homeDir), manifestFileName);
 }
 
+export function defaultSkillpackRootPath(skillpackId: string, homeDir = os.homedir()): string {
+  return path.join(homeDir, '.agents', 'skillpacks', skillpackId);
+}
+
+export function defaultSkillpackRevisionsPath(skillpackId: string, homeDir = os.homedir()): string {
+  return path.join(defaultSkillpackRootPath(skillpackId, homeDir), 'revisions');
+}
+
+export function defaultSkillpackCurrentPath(skillpackId: string, homeDir = os.homedir()): string {
+  return path.join(defaultSkillpackRootPath(skillpackId, homeDir), 'current');
+}
+
 export function defaultSkillpackCheckoutPath(skillpackId: string, homeDir = os.homedir()): string {
-  return path.join(homeDir, '.agents', 'skillpacks', skillpackId, 'repo');
+  return defaultSkillpackCurrentPath(skillpackId, homeDir);
 }
 
 export function isPathInside(parentPath: string, candidatePath: string): boolean {

@@ -14,16 +14,23 @@ These rules are authoritative for implementation work in this repository.
 
 ## Skillpack Repository Boundary
 
-- The manager must never edit, format, generate into, commit, push, pull, or update the skillpack repository after the initial clone.
-- Initial clone is allowed only when the checkout does not exist yet.
-- After clone, the skillpack checkout is read-only from the manager's perspective.
-- If a checkout already exists, inspect and report its state; do not repair, update, pull, re-clone, format, or write into it.
+- The manager must never edit, format, generate into, commit, push, pull, reset, repair, or otherwise mutate an active skillpack repository checkout.
+- Initial clone is allowed only when the active `current` path does not exist yet.
+- Remote change detection must be read-only, for example by comparing the active commit with `git ls-remote`.
+- Approved collection updates must use immutable revision snapshots, not mutable `git pull`.
+- The required local layout is:
+  - `~/.agents/skillpacks/<skillpack-id>/revisions/<commit>/repo`
+  - `~/.agents/skillpacks/<skillpack-id>/current -> revisions/<active-commit>/repo`
+- A new revision may be cloned only into a previously absent `revisions/<commit>/repo` snapshot.
+- The `current` link may be switched only after the TUI shows a preview and the user explicitly approves the update.
+- If an active checkout or revision already exists, inspect and report its state; do not repair, update, pull, re-clone over it, format, or write into it.
 
 ## Manager State And Writes
 
-- All manager state must live under `~/.agents/corvus-skill-manager`.
+- All mutable manager metadata state must live under `~/.agents/corvus-skill-manager`.
 - The manager may write only:
   - its own config, lock, manifest, cache, and log files under `~/.agents/corvus-skill-manager`
+  - immutable skillpack revision snapshots and the manager-owned `current` link under `~/.agents/skillpacks/<skillpack-id>`
   - confirmed manager-owned symlinks or junctions inside configured agent target directories
 - Do not overwrite unmanaged files or directories.
 - Disable and remove operations may remove only manifest-owned links.
@@ -41,4 +48,4 @@ These rules are authoritative for implementation work in this repository.
 - `pnpm typecheck` passes.
 - `pnpm test` passes.
 - Relevant docs are updated.
-- The final report states whether the skillpack repo was touched. Expected answer after setup is: no, except initial clone when explicitly requested.
+- The final report states whether the skillpack repo was touched. Expected answer is: no mutable touch; only an initial revision clone or approved new revision snapshot/current-link switch when explicitly requested.

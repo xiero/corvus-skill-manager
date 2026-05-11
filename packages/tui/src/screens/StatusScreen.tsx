@@ -22,7 +22,7 @@ export function StatusScreen({configPath, onBack}: StatusScreenProps): React.Rea
     let active = true;
     setState({status: 'loading'});
 
-    buildStatusReport({configPath})
+    buildStatusReport({configPath, checkRemote: true})
       .then((report) => {
         if (active) {
           setState({status: 'loaded', report});
@@ -94,6 +94,19 @@ export function StatusReportView({report}: {report: StatusReport}): React.ReactE
             <Text>Branch: {report.skillpack.branch}</Text>
             <Text>Recorded commit: {report.skillpack.recordedCommit ?? '(none)'}</Text>
             <Text>Current commit: {report.skillpack.currentCommit ?? '(unreadable)'}</Text>
+            {report.skillpack.activeRevisionPath === undefined ? null : (
+              <Text>Active revision: {report.skillpack.activeRevisionPath}</Text>
+            )}
+            <Text>Remote commit: {report.skillpack.remoteCommit ?? '(not checked)'}</Text>
+            {report.skillpack.updateAvailable === undefined ? null : (
+              <Text>
+                Remote update:{' '}
+                <Text color={report.skillpack.updateAvailable ? 'yellow' : 'green'}>
+                  {report.skillpack.updateAvailable ? 'available' : 'none'}
+                </Text>
+              </Text>
+            )}
+            {report.skillpack.updateMessage === undefined ? null : <Text dimColor>{report.skillpack.updateMessage}</Text>}
             <Text>
               Dirty:{' '}
               <Text color={report.skillpack.dirty ? 'yellow' : 'green'}>

@@ -6,7 +6,7 @@ import {getAgentAdapters} from '../agents/adapters.js';
 import type {ManagerConfig} from '../config/configSchema.js';
 import {loadConfig} from '../config/configStore.js';
 import type {GitRunner} from '../git/gitRunner.js';
-import {inspectSkillpackCheckout} from '../git/skillpackSetup.js';
+import {inspectSkillpackCheckout, inspectSkillpackRemoteUpdate} from '../git/skillpackSetup.js';
 import type {LinkPlan, TargetState} from '../links/linkPlan.js';
 import {generateLinkPlan} from '../links/linkPlan.js';
 import type {ManagerLock} from '../lock/lockSchema.js';
@@ -29,6 +29,7 @@ export interface ReportOptions {
   managerStateDir?: string;
   configPath?: string;
   git?: GitRunner;
+  checkRemote?: boolean;
 }
 
 export interface ReportContext {
@@ -48,6 +49,7 @@ export interface ReportContext {
   manifestError?: string;
   adapters: AgentAdapter[];
   checkout?: Awaited<ReturnType<typeof inspectSkillpackCheckout>>;
+  remoteUpdate?: Awaited<ReturnType<typeof inspectSkillpackRemoteUpdate>>;
   discovery?: SkillDiscoveryResult;
   plan?: LinkPlan;
   targetStates: TargetState[];
@@ -94,6 +96,10 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
       homeDir === undefined ? {} : {homeDir} :
       homeDir === undefined ? {git: options.git} : {homeDir, git: options.git};
   context.checkout = await inspectSkillpackCheckout(context.config.skillpack.checkoutPath, inspectOptions);
+
+  if (options.checkRemote === true) {
+    context.remoteUpdate = await inspectSkillpackRemoteUpdate(context.config.skillpack, inspectOptions);
+  }
 
   if (context.checkout.exists) {
     context.discovery = await discoverSkillsFromCheckout(context.config.skillpack.checkoutPath);
