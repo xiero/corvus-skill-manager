@@ -4,6 +4,7 @@ import {
   type StatusReport,
   buildStatusReport
 } from '@corvus-tools/skill-manager-core';
+import {CommandBar} from './CommandBar.js';
 
 type StatusScreenState =
   | {status: 'loading'}
@@ -49,7 +50,7 @@ export function StatusScreen({configPath, onBack}: StatusScreenProps): React.Rea
     <Box flexDirection="column" gap={1}>
       <Text bold>Status</Text>
       <StatusBody state={state} />
-      <Text dimColor>Press h or q for Home.</Text>
+      <CommandBar hints={[{key: 'h', label: 'Home'}, {key: 'q', label: 'Home'}]} />
     </Box>
   );
 }

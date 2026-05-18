@@ -14,6 +14,7 @@ import {
   getAgentAdapters,
   saveConfig
 } from '@corvus-tools/skill-manager-core';
+import {CommandBar, type CommandHint} from './CommandBar.js';
 
 type ConfigureMode =
   | 'agents'
@@ -137,8 +138,13 @@ export function ConfigureAgentsScreen({
     }
 
     if (mode === 'plan') {
-      if (input === 'a') {
+      if (key.return) {
         setMode('confirm-apply');
+        return;
+      }
+
+      if (input === 'a') {
+        setMessage('Open the Apply step with Enter; the final write is approved with a.');
         return;
       }
 
@@ -150,12 +156,12 @@ export function ConfigureAgentsScreen({
     }
 
     if (mode === 'confirm-apply') {
-      if (input === 'y') {
+      if (input === 'a') {
         void applyCurrentPlan();
         return;
       }
 
-      if (input === 'n' || input === 'b' || input === 'e') {
+      if (input === 'b' || input === 'e') {
         setMode('plan');
       }
 
@@ -347,7 +353,7 @@ export function ConfigureAgentsScreen({
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
         <Text bold>Configure Agents</Text>
-        <Text dimColor>Select agents and skills here. Links are created only after plan confirmation.</Text>
+        <Text dimColor>Select agents and skills here. Links are created only after Apply approval.</Text>
         {message === undefined ? null : <Text color="cyan">{message}</Text>}
       </Box>
 
@@ -376,7 +382,7 @@ export function ConfigureAgentsScreen({
         />
       ) : null}
 
-      <Text dimColor>{helpText(mode)}</Text>
+      <CommandBar hints={helpHints(mode)} />
     </Box>
   );
 }
@@ -508,7 +514,7 @@ function PlanView({plan}: {plan: LinkPlan}): React.ReactElement {
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
         <Text bold>Apply Plan Preview</Text>
-        <Text dimColor>Dry-run plan. Press a for an explicit apply confirmation.</Text>
+        <Text dimColor>Dry-run plan. Press Enter to open the Apply step.</Text>
         <Text dimColor>Creates: {createCount}, removals: {removeCount}</Text>
         {plan.operations.length === 0 ? (
           <Text color="yellow">Nothing to apply. Enable an agent and select skills, or review conflicts/warnings.</Text>
@@ -536,10 +542,10 @@ function ConfirmApplyView({plan}: {plan: LinkPlan}): React.ReactElement {
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
-        <Text bold color="yellow">Confirm Apply</Text>
+        <Text bold color="yellow">Apply</Text>
         <Text>This will create/remove only manager-owned links from the plan.</Text>
         <Text>Creates: {createCount}, removals: {removeCount}, conflicts: {plan.conflicts.length}</Text>
-        <Text color="yellow">Press y to apply, n to cancel.</Text>
+        <Text color="yellow">Press a to apply, or b to return to the dry-run plan.</Text>
       </Box>
       <PlanView plan={plan} />
     </Box>
@@ -584,34 +590,67 @@ function IssuePreview({
   );
 }
 
-function helpText(mode: ConfigureMode): string {
+function helpHints(mode: ConfigureMode): CommandHint[] {
   if (mode === 'editing-target') {
-    return 'Type target path, backspace to delete, enter to finish.';
+    return [
+      {key: 'type', label: 'target path'},
+      {key: 'backspace', label: 'delete'},
+      {key: 'enter', label: 'finish'}
+    ];
   }
 
   if (mode === 'skills') {
-    return 'Use up/down or j/k, space to toggle skill, b back, p plan, s save, h/q Home.';
+    return [
+      {key: 'up/down', label: 'move'},
+      {key: 'j/k', label: 'move'},
+      {key: 'space', label: 'toggle skill'},
+      {key: 'b', label: 'back'},
+      {key: 'p', label: 'plan'},
+      {key: 's', label: 'save'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'plan') {
-    return 'Press a to apply with confirmation, b/e to edit, s to save config, h/q Home.';
+    return [
+      {key: 'enter', label: 'Apply'},
+      {key: 'b/e', label: 'edit'},
+      {key: 's', label: 'save config'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'confirm-apply') {
-    return 'Press y to apply links, n to cancel, h/q for Home.';
+    return [
+      {key: 'a', label: 'apply links', tone: 'apply'},
+      {key: 'b/e', label: 'plan'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'applying') {
-    return 'Applying confirmed link plan...';
+    return [{key: 'wait', label: 'applying confirmed link plan'}];
   }
 
   if (mode === 'apply-result') {
-    return 'Press b/e to edit, h/q for Home.';
+    return [
+      {key: 'b/e', label: 'edit'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'saving') {
-    return 'Saving manager config...';
+    return [{key: 'wait', label: 'saving manager config'}];
   }
 
-  return 'Use up/down or j/k, space toggle agent, enter skills, t target, p plan, s save, h/q Home.';
+  return [
+    {key: 'up/down', label: 'move'},
+    {key: 'j/k', label: 'move'},
+    {key: 'space', label: 'toggle agent'},
+    {key: 'enter', label: 'skills'},
+    {key: 't', label: 'target'},
+    {key: 'p', label: 'plan'},
+    {key: 's', label: 'save'},
+    {key: 'h/q', label: 'Home'}
+  ];
 }

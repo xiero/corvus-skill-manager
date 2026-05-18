@@ -1,5 +1,6 @@
 import React from 'react';
 import {Box, Text} from 'ink';
+import {CorvusHeader} from './CorvusHeader.js';
 
 export interface ErrorFallbackScreenProps {
   error: Error;
@@ -8,6 +9,7 @@ export interface ErrorFallbackScreenProps {
 export function ErrorFallbackScreen({error}: ErrorFallbackScreenProps): React.ReactElement {
   return (
     <Box flexDirection="column" gap={1}>
+      <CorvusHeader />
       <Text bold color="red">Corvus Skill Manager hit a TUI error</Text>
       <Text>{error.message}</Text>
       <Box flexDirection="column">

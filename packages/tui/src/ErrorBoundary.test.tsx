@@ -20,6 +20,8 @@ describe('ErrorBoundary', () => {
       ).toJSON();
       const text = collectText(tree);
 
+      expect(text).toContain('██████╗');
+      expect(text).toContain('S K I L L   M A N A G E R');
       expect(text).toContain('Corvus Skill Manager hit a TUI error');
       expect(text).toContain('render exploded');
       expect(text).toContain('No repair or filesystem apply action was attempted.');

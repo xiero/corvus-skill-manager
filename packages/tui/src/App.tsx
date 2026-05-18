@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {useApp, useInput} from 'ink';
+import {Box, useApp, useInput} from 'ink';
 import {
   type ConfigLoadResult,
   type ManagerConfig,
@@ -12,13 +12,15 @@ import {
   HomeScreen
 } from './screens/HomeScreen.js';
 import {ConfigureAgentsScreen} from './screens/ConfigureAgentsScreen.js';
+import {CorvusHeader} from './screens/CorvusHeader.js';
 import {DoctorScreen} from './screens/DoctorScreen.js';
 import {HelpScreen} from './screens/HelpScreen.js';
 import {PlaceholderScreen} from './screens/PlaceholderScreen.js';
 import {SkillpackSetupScreen} from './screens/SkillpackSetupScreen.js';
 import {StatusScreen} from './screens/StatusScreen.js';
+import {WizardScreen} from './screens/WizardScreen.js';
 
-type View = 'home' | 'setup' | 'settings' | 'status' | 'doctor' | 'help';
+type View = 'wizard' | 'home' | 'setup' | 'settings' | 'status' | 'doctor' | 'help';
 
 interface MenuItem extends HomeMenuItem {
   action: View | 'exit';
@@ -37,8 +39,9 @@ export interface AppProps {
 }
 
 const menuItems: MenuItem[] = [
-  {label: 'Setup Skillpack', hint: '', action: 'setup'},
-  {label: 'Configure Agents', hint: '(plan links)', action: 'settings'},
+  {label: 'Guided Flow', hint: '(recommended wizard)', action: 'wizard'},
+  {label: 'Setup Skillpack', hint: '(manual/advanced)', action: 'setup'},
+  {label: 'Configure Agents', hint: '(manual plan/apply)', action: 'settings'},
   {label: 'Status', hint: '(read-only report)', action: 'status'},
   {label: 'Doctor', hint: '(read-only checks)', action: 'doctor'},
   {label: 'Help', hint: '(workflow guide)', action: 'help'},
@@ -97,6 +100,7 @@ export function App({
 
   useInput((input, key) => {
     if (
+      (view === 'wizard' && configState.config !== undefined) ||
       (view === 'setup' && configState.config !== undefined) ||
       (view === 'settings' && configState.config !== undefined) ||
       view === 'status' ||
@@ -149,17 +153,45 @@ export function App({
     []
   );
 
-  if (view === 'setup') {
+  if (view === 'wizard') {
     if (configState.config === undefined) {
-      return (
+      return withCorvusHeader(
         <PlaceholderScreen
-          title="Setup Skillpack"
-          body="Manager config is still loading. Press h to return Home."
+          title="Guided Flow"
+          body="Manager config is still loading. The wizard will start when config is ready."
         />
       );
     }
 
-    return (
+    return withCorvusHeader(
+      <WizardScreen
+        config={configState.config}
+        configPath={configState.configPath}
+        onBackHome={() => {
+          setView('home');
+        }}
+        onConfigSaved={(config) => {
+          setConfigState((currentState) => ({
+            ...currentState,
+            config,
+            status: 'exists'
+          }));
+        }}
+      />
+    );
+  }
+
+  if (view === 'setup') {
+    if (configState.config === undefined) {
+      return withCorvusHeader(
+        <PlaceholderScreen
+          title="Setup Skillpack"
+          body="Manager config is still loading."
+        />
+      );
+    }
+
+    return withCorvusHeader(
       <SkillpackSetupScreen
         config={configState.config}
         configPath={configState.configPath}
@@ -179,15 +211,15 @@ export function App({
 
   if (view === 'settings') {
     if (configState.config === undefined) {
-      return (
+      return withCorvusHeader(
         <PlaceholderScreen
           title="Configure Agents"
-          body="Manager config is still loading. Press h to return Home."
+          body="Manager config is still loading."
         />
       );
     }
 
-    return (
+    return withCorvusHeader(
       <ConfigureAgentsScreen
         config={configState.config}
         configPath={configState.configPath}
@@ -206,7 +238,7 @@ export function App({
   }
 
   if (view === 'status') {
-    return (
+    return withCorvusHeader(
       <StatusScreen
         configPath={configState.configPath}
         onBack={() => {
@@ -217,7 +249,7 @@ export function App({
   }
 
   if (view === 'doctor') {
-    return (
+    return withCorvusHeader(
       <DoctorScreen
         configPath={configState.configPath}
         onBack={() => {
@@ -228,7 +260,7 @@ export function App({
   }
 
   if (view === 'help') {
-    return (
+    return withCorvusHeader(
       <HelpScreen
         onBack={() => {
           setView('home');
@@ -244,9 +276,20 @@ export function App({
     selectedIndex
   };
 
-  return configState.errorMessage === undefined ? (
-    <HomeScreen {...homeProps} />
-  ) : (
-    <HomeScreen {...homeProps} errorMessage={configState.errorMessage} />
+  return withCorvusHeader(
+    configState.errorMessage === undefined ? (
+      <HomeScreen {...homeProps} />
+    ) : (
+      <HomeScreen {...homeProps} errorMessage={configState.errorMessage} />
+    )
+  );
+}
+
+function withCorvusHeader(screen: React.ReactElement): React.ReactElement {
+  return (
+    <Box flexDirection="column" gap={1}>
+      <CorvusHeader />
+      {screen}
+    </Box>
   );
 }

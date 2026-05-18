@@ -1,5 +1,6 @@
 import React from 'react';
 import {Box, Text} from 'ink';
+import {CommandBar} from './CommandBar.js';
 
 export interface PlaceholderScreenProps {
   title: string;
@@ -11,7 +12,7 @@ export function PlaceholderScreen({title, body}: PlaceholderScreenProps): React.
     <Box flexDirection="column" gap={1}>
       <Text bold>{title}</Text>
       <Text>{body}</Text>
-      <Text dimColor>Press h to return Home, q to exit.</Text>
+      <CommandBar hints={[{key: 'h', label: 'Home'}, {key: 'q', label: 'exit'}]} />
     </Box>
   );
 }

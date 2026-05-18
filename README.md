@@ -79,16 +79,18 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 ## First-Run Flow
 
 1. Start the TUI with `npx @corvus-tools/skill-manager`, `pnpm dev`, or `corvus-skills`.
-2. Open **Setup Skillpack**.
-3. Preview setup, then confirm only if the active snapshot is missing and you want the initial revision clone.
-4. Open **Configure Agents**.
-5. Enable one or more supported agents with Space.
-6. Press Enter on an enabled agent, then select skills with Space.
-7. Press `b`, then `s` to save config.
-8. Review the dry-run plan.
-9. Press `a`, then `y` to apply after explicit confirmation.
+2. The TUI opens **Home** first.
+3. Select **Guided Flow** for the recommended wizard.
+4. Skillpack: inspect the configured/default source, then press `a` only for the safe setup/config action shown.
+5. Update: if a remote update is available, preview the inactive revision snapshot before pressing `a` to activate it. You can continue without updating.
+6. Agents: enable one or more supported agents with Space. Gemini is shown as deferred and cannot be selected.
+7. Skills: press Enter on an enabled agent, then select skills with Space.
+8. Plan: review the dry-run link plan. A no-op plan means no links will be created.
+9. Apply: open the final apply step from the plan, then press `a` to save selections and apply manager-owned link changes.
 
-If no skills are selected, the plan has no create-link operations and no links are created. Open **Help** in the TUI for the same workflow and common no-op cases.
+The guided wizard uses one approval key consistently: `a` applies or approves the write-capable action on the current step.
+
+If no skills are selected, the plan has no create-link operations and no links are created. **Setup Skillpack** and **Configure Agents** remain available from Home as manual advanced screens.
 
 ## Supported Agents
 
@@ -148,7 +150,7 @@ Status, Doctor, discovery, planning, and apply do not mutate active skillpack re
 
 **No links were created**
 
-Open Configure Agents, enable an agent, press Enter on that agent, select at least one skill with Space, save with `s`, then review/apply the plan.
+Open Guided Flow, enable an agent, press Enter on that agent, select at least one skill with Space, generate the plan, then approve the Apply step with `a`.
 
 **The plan shows conflicts**
 
@@ -168,10 +170,11 @@ Doctor reports dirty skillpack checkouts, but will not reset or repair them. Rev
 
 **Remote update available**
 
-Open Setup Skillpack, preview the update, review added/changed/removed skills, then approve activation if you want `current` to point at the new revision.
+Open Guided Flow, preview the update, review added/changed/removed skills, then press `a` on the Update step if you want `current` to point at the new revision.
 
 ## Docs
 
+- [Architecture](architecture.md)
 - [Skillpack Contract](docs/skillpack-contract.md)
 - [Managed Manifest Behavior](docs/managed-manifest.md)
 - [Safety Model](docs/safety-model.md)

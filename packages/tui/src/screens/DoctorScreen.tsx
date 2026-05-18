@@ -5,6 +5,7 @@ import {
   type DoctorReport,
   buildDoctorReport
 } from '@corvus-tools/skill-manager-core';
+import {CommandBar} from './CommandBar.js';
 
 type DoctorScreenState =
   | {status: 'loading'}
@@ -50,7 +51,7 @@ export function DoctorScreen({configPath, onBack}: DoctorScreenProps): React.Rea
     <Box flexDirection="column" gap={1}>
       <Text bold>Doctor</Text>
       <DoctorBody state={state} />
-      <Text dimColor>Press h or q for Home.</Text>
+      <CommandBar hints={[{key: 'h', label: 'Home'}, {key: 'q', label: 'Home'}]} />
     </Box>
   );
 }

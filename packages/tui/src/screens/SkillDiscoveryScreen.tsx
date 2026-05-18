@@ -5,6 +5,7 @@ import {
   type SkillDiscoveryResult,
   discoverSkillsFromCheckout
 } from '@corvus-tools/skill-manager-core';
+import {CommandBar} from './CommandBar.js';
 
 type DiscoveryState =
   | {status: 'not-configured'}
@@ -58,7 +59,7 @@ export function SkillDiscoveryScreen({config, onBack}: SkillDiscoveryScreenProps
     <Box flexDirection="column" gap={1}>
       <Text bold>Status</Text>
       <DiscoveryBody state={state} />
-      <Text dimColor>Press h or q for Home.</Text>
+      <CommandBar hints={[{key: 'h', label: 'Home'}, {key: 'q', label: 'Home'}]} />
     </Box>
   );
 }

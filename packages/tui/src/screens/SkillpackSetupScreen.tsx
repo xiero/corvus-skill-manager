@@ -21,6 +21,7 @@ import {
   prepareSkillpackUpdatePreview,
   saveConfig
 } from '@corvus-tools/skill-manager-core';
+import {CommandBar, type CommandHint} from './CommandBar.js';
 
 type FormField = 'id' | 'repositoryUrl' | 'branch' | 'checkoutPath';
 type SetupMode = 'form' | 'preview' | 'preparing-update-preview' | 'update-preview' | 'applying-update' | 'update-result' | 'running' | 'result';
@@ -156,14 +157,14 @@ export function SkillpackSetupScreen({
         return;
       }
 
-      if (input === 'c') {
+      if (input === 'a') {
         void confirmSetup();
         return;
       }
     }
 
     if (mode === 'update-preview') {
-      if (input === 'u') {
+      if (input === 'a') {
         void confirmUpdate();
         return;
       }
@@ -402,7 +403,7 @@ export function SkillpackSetupScreen({
         ) : null}
       </Box>
 
-      <Text dimColor>{helpText(mode, editingField)}</Text>
+      <CommandBar hints={helpHints(mode, editingField)} />
     </Box>
   );
 }
@@ -544,38 +545,62 @@ function statusMessageForResult(result: SkillpackSetupResult): string {
   return result.message;
 }
 
-function helpText(mode: SetupMode, editingField: FormField | undefined): string {
+function helpHints(mode: SetupMode, editingField: FormField | undefined): CommandHint[] {
   if (editingField !== undefined) {
-    return 'Type to edit, backspace to delete, enter to finish editing.';
+    return [
+      {key: 'type', label: 'edit'},
+      {key: 'backspace', label: 'delete'},
+      {key: 'enter', label: 'finish'}
+    ];
   }
 
   if (mode === 'preview') {
-    return 'Press c for initial setup/inspection, p to preview remote update, e to edit, h or q for Home.';
+    return [
+      {key: 'a', label: 'setup/inspection apply', tone: 'apply'},
+      {key: 'p', label: 'preview remote update'},
+      {key: 'e', label: 'edit'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'preparing-update-preview') {
-    return 'Preparing update preview...';
+    return [{key: 'wait', label: 'preparing update preview'}];
   }
 
   if (mode === 'update-preview') {
-    return 'Press u to activate this revision, b/e to return, h or q for Home.';
+    return [
+      {key: 'a', label: 'activate revision', tone: 'apply'},
+      {key: 'b/e', label: 'return'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'applying-update') {
-    return 'Activating selected revision...';
+    return [{key: 'wait', label: 'activating selected revision'}];
   }
 
   if (mode === 'update-result') {
-    return 'Press e to edit, h or q for Home.';
+    return [
+      {key: 'e', label: 'edit'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'result') {
-    return 'Press e to edit, h or q for Home.';
+    return [
+      {key: 'e', label: 'edit'},
+      {key: 'h/q', label: 'Home'}
+    ];
   }
 
   if (mode === 'running') {
-    return 'Working...';
+    return [{key: 'wait', label: 'working'}];
   }
 
-  return 'Use up/down or j/k, enter to edit/select, h or q for Home.';
+  return [
+    {key: 'up/down', label: 'move'},
+    {key: 'j/k', label: 'move'},
+    {key: 'enter', label: 'edit/select'},
+    {key: 'h/q', label: 'Home'}
+  ];
 }

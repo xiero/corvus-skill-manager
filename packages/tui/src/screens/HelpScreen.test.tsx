@@ -8,10 +8,13 @@ describe('HelpScreen', () => {
     const tree = create(<HelpScreen onBack={() => {}} />).toJSON();
     const text = collectText(tree);
 
+    expect(text).toContain('Guided Flow');
     expect(text).toContain('Setup Skillpack');
     expect(text).toContain('Configure Agents');
     expect(text).toContain('No selected skills means no links are created.');
     expect(text).toContain('Saving config stores selections');
+    expect(text).toContain('approved with a');
+    expect(text).not.toContain('confirm it with y');
     expect(text).toContain('Doctor explains');
   });
 });
