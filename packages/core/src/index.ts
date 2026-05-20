@@ -143,3 +143,14 @@ export {
   defaultSkillpackId,
   defaultSkillpackRepositoryUrl
 } from './skillpackDefaults.js';
+export {
+  type ManagerInstallKind,
+  type ManagerPackageRuntime,
+  type ManagerSelfUpdateInspection,
+  type ManagerSelfUpdateOptions,
+  type ManagerSelfUpdateStatus,
+  type RegistryFetch,
+  compareSemver,
+  inspectManagerSelfUpdate,
+  isNewerVersion
+} from './selfUpdate/managerPackageUpdate.js';

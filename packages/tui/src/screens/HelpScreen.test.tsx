@@ -14,6 +14,7 @@ describe('HelpScreen', () => {
     expect(text).toContain('No selected skills means no links are created.');
     expect(text).toContain('Saving config stores selections');
     expect(text).toContain('approved with a');
+    expect(text).toContain('npm install -g @corvus-tools/skill-manager@latest');
     expect(text).not.toContain('confirm it with y');
     expect(text).toContain('Doctor explains');
   });

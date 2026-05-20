@@ -69,3 +69,12 @@ Global installs can also use `corvus-skills`.
 npm install -g @corvus-tools/skill-manager
 corvus-skills
 ```
+
+Global installs perform a read-only npm latest-version check on TUI startup. If a newer
+manager release exists, Home shows:
+
+```bash
+npm install -g @corvus-tools/skill-manager@latest
+```
+
+The TUI only displays the command; it does not execute npm or modify its own install.

@@ -33,6 +33,7 @@ export function HelpScreen({onBack}: HelpScreenProps): React.ReactElement {
         <Text>Saving config stores selections; it does not create filesystem links.</Text>
         <Text>The plan is dry-run until the Apply step is approved with a.</Text>
         <Text>Remote skillpack updates need preview and approval before current changes.</Text>
+        <Text>A global manager install can be updated with npm install -g @corvus-tools/skill-manager@latest.</Text>
         <Text>Existing unmanaged files or directories at target paths become conflicts.</Text>
         <Text>Gemini is visible for planning context, but deferred for the MVP.</Text>
         <Text>Manual Setup Skillpack and Configure Agents remain available from Home for advanced changes.</Text>

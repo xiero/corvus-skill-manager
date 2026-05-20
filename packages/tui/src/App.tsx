@@ -2,12 +2,16 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {Box, useApp, useInput} from 'ink';
 import {
   type ConfigLoadResult,
+  type ManagerPackageRuntime,
   type ManagerConfig,
+  type ManagerSelfUpdateInspection,
   defaultConfigPath,
-  ensureDefaultConfig
+  ensureDefaultConfig,
+  inspectManagerSelfUpdate
 } from '@corvus-tools/skill-manager-core';
 import {
   type ConfigStatus,
+  type HomeManagerUpdateState,
   type HomeMenuItem,
   HomeScreen
 } from './screens/HomeScreen.js';
@@ -36,6 +40,8 @@ interface ConfigState {
 export interface AppProps {
   initialConfigState?: ConfigState;
   loadConfig?: () => Promise<ConfigLoadResult>;
+  managerPackage?: ManagerPackageRuntime;
+  inspectSelfUpdate?: typeof inspectManagerSelfUpdate;
 }
 
 const menuItems: MenuItem[] = [
@@ -50,7 +56,9 @@ const menuItems: MenuItem[] = [
 
 export function App({
   initialConfigState,
-  loadConfig = ensureDefaultConfig
+  loadConfig = ensureDefaultConfig,
+  managerPackage,
+  inspectSelfUpdate = inspectManagerSelfUpdate
 }: AppProps): React.ReactElement {
   const {exit} = useApp();
   const [view, setView] = useState<View>('home');
@@ -61,6 +69,7 @@ export function App({
       status: 'loading'
     }
   );
+  const [managerUpdate, setManagerUpdate] = useState<HomeManagerUpdateState | undefined>();
 
   useEffect(() => {
     if (initialConfigState !== undefined) {
@@ -97,6 +106,50 @@ export function App({
       active = false;
     };
   }, [initialConfigState, loadConfig]);
+
+  useEffect(() => {
+    if (managerPackage === undefined || configState.config === undefined) {
+      setManagerUpdate(undefined);
+      return;
+    }
+
+    if (managerPackage.installKind !== 'global') {
+      setManagerUpdate(undefined);
+      return;
+    }
+
+    let active = true;
+    setManagerUpdate({
+      status: 'checking',
+      packageName: managerPackage.packageName,
+      currentVersion: managerPackage.currentVersion
+    });
+
+    inspectSelfUpdate({
+      ...managerPackage,
+      managerStateDir: configState.config.managerStateDir
+    })
+      .then((inspection: ManagerSelfUpdateInspection) => {
+        if (active) {
+          setManagerUpdate(inspection);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setManagerUpdate({
+            ...managerPackage,
+            status: 'check-failed',
+            updateAvailable: false,
+            fromCache: false,
+            message: `Manager update check failed: ${error instanceof Error ? error.message : String(error)}.`
+          });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [configState.config, inspectSelfUpdate, managerPackage]);
 
   useInput((input, key) => {
     if (
@@ -273,7 +326,8 @@ export function App({
     configPath: configState.configPath,
     configStatus: configState.status,
     menuItems: homeMenuItems,
-    selectedIndex
+    selectedIndex,
+    ...(managerUpdate === undefined ? {} : {managerUpdate})
   };
 
   return withCorvusHeader(

@@ -39,6 +39,10 @@ npm install -g @corvus-tools/skill-manager
 corvus-skills
 ```
 
+When `corvus-skills` is launched from a global install, the TUI checks npm for a newer
+`@corvus-tools/skill-manager` release and shows the update command on Home when one is
+available. It does not run package-manager commands for you.
+
 The npm package exposing the runnable binary is `@corvus-tools/skill-manager`.
 Its single bin is `corvus-skills`, so `npx @corvus-tools/skill-manager` starts the TUI directly.
 

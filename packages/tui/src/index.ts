@@ -3,6 +3,7 @@ export {CommandBar, type CommandHint} from './screens/CommandBar.js';
 export {ErrorBoundary, type ErrorBoundaryProps} from './ErrorBoundary.js';
 export {
   type ConfigStatus,
+  type HomeManagerUpdateState,
   type HomeMenuItem,
   HomeScreen,
   type HomeScreenProps

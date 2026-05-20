@@ -1,5 +1,6 @@
 import React from 'react';
 import {Box, Text} from 'ink';
+import type {ManagerPackageRuntime, ManagerSelfUpdateInspection} from '@corvus-tools/skill-manager-core';
 import {CommandBar} from './CommandBar.js';
 
 export interface HomeMenuItem {
@@ -9,12 +10,17 @@ export interface HomeMenuItem {
 
 export type ConfigStatus = 'loading' | 'created' | 'exists' | 'error';
 
+export type HomeManagerUpdateState =
+  | (Pick<ManagerPackageRuntime, 'packageName' | 'currentVersion'> & {status: 'checking'})
+  | ManagerSelfUpdateInspection;
+
 export interface HomeScreenProps {
   configPath: string;
   configStatus: ConfigStatus;
   menuItems: HomeMenuItem[];
   selectedIndex: number;
   errorMessage?: string;
+  managerUpdate?: HomeManagerUpdateState;
 }
 
 const statusText: Record<ConfigStatus, string> = {
@@ -29,10 +35,13 @@ export function HomeScreen({
   configStatus,
   menuItems,
   selectedIndex,
-  errorMessage
+  errorMessage,
+  managerUpdate
 }: HomeScreenProps): React.ReactElement {
   return (
     <Box flexDirection="column" gap={1}>
+      {managerUpdate === undefined ? null : <ManagerUpdateNotice managerUpdate={managerUpdate} />}
+
       <Box flexDirection="column">
         <Text>
           Config path: <Text color="cyan">{configPath}</Text>
@@ -72,4 +81,31 @@ export function HomeScreen({
       />
     </Box>
   );
+}
+
+function ManagerUpdateNotice({
+  managerUpdate
+}: {
+  managerUpdate: HomeManagerUpdateState;
+}): React.ReactElement | null {
+  if (managerUpdate.status === 'checking') {
+    return <Text dimColor>Manager update: checking npm release for {managerUpdate.packageName}...</Text>;
+  }
+
+  if (managerUpdate.status === 'update-available') {
+    return (
+      <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
+        <Text color="yellow">
+          Manager update available: {managerUpdate.currentVersion} {'->'} {managerUpdate.latestVersion}
+        </Text>
+        <Text>Run: <Text color="cyan">{managerUpdate.updateCommand}</Text></Text>
+      </Box>
+    );
+  }
+
+  if (managerUpdate.status === 'check-failed') {
+    return <Text dimColor>{managerUpdate.message}</Text>;
+  }
+
+  return null;
 }
