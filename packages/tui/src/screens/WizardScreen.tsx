@@ -53,6 +53,22 @@ interface SkillpackFormState {
   checkoutPath: string;
 }
 
+interface SkillpackEditSession {
+  field: SkillpackField;
+  originalForm: SkillpackFormState;
+  originalInspection: SkillpackInspection | undefined;
+  originalRemoteUpdate: SkillpackRemoteUpdateInspection | undefined;
+  originalUpdatePreview: SkillpackUpdatePreview | undefined;
+  originalUpdateResult: SkillpackUpdateApplyResult | undefined;
+  originalSetupResult: SkillpackSetupResult | undefined;
+}
+
+interface TargetEditSession {
+  agentId: AgentId;
+  originalTargetPath: string;
+  originalPlan: LinkPlan | undefined;
+}
+
 export interface WizardOperations {
   inspectSkillpackCheckout: typeof inspectSkillpackCheckout;
   inspectSkillpackRemoteUpdate: typeof inspectSkillpackRemoteUpdate;
@@ -113,7 +129,7 @@ export function WizardScreen({
   const [currentStep, setCurrentStep] = useState<WizardStepId>(initialStep);
   const [form, setForm] = useState<SkillpackFormState>(() => createInitialSkillpackForm(config));
   const [selectedSkillpackIndex, setSelectedSkillpackIndex] = useState(0);
-  const [editingSkillpackField, setEditingSkillpackField] = useState<SkillpackField | undefined>();
+  const [skillpackEditSession, setSkillpackEditSession] = useState<SkillpackEditSession | undefined>();
   const [inspection, setInspection] = useState<SkillpackInspection | undefined>();
   const [remoteUpdate, setRemoteUpdate] = useState<SkillpackRemoteUpdateInspection | undefined>();
   const [updatePreview, setUpdatePreview] = useState<SkillpackUpdatePreview | undefined>();
@@ -123,7 +139,7 @@ export function WizardScreen({
     createDraftAgents(config, adapters)
   );
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
-  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetEditSession, setTargetEditSession] = useState<TargetEditSession | undefined>();
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
   const [skills, setSkills] = useState<DiscoveredSkill[]>([]);
   const [discoveryWarnings, setDiscoveryWarnings] = useState<SkillRiskWarning[]>([]);
@@ -152,11 +168,15 @@ export function WizardScreen({
   });
   const currentPlan = plan ?? createLinkPlan();
   const busy = busyMessage !== undefined;
+  const editingSkillpackField = skillpackEditSession?.field;
+  const editingTarget = targetEditSession !== undefined;
 
   useEffect(() => {
     setWorkingConfig(config);
     setDraftAgents(createDraftAgents(config, adapters));
     setForm(createInitialSkillpackForm(config));
+    setSkillpackEditSession(undefined);
+    setTargetEditSession(undefined);
   }, [adapters, config]);
 
   useEffect(() => {
@@ -215,12 +235,12 @@ export function WizardScreen({
       return;
     }
 
-    if (editingSkillpackField !== undefined) {
+    if (skillpackEditSession !== undefined) {
       handleSkillpackEditing(input, key);
       return;
     }
 
-    if (editingTarget) {
+    if (targetEditSession !== undefined) {
       handleTargetEditing(input, key);
       return;
     }
@@ -273,12 +293,23 @@ export function WizardScreen({
   });
 
   function handleSkillpackEditing(input: string, key: {return?: boolean; backspace?: boolean; delete?: boolean; ctrl?: boolean; meta?: boolean}): void {
-    if (editingSkillpackField === undefined) {
+    if (skillpackEditSession === undefined) {
+      return;
+    }
+
+    if (input === 'h' || input === 'q') {
+      setForm(skillpackEditSession.originalForm);
+      setInspection(skillpackEditSession.originalInspection);
+      setRemoteUpdate(skillpackEditSession.originalRemoteUpdate);
+      setUpdatePreview(skillpackEditSession.originalUpdatePreview);
+      setUpdateResult(skillpackEditSession.originalUpdateResult);
+      setSetupResult(skillpackEditSession.originalSetupResult);
+      setSkillpackEditSession(undefined);
       return;
     }
 
     if (key.return) {
-      setEditingSkillpackField(undefined);
+      setSkillpackEditSession(undefined);
       setInspection(undefined);
       setRemoteUpdate(undefined);
       setUpdatePreview(undefined);
@@ -286,18 +317,35 @@ export function WizardScreen({
     }
 
     if (key.backspace || key.delete) {
-      updateSkillpackField(editingSkillpackField, (value) => value.slice(0, -1));
+      updateSkillpackField(skillpackEditSession.field, (value) => value.slice(0, -1));
       return;
     }
 
     if (input.length > 0 && key.ctrl !== true && key.meta !== true) {
-      updateSkillpackField(editingSkillpackField, (value) => `${value}${input}`);
+      updateSkillpackField(skillpackEditSession.field, (value) => `${value}${input}`);
     }
   }
 
   function handleTargetEditing(input: string, key: {return?: boolean; backspace?: boolean; delete?: boolean; ctrl?: boolean; meta?: boolean}): void {
+    if (targetEditSession === undefined) {
+      return;
+    }
+
+    if (input === 'h' || input === 'q') {
+      setDraftAgents((currentDrafts) => ({
+        ...currentDrafts,
+        [targetEditSession.agentId]: {
+          ...currentDrafts[targetEditSession.agentId],
+          targetPath: targetEditSession.originalTargetPath
+        }
+      }));
+      setPlan(targetEditSession.originalPlan);
+      setTargetEditSession(undefined);
+      return;
+    }
+
     if (key.return) {
-      setEditingTarget(false);
+      setTargetEditSession(undefined);
       return;
     }
 
@@ -326,7 +374,15 @@ export function WizardScreen({
       const field = skillpackFields[selectedSkillpackIndex];
 
       if (field !== undefined) {
-        setEditingSkillpackField(field.key);
+        setSkillpackEditSession({
+          field: field.key,
+          originalForm: form,
+          originalInspection: inspection,
+          originalRemoteUpdate: remoteUpdate,
+          originalUpdatePreview: updatePreview,
+          originalUpdateResult: updateResult,
+          originalSetupResult: setupResult
+        });
       }
 
       return;
@@ -387,7 +443,11 @@ export function WizardScreen({
 
     if (input === 't') {
       if (selectedAdapter !== undefined && isWizardAgentSelectable(selectedAdapter)) {
-        setEditingTarget(true);
+        setTargetEditSession({
+          agentId: selectedAdapter.id,
+          originalTargetPath: draftAgents[selectedAdapter.id].targetPath,
+          originalPlan: plan
+        });
       }
 
       return;
@@ -1483,6 +1543,7 @@ function commandHints(
       {key: 'type', label: 'edit'},
       {key: 'backspace', label: 'delete'},
       {key: 'enter', label: 'finish'},
+      {key: 'h/q', label: 'cancel'},
       {key: 'r', label: 'inspect after edit'}
     ];
   }
@@ -1491,7 +1552,8 @@ function commandHints(
     return [
       {key: 'type', label: 'target'},
       {key: 'backspace', label: 'delete'},
-      {key: 'enter', label: 'finish'}
+      {key: 'enter', label: 'finish'},
+      {key: 'h/q', label: 'cancel'}
     ];
   }
 

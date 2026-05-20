@@ -32,6 +32,11 @@ interface DraftAgentConfig {
   selectedSkillIds: string[];
 }
 
+interface TargetEditSession {
+  agentId: AgentId;
+  originalTargetPath: string;
+}
+
 export interface ConfigureAgentsScreenProps {
   config: ManagerConfig;
   configPath: string;
@@ -59,6 +64,7 @@ export function ConfigureAgentsScreen({
   const [plan, setPlan] = useState<LinkPlan | undefined>();
   const [applyResult, setApplyResult] = useState<ApplyLinkPlanResult | undefined>();
   const [message, setMessage] = useState<string | undefined>();
+  const [targetEditSession, setTargetEditSession] = useState<TargetEditSession | undefined>();
 
   const selectedAdapter = adapters[selectedAgentIndex] ?? adapters[0];
   const selectedAgentDraft = selectedAdapter === undefined ? undefined : draftAgents[selectedAdapter.id];
@@ -104,7 +110,26 @@ export function ConfigureAgentsScreen({
     }
 
     if (mode === 'editing-target') {
+      if (targetEditSession === undefined) {
+        setMode('agents');
+        return;
+      }
+
+      if (input === 'h' || input === 'q') {
+        setDraftAgents((currentDrafts) => ({
+          ...currentDrafts,
+          [targetEditSession.agentId]: {
+            ...currentDrafts[targetEditSession.agentId],
+            targetPath: targetEditSession.originalTargetPath
+          }
+        }));
+        setTargetEditSession(undefined);
+        setMode('agents');
+        return;
+      }
+
       if (key.return) {
+        setTargetEditSession(undefined);
         setMode('agents');
         return;
       }
@@ -220,6 +245,10 @@ export function ConfigureAgentsScreen({
 
     if (input === 't') {
       if (selectedAdapter !== undefined && selectedAdapter.supportStatus !== 'deferred') {
+        setTargetEditSession({
+          agentId: selectedAdapter.id,
+          originalTargetPath: draftAgents[selectedAdapter.id].targetPath
+        });
         setMode('editing-target');
       }
 
@@ -595,7 +624,8 @@ function helpHints(mode: ConfigureMode): CommandHint[] {
     return [
       {key: 'type', label: 'target path'},
       {key: 'backspace', label: 'delete'},
-      {key: 'enter', label: 'finish'}
+      {key: 'enter', label: 'finish'},
+      {key: 'h/q', label: 'cancel'}
     ];
   }
 

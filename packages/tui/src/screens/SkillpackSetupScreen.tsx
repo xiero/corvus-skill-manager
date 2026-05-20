@@ -33,6 +33,11 @@ interface SkillpackFormState {
   checkoutPath: string;
 }
 
+interface SkillpackEditSession {
+  field: FormField;
+  originalForm: SkillpackFormState;
+}
+
 export interface SkillpackSetupScreenProps {
   config: ManagerConfig;
   configPath: string;
@@ -55,7 +60,7 @@ export function SkillpackSetupScreen({
 }: SkillpackSetupScreenProps): React.ReactElement {
   const [form, setForm] = useState<SkillpackFormState>(() => createInitialForm(config));
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [editingField, setEditingField] = useState<FormField | undefined>();
+  const [editSession, setEditSession] = useState<SkillpackEditSession | undefined>();
   const [mode, setMode] = useState<SetupMode>('form');
   const [inspection, setInspection] = useState<SkillpackInspection | undefined>();
   const [remoteUpdate, setRemoteUpdate] = useState<SkillpackRemoteUpdateInspection | undefined>();
@@ -112,25 +117,32 @@ export function SkillpackSetupScreen({
 
     return 'configured';
   }, [config.skillpack, errorMessage, inspection, mode, remoteUpdate, result, updatePreview, updateResult]);
+  const editingField = editSession?.field;
 
   useInput((input, key) => {
     if (mode === 'running' || mode === 'preparing-update-preview' || mode === 'applying-update') {
       return;
     }
 
-    if (editingField !== undefined) {
+    if (editSession !== undefined) {
+      if (input === 'h' || input === 'q') {
+        setForm(editSession.originalForm);
+        setEditSession(undefined);
+        return;
+      }
+
       if (key.return) {
-        setEditingField(undefined);
+        setEditSession(undefined);
         return;
       }
 
       if (key.backspace || key.delete) {
-        updateField(editingField, (value) => value.slice(0, -1));
+        updateField(editSession.field, (value) => value.slice(0, -1));
         return;
       }
 
       if (input.length > 0 && !key.ctrl && !key.meta) {
-        updateField(editingField, (value) => `${value}${input}`);
+        updateField(editSession.field, (value) => `${value}${input}`);
       }
 
       return;
@@ -216,7 +228,10 @@ export function SkillpackSetupScreen({
         const selectedField = fields[selectedIndex];
 
         if (selectedField !== undefined) {
-          setEditingField(selectedField.key);
+          setEditSession({
+            field: selectedField.key,
+            originalForm: form
+          });
         }
 
         return;
@@ -550,7 +565,8 @@ function helpHints(mode: SetupMode, editingField: FormField | undefined): Comman
     return [
       {key: 'type', label: 'edit'},
       {key: 'backspace', label: 'delete'},
-      {key: 'enter', label: 'finish'}
+      {key: 'enter', label: 'finish'},
+      {key: 'h/q', label: 'cancel'}
     ];
   }
 
