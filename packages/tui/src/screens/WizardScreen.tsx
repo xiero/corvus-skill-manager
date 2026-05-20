@@ -404,6 +404,12 @@ export function WizardScreen({
   }
 
   function handleUpdateInput(input: string, key: {return?: boolean}): void {
+    if (input === 'b') {
+      setCurrentStep('skillpack');
+      setMessage('Returned to the Skillpack step.');
+      return;
+    }
+
     if (input === 'r') {
       void inspectConfiguredSkillpack();
       return;
@@ -426,6 +432,12 @@ export function WizardScreen({
   }
 
   function handleAgentsInput(input: string, key: {upArrow?: boolean; downArrow?: boolean; return?: boolean}): void {
+    if (input === 'b') {
+      setCurrentStep('update');
+      setMessage('Returned to the Update step.');
+      return;
+    }
+
     if (key.upArrow || input === 'k') {
       setSelectedAgentIndex((index) => Math.max(0, index - 1));
       return;
@@ -1298,16 +1310,36 @@ function ApplyStepView({plan}: {plan: LinkPlan}): React.ReactElement {
   );
 }
 
-function CompleteStepView({result}: {result: ApplyLinkPlanResult}): React.ReactElement {
+export function CompleteStepView({result}: {result: ApplyLinkPlanResult}): React.ReactElement {
+  const skippedColor = result.skipped.length === 0 ? 'green' : 'yellow';
+  const completionNote =
+    result.skipped.length === 0
+      ? 'All guided setup steps are finished.'
+      : 'The wizard is finished; review skipped operations before leaving.';
+
   return (
     <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1}>
+        <Text bold color="green">7. Complete</Text>
+        <Text>
+          <Text color="green">🎺 </Text>
+          <Text bold color="green">Wizard complete</Text>
+        </Text>
+        <Text>{completionNote}</Text>
+        <Text>
+          <Text color="green">{result.applied.length}</Text>
+          {' applied'}
+          <Text dimColor>{' | '}</Text>
+          <Text color={skippedColor}>{result.skipped.length}</Text>
+          {' skipped'}
+        </Text>
+        <Text dimColor>Press h for Home, or b to adjust the guided flow.</Text>
+      </Box>
       <Box flexDirection="column">
-        <Text bold>7. Complete</Text>
         <Text>Manifest: {result.manifestPath}</Text>
-        <Text>Applied: {result.applied.length}, skipped: {result.skipped.length}</Text>
         <Text>Unmanaged files, directories, and symlinks were not overwritten.</Text>
       </Box>
-      <IssuePreview title="Applied" color="yellow" issues={result.applied.map((item) => item.message)} />
+      <IssuePreview title="Applied" color="green" issues={result.applied.map((item) => item.message)} />
       <IssuePreview title="Skipped" color="red" issues={result.skipped.map((item) => item.message)} />
     </Box>
   );
@@ -1319,7 +1351,7 @@ function IssuePreview({
   issues
 }: {
   title: string;
-  color: 'red' | 'yellow';
+  color: 'green' | 'red' | 'yellow';
   issues: string[];
 }): React.ReactElement {
   if (issues.length === 0) {
@@ -1573,6 +1605,7 @@ function commandHints(
       {key: 'p', label: 'preview update'},
       {key: 'a', label: 'apply ready preview', tone: 'apply'},
       {key: 'enter', label: 'continue'},
+      {key: 'b', label: 'skillpack'},
       {key: 'r', label: 'refresh'},
       {key: 'h', label: 'Home'},
       {key: 'q', label: 'exit'}
@@ -1586,6 +1619,7 @@ function commandHints(
       {key: 'enter', label: 'skills'},
       {key: 't', label: 'target'},
       {key: 'p', label: 'plan'},
+      {key: 'b', label: 'update'},
       {key: 'h', label: 'Home'},
       {key: 'q', label: 'exit'}
     ];

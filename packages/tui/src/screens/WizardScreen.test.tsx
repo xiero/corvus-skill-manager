@@ -1,10 +1,11 @@
 import React from 'react';
 import {create} from 'react-test-renderer';
 import {describe, expect, it} from 'vitest';
-import type {AgentId, LinkPlan} from '@corvus-tools/skill-manager-core';
+import type {AgentId, ApplyLinkPlanResult, LinkPlan} from '@corvus-tools/skill-manager-core';
 import {getAgentAdapters} from '@corvus-tools/skill-manager-core';
 import {deriveWizardFlow, type WizardDraftAgent} from '../wizard/wizardFlow.js';
 import {
+  CompleteStepView,
   WizardAgentListView,
   WizardCommandFooter,
   WizardPlanView,
@@ -94,6 +95,20 @@ describe('WizardPlanView', () => {
   });
 });
 
+describe('CompleteStepView', () => {
+  it('clearly celebrates that the guided flow is finished', () => {
+    const tree = create(<CompleteStepView result={completeResult()} />).toJSON();
+    const text = collectText(tree);
+
+    expect(text).toContain('🎺');
+    expect(text).toContain('Wizard complete');
+    expect(text).toContain('All guided setup steps are finished.');
+    expect(text).toContain('0 applied');
+    expect(text).toContain('0 skipped');
+    expect(text).toContain('Press h for Home');
+  });
+});
+
 function createDraftAgents(): Record<AgentId, WizardDraftAgent> {
   return Object.fromEntries(
     getAgentAdapters().map((adapter) => [
@@ -137,6 +152,16 @@ function conflictPlan(): LinkPlan {
         path: '/tmp/codex/review-helper'
       }
     ]
+  };
+}
+
+function completeResult(): ApplyLinkPlanResult {
+  return {
+    dryRun: false,
+    manifestPath: '/tmp/corvus-state/manifest.json',
+    applied: [],
+    skipped: [],
+    planned: []
   };
 }
 
