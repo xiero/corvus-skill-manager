@@ -10,7 +10,7 @@ These rules are authoritative for implementation work in this repository.
 - Use TypeScript, Node.js, React Ink, Zod, and Vitest.
 - Prefer pure functions in core modules.
 - Do not add Express or a backend.
-- Gemini is deferred for MVP and must be displayed as unsupported/deferred.
+- Gemini CLI is supported through Agent Skills directory links.
 
 ## Skillpack Repository Boundary
 

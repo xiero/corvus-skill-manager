@@ -49,7 +49,7 @@ Inline TUI editing currently makes it too easy to get stuck with accidental edit
 - Reverting saved manager config, applied link plans, or activated skillpack revisions.
 - Adding CLI-only edit or cancel commands.
 - Changing skillpack update, clone, preview, or activation behavior.
-- Adding Gemini support beyond the existing deferred display.
+- Changing Gemini support beyond the existing Agent Skills link behavior.
 
 ## Acceptance Criteria
 

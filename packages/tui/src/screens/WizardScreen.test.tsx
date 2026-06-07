@@ -47,7 +47,7 @@ describe('WizardCommandFooter', () => {
 });
 
 describe('WizardAgentListView', () => {
-  it('renders Gemini as deferred and unavailable', () => {
+  it('renders Gemini as supported and selectable', () => {
     const adapters = getAgentAdapters();
     const tree = create(
       <WizardAgentListView
@@ -64,8 +64,9 @@ describe('WizardAgentListView', () => {
     const text = collectText(tree);
 
     expect(text).toContain('Gemini CLI');
-    expect(text).toContain('deferred');
-    expect(text).toContain('cannot be selected');
+    expect(text).toContain('supported');
+    expect(text).toContain('~/.gemini/skills');
+    expect(text).not.toContain('cannot be selected');
   });
 });
 

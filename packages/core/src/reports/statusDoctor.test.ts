@@ -220,9 +220,9 @@ describe('status and doctor reports', () => {
       'manifest-entry-with-wrong-target',
       'missing-skill-md',
       'missing-source-skill-path',
-      'unmanaged-conflict-at-planned-target',
-      'unsupported-agent-enabled'
+      'unmanaged-conflict-at-planned-target'
     ]));
+    expect(issueCodes).not.toContain('unsupported-agent-enabled');
     expect(afterSnapshot).toEqual(beforeSnapshot);
   });
 });

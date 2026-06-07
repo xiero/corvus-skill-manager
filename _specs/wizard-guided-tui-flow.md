@@ -25,7 +25,7 @@ The current first-run path requires the user to remember the correct sequence of
 
 - `AGENTS.md` - sections: Project Direction; Skillpack Repository Boundary; Manager State And Writes; Implementation Notes; Done Criteria
 - `README.md` - sections: What It Does; What It Does Not Do; First-Run Flow; Supported Agents; Revision Snapshot Model; Troubleshooting
-- `docs/safety-model.md` - sections: Write Boundaries; Skillpack Boundary; Agent Target Boundary; Read-Only Views; Update Preview; Gemini Boundary; Failure Handling
+- `docs/safety-model.md` - sections: Write Boundaries; Skillpack Boundary; Agent Target Boundary; Read-Only Views; Update Preview; Gemini CLI; Failure Handling
 - `docs/managed-manifest.md` - sections: Create Behavior; Remove Behavior; Broken Links; Dry Run
 - `docs/skillpack-contract.md` - sections: Snapshot Layout; Revision Rules; Preferred Registry; Registryless Fallback
 - `architecture.md` - not present in the working tree; applicable layer boundaries were derived from the authoritative project docs listed above.
@@ -40,7 +40,7 @@ The current first-run path requires the user to remember the correct sequence of
 - Remote update detection in the guided flow must remain read-only until the user explicitly requests a preview or approves activation.
 - Agent and skill selection must lead naturally into a dry-run link plan so users do not have to discover a separate plan/apply path manually.
 - A no-op plan must be clearly presented as safe and complete, with guidance toward selecting agents or skills if the user expected links to be created.
-- Gemini must remain visible as deferred and unsupported, and the guided flow must not offer Gemini link operations for the MVP.
+- Gemini CLI must be selectable as a supported Agent Skills target.
 - Existing read-only Status, Doctor, and Help capabilities must remain available outside the guided flow.
 - The user must be able to exit the guided flow without applying pending changes.
 - The guided flow must handle unexpected runtime or render failures through the safe fallback behavior, without repair or apply side effects.
@@ -51,18 +51,18 @@ The current first-run path requires the user to remember the correct sequence of
 - State-aware step progression that tells the user what comes next.
 - Preview and confirmation gates for initial setup, update activation, and link application.
 - Guidance for already-complete, blocked, and no-op states.
-- Continued visibility of supported agents, custom agent requirements, and Gemini's deferred status.
+- Continued visibility of supported agents, custom agent requirements, and Gemini's default skills target.
 - Preservation of the existing TUI-first product direction and thin CLI entrypoint.
 
 ## Out of Scope
 
 - CLI-only setup, install, update, or apply commands.
 - Express, backend services, cloud sync, authentication, marketplace features, or copy fallback behavior.
-- Gemini wrapper generation or Gemini link support.
+- Gemini `.toml` command wrapper generation.
 - Automatically pulling, repairing, resetting, formatting, committing, or otherwise mutating active skillpack checkouts.
 - Overwriting unmanaged files, directories, symlinks, or manifest entries.
 - Replacing Status, Doctor, or Help with the wizard; they remain available as supporting read-only views.
-- Changing the skillpack contract, registry shape, manifest entry shape, or supported agent list.
+- Changing the skillpack contract, registry shape, or manifest entry shape.
 
 ## Acceptance Criteria
 
@@ -72,7 +72,7 @@ The current first-run path requires the user to remember the correct sequence of
 - Given no agents or no skills are selected, when the user reaches plan review, then the TUI explains the no-op outcome and guides them back to the relevant selection step.
 - Given at least one supported agent and skill are selected, when the user reaches plan review, then the dry-run plan is shown before any link is created or removed.
 - Given the dry-run plan contains conflicts or unmanaged targets, when the user reviews it, then the guided flow blocks unsafe apply and explains that unmanaged paths must be resolved outside the manager.
-- Given Gemini is shown in the agent list, when the user focuses it, then the TUI presents it as deferred and unsupported for MVP link operations.
+- Given Gemini is shown in the agent list, when the user focuses it, then the TUI presents it as supported with the default `~/.gemini/skills` target.
 - Given the user confirms an apply operation, when the operation completes, then the guided flow shows the resulting completion or blocked state without implying that unmanaged files were changed.
 - Given the user exits the guided flow before confirmation, when they return to the TUI, then no pending write action has been applied.
 
@@ -109,7 +109,7 @@ The current first-run path requires the user to remember the correct sequence of
 
 - Unit-test the state-to-next-step decision behavior for first-run, already-configured, no-op, blocked, and update-available states.
 - Unit-test that write-capable steps cannot advance to apply or activation without a preview and explicit confirmation.
-- Unit-test Gemini deferred behavior so it remains visible but unavailable for MVP link operations.
+- Unit-test Gemini selectable behavior and default target rendering.
 - Exercise TUI integration paths for first-run setup, agent and skill selection, dry-run plan review, no-op plan handling, conflict handling, cancellation, and successful confirmed apply.
 - Mock remote update detection, skill discovery, manager state, and link planning boundaries so the guided flow can be tested without mutating skillpack repositories or agent target directories.
 - Include dedicated coverage for dirty active checkouts, missing registry fallback, custom agent target validation, unmanaged conflicts, and permission failures.

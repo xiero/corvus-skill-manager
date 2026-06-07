@@ -53,9 +53,9 @@ Status remote checks, Doctor, Help, and discovery are read-only. Doctor reports 
 
 When the remote commit differs from the active commit, the TUI can download an inactive revision snapshot for preview. The preview summarizes added, removed, and changed skills. The active `current` link is unchanged until the user explicitly approves activation.
 
-## Gemini Boundary
+## Gemini CLI
 
-Gemini is shown as deferred/unsupported in the MVP. The manager does not generate Gemini `.toml` wrappers because that would not fit the current link-only apply model.
+Gemini CLI is supported through Agent Skills directory links. The default user-scope target is `~/.gemini/skills`, and apply uses the same manager-owned link planning and unmanaged overwrite protections as other supported agents. The manager does not generate Gemini `.toml` command wrappers.
 
 ## Failure Handling
 

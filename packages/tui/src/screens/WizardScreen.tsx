@@ -582,7 +582,7 @@ export function WizardScreen({
     }
 
     if (!isWizardAgentSelectable(selectedAdapter)) {
-      setMessage(`${selectedAdapter.displayName} is ${selectedAdapter.supportStatus} for the MVP and cannot be selected.`);
+      setMessage(`${selectedAdapter.displayName} is ${selectedAdapter.supportStatus} and cannot be selected.`);
       return;
     }
 

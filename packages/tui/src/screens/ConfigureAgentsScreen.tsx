@@ -244,7 +244,10 @@ export function ConfigureAgentsScreen({
     }
 
     if (input === 't') {
-      if (selectedAdapter !== undefined && selectedAdapter.supportStatus !== 'deferred') {
+      if (
+        selectedAdapter !== undefined &&
+        (selectedAdapter.supportStatus === 'supported' || selectedAdapter.supportStatus === 'custom')
+      ) {
         setTargetEditSession({
           agentId: selectedAdapter.id,
           originalTargetPath: draftAgents[selectedAdapter.id].targetPath
@@ -269,7 +272,7 @@ export function ConfigureAgentsScreen({
     }
 
     if (selectedAdapter.supportStatus === 'deferred' || selectedAdapter.supportStatus === 'unavailable') {
-      setMessage(`${selectedAdapter.displayName} is ${selectedAdapter.supportStatus} for MVP.`);
+      setMessage(`${selectedAdapter.displayName} is ${selectedAdapter.supportStatus} and cannot be selected.`);
       return;
     }
 
@@ -482,12 +485,12 @@ function AgentListView({
             <Text key={adapter.id} color="cyan">
               {line}
               {editingTarget ? ' [editing]' : ''}
-              {adapter.supportStatus === 'deferred' ? ' - unsupported in MVP' : ''}
+              {adapter.supportStatus === 'deferred' || adapter.supportStatus === 'unavailable' ? ' - cannot be selected' : ''}
             </Text>
           ) : (
             <Text key={adapter.id}>
               {line}
-              {adapter.supportStatus === 'deferred' ? ' - unsupported in MVP' : ''}
+              {adapter.supportStatus === 'deferred' || adapter.supportStatus === 'unavailable' ? ' - cannot be selected' : ''}
             </Text>
           );
         })}

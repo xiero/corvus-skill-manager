@@ -17,7 +17,7 @@ Included:
 - `registry.json` loading and validation.
 - `SKILL.md` metadata parsing and static risk scan.
 - Agent selection for Codex, Claude, Copilot CLI, OpenCode, Pi, and Custom.
-- Gemini shown as unsupported/deferred in MVP, because MVP is link-only.
+- Gemini CLI supported through Agent Skills directory links.
 - Apply preview before any write.
 - Creation/removal of manager-owned links only in agent target directories.
 - Config, lock, and managed-target manifest under `~/.agents/corvus-skill-manager`.
@@ -30,7 +30,7 @@ Excluded:
 - Mutable skill repo updates after initial clone.
 - Automatic skill collection updates.
 - Skill generation.
-- Gemini `.toml` wrapper generation.
+- Gemini `.toml` command wrapper generation.
 - Marketplace, remote registry API, auth, cloud sync, Express backend.
 - Skill execution or script execution.
 - Automatic overwrite of existing unmanaged files/directories.
@@ -43,7 +43,7 @@ Excluded:
 - **Agent path uncertainty:** some agent paths may change or be user-specific. Adapters should expose defaults but allow override before apply.
 - **Cross-platform links:** Unix symlinks and Windows junction behavior differ. MVP should support symlink/junction planning, with copy fallback deferred unless explicitly allowed later.
 - **Revision vs mutable update model:** initial and approved update clones create immutable revision snapshots; no pull/update behavior should mutate an existing checkout.
-- **Gemini mismatch:** Gemini’s `.toml` command model is not link-only, so Gemini should be deferred rather than forced into an inaccurate adapter.
+- **Gemini target compatibility:** Gemini CLI now supports Agent Skills directories, so the manager can use the same link-planning model with a Gemini-specific default target.
 
 ## Vertical Slice Order
 
@@ -78,7 +78,7 @@ Excluded:
 
 4. **Agent Selection + Link Planning**
    - Implement adapter interface for Codex, Claude, Copilot, OpenCode, Pi, and Custom.
-   - Gemini appears as deferred/unsupported in MVP.
+   - Gemini appears as a supported Agent Skills target.
    - Implement agent selection screen with editable target paths where needed.
    - Generate an apply plan only; no writes until confirmation.
    - Acceptance: selected skills and agents produce deterministic link operations with default target paths.
@@ -106,6 +106,6 @@ Excluded:
 - MVP is TUI-first; there is no CLI-only Slice 1.
 - Initial clone and approved update clones are allowed, but no pull/reclone-over-existing behavior is included.
 - After clone, the manager treats every revision checkout as read-only.
-- Gemini is deferred for MVP because generated `.toml` wrappers would violate the current link-only target rule.
+- Gemini CLI is supported through Agent Skills directory links; generated `.toml` wrappers remain out of scope.
 - The manager may write only to its own state directory and agent target directories for confirmed, manager-owned link operations.
 - TypeScript, Node.js, React Ink, Zod, and Vitest are the preferred stack.

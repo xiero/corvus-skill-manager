@@ -154,7 +154,7 @@ function collectAgentIssues(context: ReportContext, issues: DoctorIssue[]): void
         severity: 'warning',
         code: 'unsupported-agent-enabled',
         message: `${adapter.displayName} is ${adapter.supportStatus} in this MVP.`,
-        action: 'Disable this agent for now; Gemini wrappers are deferred.',
+        action: 'Disable this agent before applying.',
         agentId: adapter.id
       });
     }

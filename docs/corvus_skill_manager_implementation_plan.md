@@ -107,12 +107,12 @@ Az első támogatott agentek:
 | OpenAI Codex CLI   | `codex`    | `~/.agents/skills` vagy Codex-specifikus path                                     | Agent Skills kompatibilis cél                                 |
 | Claude Code        | `claude`   | `~/.claude/skills`                                                                | Natív skill folder modell                                     |
 | GitHub Copilot CLI | `copilot`  | `~/.copilot/skills` vagy `~/.agents/skills`                                       | Copilot CLI Agent Skills támogatás                            |
-| Gemini CLI         | `gemini`   | `~/.gemini/commands` adapterelt parancsok, később skill path ha natív lesz/stabil | Gemini custom slash command `.toml` modell miatt adapter kell |
+| Gemini CLI         | `gemini`   | `~/.gemini/skills`                                                                | Natív Agent Skills támogatás                                  |
 | OpenCode           | `opencode` | `~/.config/opencode/skills` vagy `~/.agents/skills`                               | Natív Agent Skills támogatás                                  |
 | Pi Agent           | `pi`       | `~/.pi/agent/skills` vagy `~/.agents/skills`                                      | Natív Agent Skills standard támogatás                         |
 | Custom Agent       | `custom`   | user által megadott skills path                                                   | bármilyen kompatibilis agenthez                               |
 
-Megjegyzés: a különböző agentek eltérően kezelik a skilleket. Codex, Claude, Copilot, OpenCode és Pi esetén a `SKILL.md` alapú Agent Skills forma jól illeszthető. Gemini CLI jelenleg elsősorban custom slash command `.toml` fájlokat támogat, ezért ott adapterelt command generálás vagy későbbi natív skill támogatás lehet a jó irány.
+Megjegyzés: a különböző agentek eltérően kezelik a skilleket. Codex, Claude, Copilot, Gemini CLI, OpenCode és Pi esetén a `SKILL.md` alapú Agent Skills forma jól illeszthető. Gemini CLI esetén az alapértelmezett user-scope cél `~/.gemini/skills`.
 
 ---
 
@@ -349,24 +349,14 @@ corvus-skills/
   -> ~/.agents/skillpacks/corvus-skills/repo/skills/spec-driven-dev
 ```
 
-Gemini esetén nem sima skill symlink az elsődleges MVP, hanem generált `.toml` command wrapper lehet:
+Gemini esetén is a sima skill symlink az elsődleges MVP:
 
 ```text
-~/.gemini/commands/corvus/spec-driven-dev.toml
+~/.gemini/skills/spec-driven-dev
+  -> ~/.agents/skillpacks/corvus-skills/repo/skills/spec-driven-dev
 ```
 
-A wrapper prompt csak hivatkozik a skillre, például:
-
-```toml
-description = "Run the Corvus spec-driven-dev workflow."
-prompt = """
-Read and follow this skill:
-~/.agents/skillpacks/corvus-skills/repo/skills/spec-driven-dev/SKILL.md
-
-User request:
-{{args}}
-"""
-```
+A manager nem generál Gemini `.toml` command wrapper fájlokat.
 
 ---
 
@@ -617,31 +607,21 @@ Működés:
 Preferált cél MVP-ben:
 
 ```text
-~/.gemini/commands/corvus
+~/.gemini/skills
 ```
 
 Működés:
 
-- nem natív `SKILL.md` symlinkként indul;
-- generált `.toml` slash command készül minden engedélyezett skillhez;
-- a `.toml` prompt hivatkozik az eredeti skill `SKILL.md` pathjára;
-- a command név lehet `/corvus:spec-driven-dev`.
+- natív `SKILL.md` skill directory linkként működik;
+- minden engedélyezett skillhez manager-owned link készül;
+- a link az eredeti skill könyvtárra mutat;
+- nem generál `.toml` slash command wrapper fájlokat.
 
 Példa:
 
 ```text
-~/.gemini/commands/corvus/spec-driven-dev.toml
-```
-
-```toml
-description = "Use Corvus skill: spec-driven-dev."
-prompt = """
-Use the following Corvus skill instructions as the authoritative workflow:
-~/.agents/skillpacks/corvus-skills/repo/skills/spec-driven-dev/SKILL.md
-
-Apply it to this request:
-{{args}}
-"""
+~/.gemini/skills/spec-driven-dev
+  -> ~/.agents/skillpacks/corvus-skills/repo/skills/spec-driven-dev
 ```
 
 ### 10.5 OpenCode adapter
@@ -840,7 +820,7 @@ Agents:
 ✓ Codex       2 skills enabled
 ✓ Claude      1 skill enabled
 ✓ Copilot     1 skill enabled
-✓ Gemini      1 command generated
+✓ Gemini      1 skill enabled
 ✓ OpenCode    1 skill enabled
 ✓ Pi          1 skill enabled
 ```
@@ -857,11 +837,10 @@ Doctor report
 ✓ all enabled skill sources exist
 ✓ all Codex links valid
 ✓ all Claude links valid
-⚠ Gemini command wrapper is stale for spec-driven-dev
+✓ all Gemini links valid
 ✗ OpenCode link broken: architecture-review
 
 Suggested fixes:
-- Regenerate Gemini managed command wrappers
 - Remove or recreate broken OpenCode link
 ```
 
@@ -1150,25 +1129,25 @@ A kiválasztott skillekhez és agentekhez készül egy preview plan, majd alkalm
 
 ---
 
-## Slice 6 — Gemini command wrapper
+## Slice 6 — Gemini Agent Skills target
 
 ### Cél
 
-Gemini CLI-hez `.toml` slash command wrapper generálás.
+Gemini CLI-hez `SKILL.md` alapú Agent Skills linkelés.
 
 ### Feladatok
 
-1. `geminiAdapter.planEnable()` `write-generated-file` operationnel.
-2. Command namespace: `corvus/<skill-id>.toml`.
-3. Managed-only overwrite policy.
-4. Stale wrapper detection.
-5. Doctor warning, ha a wrapper régi source pathra mutat.
+1. Gemini adapter `supported` státusszal.
+2. Alapértelmezett cél: `~/.gemini/skills`.
+3. A meglévő manager-owned link plan/apply modell használata.
+4. Managed-only overwrite policy változatlan megtartása.
+5. Doctor warning csak a szokásos link/manifest problémákra.
 
 ### Acceptance criteria
 
-- `~/.gemini/commands/corvus/spec-driven-dev.toml` létrejön.
-- A prompt az eredeti `SKILL.md` pathra hivatkozik.
-- Nem ír felül kézzel létrehozott Gemini commandot.
+- `~/.gemini/skills/spec-driven-dev` manager-owned linkként létrejön jóváhagyott apply után.
+- A link az eredeti skill könyvtárra mutat.
+- Nem ír felül kézzel létrehozott Gemini skill könyvtárat vagy linket.
 
 ---
 
@@ -1311,7 +1290,7 @@ Do not add automatic update/pull behavior after initial clone.
 Do not execute scripts from installed skills.
 Do not overwrite existing files unless they are marked as managed by Corvus Skill Manager.
 Prefer symlinks on Unix-like systems and junctions on Windows.
-Gemini CLI integration should generate managed .toml command wrappers instead of pretending Gemini has the exact same skill discovery model as SKILL.md-based agents.
+Gemini CLI integration should use native Agent Skills directory links under ~/.gemini/skills.
 ```
 
 ---
@@ -1349,7 +1328,7 @@ TUI-first
 read-only skillpack revisions
 multi-agent adapter layer
 symlink-first install
-Gemini deferred for MVP
+Gemini supported through Agent Skills links
 no Express
 no mutable repo modification
 doctor/status beépítve

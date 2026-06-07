@@ -227,8 +227,12 @@ describe('deriveWizardFlow', () => {
 });
 
 describe('isWizardAgentSelectable', () => {
-  it('keeps Gemini visible but unavailable', () => {
-    expect(isWizardAgentSelectable({id: 'gemini', displayName: 'Gemini CLI', supportStatus: 'deferred'})).toBe(false);
+  it('allows supported Gemini', () => {
+    expect(isWizardAgentSelectable({id: 'gemini', displayName: 'Gemini CLI', supportStatus: 'supported'})).toBe(true);
+  });
+
+  it('keeps deferred agents visible but unavailable', () => {
+    expect(isWizardAgentSelectable({id: 'codex', displayName: 'Experimental Agent', supportStatus: 'deferred'})).toBe(false);
   });
 });
 

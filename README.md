@@ -21,7 +21,7 @@ The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Comm
 - It does not automatically update the local skill collection; revision activation requires preview and approval in the TUI.
 - It does not overwrite unmanaged files, directories, or symlinks.
 - It does not execute skill scripts or install dependencies inside the skillpack.
-- It does not generate Gemini `.toml` wrappers in the MVP.
+- It does not generate Gemini `.toml` command wrappers.
 - It does not provide marketplace, cloud, auth, Express, backend, or copy-fallback behavior.
 
 ## Run From npm
@@ -87,7 +87,7 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 3. Select **Guided Flow** for the recommended wizard.
 4. Skillpack: inspect the configured/default source, then press `a` only for the safe setup/config action shown.
 5. Update: if a remote update is available, preview the inactive revision snapshot before pressing `a` to activate it. You can continue without updating.
-6. Agents: enable one or more supported agents with Space. Gemini is shown as deferred and cannot be selected.
+6. Agents: enable one or more supported agents with Space. Gemini CLI is supported through Agent Skills links.
 7. Skills: press Enter on an enabled agent, then select skills with Space.
 8. Plan: review the dry-run link plan. A no-op plan means no links will be created.
 9. Apply: open the final apply step from the plan, then press `a` to save selections and apply manager-owned link changes.
@@ -106,9 +106,9 @@ If no skills are selected, the plan has no create-link operations and no links a
 | OpenCode | Supported | `~/.config/opencode/skills` |
 | Pi Agent | Supported | `~/.pi/agent/skills` |
 | Custom | Custom target required | user-provided |
-| Gemini CLI | Deferred | unsupported in MVP |
+| Gemini CLI | Supported | `~/.gemini/skills` |
 
-Gemini remains visible so the MVP can explain its status, but Gemini wrapper generation is intentionally deferred.
+Gemini CLI support uses its Agent Skills directory model. The manager links selected skill directories into the configured Gemini skills target and does not generate `.toml` command wrappers.
 
 ## State Files
 
@@ -164,9 +164,9 @@ The target path already contains an unmanaged file, directory, or symlink. The m
 
 The manager falls back to read-only `SKILL.md` discovery. Doctor reports this as a warning because registry-backed discovery is preferred.
 
-**Gemini is unsupported**
+**Gemini skills do not appear**
 
-Gemini `.toml` wrapper generation is deferred for MVP. Do not expect Gemini link operations.
+Confirm Gemini is enabled, at least one skill is selected for Gemini, and the configured target path points to Gemini's skills directory. The default is `~/.gemini/skills`.
 
 **Dirty checkout**
 

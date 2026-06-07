@@ -66,7 +66,7 @@ The dry-run plan must show:
 
 ## Agent Support
 
-Supported MVP agents can receive linked skills. Custom agents require a target path. Gemini remains visible in the TUI as deferred/unsupported and must not produce Gemini link operations or `.toml` wrappers in the MVP.
+Supported MVP agents can receive linked skills. Custom agents require a target path. Gemini CLI uses Agent Skills directory links under `~/.gemini/skills`; the manager does not generate Gemini `.toml` command wrappers.
 
 ## Development Rules
 

@@ -106,9 +106,10 @@ describe('generateLinkPlan', () => {
     ]);
   });
 
-  it('skips Gemini as deferred', () => {
+  it('creates link operations for Gemini Agent Skills', () => {
     const plan = generateLinkPlan({
       adapters: getAgentAdapters(),
+      homeDir: '/tmp/home',
       skills: [{id: 'review', absolutePath: '/packs/corvus/skills/review'}],
       selections: [
         {
@@ -119,12 +120,16 @@ describe('generateLinkPlan', () => {
       ]
     });
 
-    expect(plan.operations).toEqual([]);
-    expect(plan.warnings).toEqual([
-      expect.objectContaining({
-        code: 'agent-not-supported',
-        agentId: 'gemini'
-      })
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.warnings).toEqual([]);
+    expect(plan.operations).toEqual([
+      {
+        type: 'create-link',
+        agentId: 'gemini',
+        skillId: 'review',
+        sourcePath: '/packs/corvus/skills/review',
+        targetPath: '/tmp/home/.gemini/skills/review'
+      }
     ]);
   });
 });

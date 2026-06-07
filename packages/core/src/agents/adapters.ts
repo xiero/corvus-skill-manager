@@ -43,9 +43,9 @@ export const agentAdapters = [
   {
     id: 'gemini',
     displayName: 'Gemini CLI',
-    supportStatus: 'deferred',
-    notes: ['Gemini custom command generation is deferred for MVP.'],
-    warnings: ['No .toml wrappers are generated in this MVP.']
+    supportStatus: 'supported',
+    defaultTargetPath: '~/.gemini/skills',
+    notes: ['Uses Gemini CLI Agent Skills directory support.']
   }
 ] as const satisfies AgentAdapter[];
 
