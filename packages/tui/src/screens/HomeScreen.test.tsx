@@ -62,7 +62,10 @@ describe('HomeScreen', () => {
 
     const text = collectText(tree);
 
-    expect(text).toContain('Manager update available: 0.3.0 -> 0.4.0');
+    expect(text).toContain('Corvus Skill Manager update available');
+    expect(text).toContain('Current: v0.3.0');
+    expect(text).toContain('Latest: v0.4.0');
+    expect(text).toContain('Update command:');
     expect(text).toContain('npm install -g @corvus-tools/skill-manager@latest');
   });
 

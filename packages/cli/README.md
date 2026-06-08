@@ -13,6 +13,15 @@ npm install -g @corvus-tools/skill-manager
 corvus-skills
 ```
 
+When launched from a global install, the TUI checks npm for a newer manager release
+and shows the update command on Home when one is available:
+
+```bash
+npm install -g @corvus-tools/skill-manager@latest
+```
+
+The TUI only displays the command; it does not run npm or mutate its own install.
+
 The CLI is intentionally thin. It launches the Ink TUI and does not implement separate command workflows.
 
 Corvus Skill Manager configures a local skillpack snapshot, discovers skills, detects remote collection updates, lets you choose target agents, previews link operations, and applies only confirmed manager-owned links.

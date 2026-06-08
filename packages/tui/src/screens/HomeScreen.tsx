@@ -95,10 +95,12 @@ function ManagerUpdateNotice({
   if (managerUpdate.status === 'update-available') {
     return (
       <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
-        <Text color="yellow">
-          Manager update available: {managerUpdate.currentVersion} {'->'} {managerUpdate.latestVersion}
+        <Text color="yellow">Corvus Skill Manager update available</Text>
+        <Text>
+          Current: <Text color="cyan">{formatVersion(managerUpdate.currentVersion)}</Text>{' '}
+          Latest: <Text color="green">{formatVersion(managerUpdate.latestVersion)}</Text>
         </Text>
-        <Text>Run: <Text color="cyan">{managerUpdate.updateCommand}</Text></Text>
+        <Text>Update command: <Text color="cyan">{managerUpdate.updateCommand}</Text></Text>
       </Box>
     );
   }
@@ -108,4 +110,12 @@ function ManagerUpdateNotice({
   }
 
   return null;
+}
+
+function formatVersion(version: string | undefined): string {
+  if (version === undefined) {
+    return 'unknown';
+  }
+
+  return version.startsWith('v') ? version : `v${version}`;
 }

@@ -205,10 +205,13 @@ export function App({
     () => menuItems.map(({label, hint}) => ({label, hint})),
     []
   );
+  const renderWithCorvusHeader = (screen: React.ReactElement): React.ReactElement => (
+    withCorvusHeader(screen, managerPackage?.currentVersion)
+  );
 
   if (view === 'wizard') {
     if (configState.config === undefined) {
-      return withCorvusHeader(
+      return renderWithCorvusHeader(
         <PlaceholderScreen
           title="Guided Flow"
           body="Manager config is still loading. The wizard will start when config is ready."
@@ -216,7 +219,7 @@ export function App({
       );
     }
 
-    return withCorvusHeader(
+    return renderWithCorvusHeader(
       <WizardScreen
         config={configState.config}
         configPath={configState.configPath}
@@ -236,7 +239,7 @@ export function App({
 
   if (view === 'setup') {
     if (configState.config === undefined) {
-      return withCorvusHeader(
+      return renderWithCorvusHeader(
         <PlaceholderScreen
           title="Setup Skillpack"
           body="Manager config is still loading."
@@ -244,7 +247,7 @@ export function App({
       );
     }
 
-    return withCorvusHeader(
+    return renderWithCorvusHeader(
       <SkillpackSetupScreen
         config={configState.config}
         configPath={configState.configPath}
@@ -264,7 +267,7 @@ export function App({
 
   if (view === 'settings') {
     if (configState.config === undefined) {
-      return withCorvusHeader(
+      return renderWithCorvusHeader(
         <PlaceholderScreen
           title="Configure Agents"
           body="Manager config is still loading."
@@ -272,7 +275,7 @@ export function App({
       );
     }
 
-    return withCorvusHeader(
+    return renderWithCorvusHeader(
       <ConfigureAgentsScreen
         config={configState.config}
         configPath={configState.configPath}
@@ -291,7 +294,7 @@ export function App({
   }
 
   if (view === 'status') {
-    return withCorvusHeader(
+    return renderWithCorvusHeader(
       <StatusScreen
         configPath={configState.configPath}
         onBack={() => {
@@ -302,7 +305,7 @@ export function App({
   }
 
   if (view === 'doctor') {
-    return withCorvusHeader(
+    return renderWithCorvusHeader(
       <DoctorScreen
         configPath={configState.configPath}
         onBack={() => {
@@ -313,7 +316,7 @@ export function App({
   }
 
   if (view === 'help') {
-    return withCorvusHeader(
+    return renderWithCorvusHeader(
       <HelpScreen
         onBack={() => {
           setView('home');
@@ -330,7 +333,7 @@ export function App({
     ...(managerUpdate === undefined ? {} : {managerUpdate})
   };
 
-  return withCorvusHeader(
+  return renderWithCorvusHeader(
     configState.errorMessage === undefined ? (
       <HomeScreen {...homeProps} />
     ) : (
@@ -339,10 +342,10 @@ export function App({
   );
 }
 
-function withCorvusHeader(screen: React.ReactElement): React.ReactElement {
+function withCorvusHeader(screen: React.ReactElement, currentVersion?: string): React.ReactElement {
   return (
     <Box flexDirection="column" gap={1}>
-      <CorvusHeader />
+      {currentVersion === undefined ? <CorvusHeader /> : <CorvusHeader version={currentVersion} />}
       {screen}
     </Box>
   );

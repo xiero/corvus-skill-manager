@@ -12,7 +12,15 @@ const bannerLines = [
   {text: '        S K I L L   M A N A G E R', color: '#14f1d9'}
 ] as const;
 
-export function CorvusHeader(): React.ReactElement {
+export interface CorvusHeaderProps {
+  version?: string;
+}
+
+export function CorvusHeader({version}: CorvusHeaderProps = {}): React.ReactElement {
+  const versionLabel = version === undefined ? undefined : (
+    version.startsWith('v') ? version : `v${version}`
+  );
+
   return (
     <Box flexDirection="column" borderStyle="single" borderColor="#00d7ff" paddingX={1}>
       {bannerLines.map((line) => (
@@ -20,7 +28,9 @@ export function CorvusHeader(): React.ReactElement {
           {line.text}
         </Text>
       ))}
-      <Text dimColor>Corvus Skill Manager</Text>
+      <Text dimColor>
+        Corvus Skill Manager{versionLabel === undefined ? '' : ` ${versionLabel}`}
+      </Text>
       <Text>TUI-first skill wiring for coding agents.</Text>
     </Box>
   );

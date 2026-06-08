@@ -44,6 +44,27 @@ describe('App', () => {
     expect(text).not.toContain('Guided Flow App Shell');
   });
 
+  it('shows the current manager version in the header when runtime metadata is available', () => {
+    const tree = create(
+      <App
+        initialConfigState={{
+          configPath: '/tmp/corvus/config.json',
+          status: 'exists',
+          config
+        }}
+        managerPackage={{
+          packageName: '@corvus-tools/skill-manager',
+          currentVersion: '0.3.2',
+          installKind: 'development'
+        }}
+      />
+    ).toJSON();
+
+    const text = collectText(tree);
+
+    expect(text).toContain('Corvus Skill Manager v0.3.2');
+  });
+
   it('shows a manager update banner for global installs when npm has a newer release', async () => {
     const inspectSelfUpdate = vi.fn(async () => ({
       packageName: '@corvus-tools/skill-manager',
@@ -92,7 +113,10 @@ describe('App', () => {
       installKind: 'global',
       managerStateDir: '/tmp/corvus'
     });
-    expect(text).toContain('Manager update available: 0.3.0 -> 0.4.0');
+    expect(text).toContain('Corvus Skill Manager update available');
+    expect(text).toContain('Current: v0.3.0');
+    expect(text).toContain('Latest: v0.4.0');
+    expect(text).toContain('Update command:');
     expect(text).toContain('npm install -g @corvus-tools/skill-manager@latest');
   });
 
