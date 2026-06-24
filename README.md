@@ -88,7 +88,7 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 4. Skillpack: inspect the configured/default source, then press `a` only for the safe setup/config action shown.
 5. Update: if a remote update is available, preview the inactive revision snapshot before pressing `a` to activate it. You can continue without updating.
 6. Agents: enable one or more supported agents with Space. Gemini CLI is supported through Agent Skills links.
-7. Skills: press Enter on an enabled agent, then select skills with Space.
+7. Skills: press Enter on an enabled agent, then select skills with Space. When more than one agent is enabled, a skill toggle applies to every enabled agent at once; a `[~]` marker means a skill is selected for some but not all of them.
 8. Plan: review the dry-run link plan. A no-op plan means no links will be created.
 9. Apply: open the final apply step from the plan, then press `a` to save selections and apply manager-owned link changes.
 

@@ -45,6 +45,7 @@ import {CommandBar, type CommandHint} from './CommandBar.js';
 
 type SkillpackField = 'id' | 'repositoryUrl' | 'branch' | 'checkoutPath';
 type DiscoveryState = 'idle' | 'loading' | 'loaded' | 'error';
+type SkillSelectionState = 'all' | 'some' | 'none';
 
 interface SkillpackFormState {
   id: string;
@@ -156,7 +157,19 @@ export function WizardScreen({
   );
   const selectedAdapter = adapters[selectedAgentIndex] ?? adapters[0];
   const selectedAgentDraft = selectedAdapter === undefined ? undefined : draftAgents[selectedAdapter.id];
-  const selectedSkillIds = new Set(selectedAgentDraft?.selectedSkillIds ?? []);
+  const enabledAdapters = useMemo(
+    () => adapters.filter((adapter) => draftAgents[adapter.id]?.enabled === true),
+    [adapters, draftAgents]
+  );
+  const skillSelectionStates = useMemo(() => {
+    const states = new Map<string, SkillSelectionState>();
+
+    for (const skill of sortedSkills) {
+      states.set(skill.id, selectionStateForSkill(skill.id, enabledAdapters, draftAgents));
+    }
+
+    return states;
+  }, [sortedSkills, enabledAdapters, draftAgents]);
   const flow = deriveWizardFlow({
     config: workingConfig,
     ...(inspection === undefined ? {} : {inspection}),
@@ -500,8 +513,8 @@ export function WizardScreen({
     if (input === ' ') {
       const skill = sortedSkills[selectedSkillIndex];
 
-      if (skill !== undefined && selectedAdapter !== undefined) {
-        toggleSkill(selectedAdapter.id, skill.id);
+      if (skill !== undefined) {
+        toggleSkillAcrossEnabledAgents(skill.id);
         setPlan(undefined);
       }
 
@@ -590,20 +603,33 @@ export function WizardScreen({
     setMessage(undefined);
   }
 
-  function toggleSkill(agentId: AgentId, skillId: string): void {
+  function toggleSkillAcrossEnabledAgents(skillId: string): void {
     setDraftAgents((currentDrafts) => {
-      const draft = currentDrafts[agentId];
-      const selectedSkillIds = draft.selectedSkillIds.includes(skillId) ?
-        draft.selectedSkillIds.filter((candidate) => candidate !== skillId) :
-        [...draft.selectedSkillIds, skillId].sort((left, right) => left.localeCompare(right));
+      const enabledIds = adapters
+        .filter((adapter) => currentDrafts[adapter.id]?.enabled === true)
+        .map((adapter) => adapter.id);
 
-      return {
-        ...currentDrafts,
-        [agentId]: {
-          ...draft,
-          selectedSkillIds
-        }
-      };
+      if (enabledIds.length === 0) {
+        return currentDrafts;
+      }
+
+      // When the skill is already selected for every enabled agent, broadcast a removal;
+      // otherwise broadcast an add so all enabled agents end up in the same state.
+      const fullySelected = enabledIds.every((id) => currentDrafts[id].selectedSkillIds.includes(skillId));
+      const nextDrafts = {...currentDrafts};
+
+      for (const id of enabledIds) {
+        const draft = currentDrafts[id];
+        const selectedSkillIds = fullySelected ?
+          draft.selectedSkillIds.filter((candidate) => candidate !== skillId) :
+          draft.selectedSkillIds.includes(skillId) ?
+            draft.selectedSkillIds :
+            [...draft.selectedSkillIds, skillId].sort((left, right) => left.localeCompare(right));
+
+        nextDrafts[id] = {...draft, selectedSkillIds};
+      }
+
+      return nextDrafts;
     });
   }
 
@@ -950,12 +976,12 @@ export function WizardScreen({
               discoveryErrors={discoveryErrors}
             />
           ) : null}
-          {currentStep === 'skills' && selectedAdapter !== undefined ? (
+          {currentStep === 'skills' ? (
             <WizardSkillSelectionView
-              adapter={selectedAdapter}
+              enabledAdapters={enabledAdapters}
               skills={sortedSkills}
               selectedSkillIndex={selectedSkillIndex}
-              selectedSkillIds={selectedSkillIds}
+              skillSelectionStates={skillSelectionStates}
               discoveryState={discoveryState}
               discoveryErrors={discoveryErrors}
             />
@@ -1221,34 +1247,48 @@ export function WizardAgentListView({
   );
 }
 
-function WizardSkillSelectionView({
-  adapter,
+export function WizardSkillSelectionView({
+  enabledAdapters,
   skills,
   selectedSkillIndex,
-  selectedSkillIds,
+  skillSelectionStates,
   discoveryState,
   discoveryErrors
 }: {
-  adapter: AgentAdapter;
+  enabledAdapters: AgentAdapter[];
   skills: DiscoveredSkill[];
   selectedSkillIndex: number;
-  selectedSkillIds: Set<string>;
+  skillSelectionStates: Map<string, SkillSelectionState>;
   discoveryState: DiscoveryState;
   discoveryErrors: SkillDiscoveryIssue[];
 }): React.ReactElement {
+  const agentCount = enabledAdapters.length;
+  const agentNames = enabledAdapters.map((adapter) => adapter.displayName).join(', ');
+  const heading =
+    agentCount === 1 ?
+      `4. Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
+      `4. Skills for ${agentCount} agents`;
+  const anySelected = skills.some((skill) => (skillSelectionStates.get(skill.id) ?? 'none') !== 'none');
+  const anyMixed = skills.some((skill) => skillSelectionStates.get(skill.id) === 'some');
+
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
-        <Text bold>4. Skills for {adapter.displayName}</Text>
+        <Text bold>{heading}</Text>
+        {agentCount > 1 ? (
+          <Text dimColor>Toggling a skill applies it to all {agentCount} enabled agents: {agentNames}.</Text>
+        ) : null}
         {discoveryState === 'loading' ? <Text>Discovering skills from the active snapshot...</Text> : null}
         {skills.length === 0 ? <Text color="yellow">No valid skills discovered yet.</Text> : null}
-        {skills.length > 0 && selectedSkillIds.size === 0 ? (
-          <Text color="yellow">No skills selected for this agent.</Text>
+        {skills.length > 0 && !anySelected ? (
+          <Text color="yellow">No skills selected yet.</Text>
         ) : null}
+        {anyMixed ? <Text dimColor>[~] selected for some, not all enabled agents.</Text> : null}
         {skills.map((skill, index) => {
           const selected = index === selectedSkillIndex;
-          const enabled = selectedSkillIds.has(skill.id) ? '[x]' : '[ ]';
-          const line = `${selected ? '>' : ' '} ${enabled} ${skill.id} - ${skill.title}`;
+          const state = skillSelectionStates.get(skill.id) ?? 'none';
+          const marker = state === 'all' ? '[x]' : state === 'some' ? '[~]' : '[ ]';
+          const line = `${selected ? '>' : ' '} ${marker} ${skill.id} - ${skill.title}`;
 
           return selected ? <Text key={skill.id} color="cyan">{line}</Text> : <Text key={skill.id}>{line}</Text>;
         })}
@@ -1256,6 +1296,30 @@ function WizardSkillSelectionView({
       <IssuePreview title="Discovery errors" color="red" issues={discoveryErrors.map((issue) => issue.message)} />
     </Box>
   );
+}
+
+function selectionStateForSkill(
+  skillId: string,
+  enabledAdapters: AgentAdapter[],
+  draftAgents: Record<AgentId, WizardDraftAgent>
+): SkillSelectionState {
+  if (enabledAdapters.length === 0) {
+    return 'none';
+  }
+
+  const selectedCount = enabledAdapters.filter((adapter) =>
+    draftAgents[adapter.id].selectedSkillIds.includes(skillId)
+  ).length;
+
+  if (selectedCount === 0) {
+    return 'none';
+  }
+
+  if (selectedCount === enabledAdapters.length) {
+    return 'all';
+  }
+
+  return 'some';
 }
 
 export function WizardPlanView({plan}: {plan: LinkPlan}): React.ReactElement {
