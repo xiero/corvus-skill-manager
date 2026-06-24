@@ -1,6 +1,6 @@
 {
   "name": "@corvus-tools/skill-manager",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": false,
   "type": "module",
   "description": "Run the Corvus Skill Manager Ink TUI with npx @corvus-tools/skill-manager.",
