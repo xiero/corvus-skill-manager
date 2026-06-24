@@ -1,6 +1,6 @@
 {
   "name": "@corvus-tools/skill-manager-core",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": false,
   "type": "module",
   "description": "Core config, discovery, planning, apply, status, and doctor logic for Corvus Skill Manager.",
