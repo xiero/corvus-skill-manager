@@ -21,16 +21,27 @@ the machine-interface invariants.
    - Owns user navigation, guided flow orchestration, previews, and confirmations.
    - Starts in the Guided Flow wizard by default.
    - Keeps Home, Status, Doctor, Help, and manual advanced setup/configuration screens available.
-   - Calls the shared application use cases rather than reproducing workflow logic, and may
-     trigger write-capable operations only after rendering the relevant preview and receiving
-     explicit user confirmation.
+   - Receives a `CorvusApplication` through React context and calls shared use cases rather
+     than reproducing workflow logic. Status, Doctor, and Skill Discovery are on use cases.
+   - The skillpack screens and the wizard's link preview still call core primitives directly,
+     because they operate on an unsaved, user-edited config and express per-agent enable and
+     disable in one pass — neither has an equivalent use case. These are the same engines the
+     application layer calls, not a second implementation; see
+     `docs/agent-native-architecture.md`.
+   - May trigger write-capable operations only after rendering the relevant preview and
+     receiving explicit user confirmation.
+   - Maps protocol error codes to human sentences; never renders raw protocol JSON.
 
 3. **Core package (`packages/core`)**
    - Owns pure planning logic, schema validation, path safety, git inspection/setup helpers, discovery, manifest handling, lock handling, and link application.
    - Also owns the shared application layer (`src/application/`): the versioned machine
-     protocol and the high-level use cases that both the TUI and the machine CLI call. TUI and
-     machine CLI invoke the same use cases, so setup, discovery, planning, apply, and
-     verification have exactly one implementation.
+     protocol (`protocol/`), persisted plan artifacts (`plans/`), the install request contract
+     and planner (`install/`), the catalog/search scorer (`skills/`), and the high-level use
+     cases (`useCases/`) exposed through `CorvusApplication` / `createCorvusApplication`.
+   - Owns the single implementation of setup, discovery, planning, apply, and verification.
+     Both adapters reach that implementation — the machine CLI through use cases, the TUI
+     through use cases where one exists and otherwise through the same underlying engines.
+   - Returns protocol result types, never rendered strings and never Ink elements.
    - Should remain testable without Ink and without spawning the CLI.
    - Must contain no command-line parsing.
    - Filesystem side effects must stay isolated in small modules with explicit inputs and deterministic outcomes.
@@ -73,11 +84,11 @@ The required local layout is:
 
 Initial clone is allowed only when the active `current` path does not exist. Existing active checkouts and existing revisions are inspected and reported; they are not repaired, updated, formatted, reset, re-cloned over, committed, pulled, or pushed.
 
-Remote change detection is read-only and compares the active commit with `git ls-remote`. Approved updates create or reuse an immutable revision snapshot under `revisions/<commit>/repo`, then switch the manager-owned `current` link only after the TUI shows a preview and the user approves activation.
+Remote change detection is read-only and compares the active commit with `git ls-remote`. Approved updates create or reuse an immutable revision snapshot under `revisions/<commit>/repo`, then switch the manager-owned `current` link only after a preview and an explicit approval — `a` in the TUI, or a matching `--confirm` plan token in the machine CLI.
 
 ## Link Planning And Apply
 
-Agent and skill selections are draft TUI state until saved. Link creation/removal is always planned first with `generateLinkPlan`.
+In the TUI, agent and skill selections are draft state until saved. In the machine CLI there is no draft state: a selection arrives as one request and is planned in a single step. Either way, link creation/removal is always planned first with `generateLinkPlan`.
 
 For the machine CLI, plan-then-apply is additionally made explicit and durable: `install plan`
 persists a digest-identified plan artifact plus a fingerprint of the state it was computed
@@ -106,5 +117,12 @@ Supported MVP agents can receive linked skills. Custom agents require a target p
   or to read-only machine commands.
 - Do not embed an LLM, require an AI API key, or make an invisible semantic choice. Semantic
   interpretation belongs to the calling agent; Corvus executes deterministic operations.
-- Do not add an MCP adapter in this pass; keep the application layer as the seam for one later.
+- Do not add an MCP adapter; keep the application layer as the seam for one later.
 - Verification for implementation work is `pnpm typecheck` and `pnpm test`.
+
+## Testing Layout
+
+Tests are colocated as `*.test.ts(x)` next to the code under test. Shared fixtures and harnesses
+live in `test/support/` at the repo root: a representative registry v2 skillpack, a stub git
+runner that records every invocation, temporary-HOME creation, and directory-tree diffing used
+to assert that read-only commands write nothing.

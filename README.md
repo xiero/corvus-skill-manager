@@ -12,6 +12,7 @@ runs a deterministic JSON command interface built for coding agents — see
 - Configures a skillpack source and performs the initial revision clone only when the active snapshot is absent.
 - Detects remote skillpack changes in read-only mode and lets you preview/approve a new local revision snapshot.
 - Discovers skills from `registry.json`, or from `SKILL.md` files in read-only fallback mode when a registry is missing.
+- Reads optional registry v2 semantic metadata (domain, task, language, technology, platform, use case) and skill relationships, so skills can be found by intent rather than by name.
 - Lets you enable supported agents and select skills per agent.
 - Generates a deterministic dry-run link plan.
 - Applies confirmed plans by creating/removing manager-owned symlinks or Windows junctions.
@@ -21,7 +22,7 @@ runs a deterministic JSON command interface built for coding agents — see
 ## What It Does Not Do
 
 - It does not pull into, reset, repair, format, commit, push, or edit the active skillpack checkout.
-- It does not automatically update the local skill collection; revision activation requires preview and approval in the TUI.
+- It does not automatically update the local skill collection; revision activation requires a preview and an explicit approval (`a` in the TUI, or a matching `--confirm` plan token in the machine CLI).
 - It does not overwrite unmanaged files, directories, or symlinks.
 - It does not execute skill scripts or install dependencies inside the skillpack.
 - It does not generate Gemini `.toml` command wrappers.
@@ -82,7 +83,7 @@ This repo publishes three public npm packages:
 2. `@corvus-tools/skill-manager-tui`
 3. `@corvus-tools/skill-manager`
 
-Publish them in that order after a clean build/typecheck/test run. The CLI package depends on the TUI package, and the TUI package depends on the core package.
+Publish them in that order after a clean build/typecheck/test run. The CLI package depends on both the TUI package and the core package, and the TUI package depends on the core package. Because all three share a version and depend on each other with `workspace:^`, a release must publish all three together.
 
 ## First-Run Flow
 
@@ -168,6 +169,7 @@ The main files are:
 - `config.json`: manager config, skillpack source, agent selections
 - `lock.json`: recorded skillpack commit and branch after setup/inspection
 - `manifest.json`: manager-owned link records
+- `plans/<plan-id>.json`: persisted plan artifacts written by the machine CLI's plan commands, each carrying its own digest and a fingerprint of the state it was computed against
 
 Default skillpack layout:
 
@@ -220,6 +222,26 @@ Doctor reports dirty skillpack checkouts, but will not reset or repair them. Rev
 **Remote update available**
 
 Open Guided Flow, preview the update, review added/changed/removed skills, then press `a` on the Update step if you want `current` to point at the new revision.
+
+**A machine command exits non-zero**
+
+The exit code is a broad category and the JSON `errors[].code` is authoritative: `2` invalid
+input, `3` conflict or unsafe target, `4` confirmation required or stale plan, `5` safety block,
+`6` git/filesystem/network, `7` internal. Read `nextActions` — it usually contains the exact
+command to run next. Full taxonomy: [Machine Protocol v1](docs/agent-protocol-v1.md).
+
+**`install apply` reports `STALE_PLAN`**
+
+Local state changed after the plan was generated, so the plan no longer describes what would
+happen. Regenerate with `install plan`, review it, and apply the new plan id. Corvus will not
+regenerate and apply silently.
+
+**An agent installed skills you did not expect**
+
+Every plan records the calling agent's `intent`, its `selectionPolicy`, and a per-skill `reason`,
+and the applied plan artifact stays under `~/.agents/corvus-skill-manager/plans/`. Read it to see
+exactly what was requested and why, then use `install plan --replace-selection` to correct the
+selection.
 
 ## Docs
 
