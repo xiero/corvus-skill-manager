@@ -113,7 +113,10 @@ export async function skillpackSetupPlanUseCase(
     homeDir: environment.homeDir,
     git: environment.git
   });
-  const remoteCommitHash = checkout.exists ? undefined : await readRemoteHead(environment, skillpack);
+  // The remote head is only needed when a clone is going to happen; an existing snapshot is
+  // inspected, never re-cloned.
+  const remoteHead = checkout.exists ? undefined : await readRemoteHead(environment, skillpack);
+  const remoteCommitHash = remoteHead?.status === 'ok' ? remoteHead.commitHash : undefined;
   const expectedRevisionPath =
     remoteCommitHash === undefined ? undefined : safeRevisionPath(layout, remoteCommitHash);
 
@@ -151,15 +154,27 @@ export async function skillpackSetupPlanUseCase(
       plan: payload
     },
     {
-      warnings: checkout.exists
-        ? [
-            createMachineWarning(
-              'skillpack-already-present',
-              `An active skillpack snapshot already exists at ${layout.currentPath}; apply will inspect it, not re-clone it.`,
-              {path: layout.currentPath}
-            )
-          ]
-        : [],
+      warnings: [
+        ...(checkout.exists
+          ? [
+              createMachineWarning(
+                'skillpack-already-present',
+                `An active skillpack snapshot already exists at ${layout.currentPath}; apply will inspect it, not re-clone it.`,
+                {path: layout.currentPath}
+              )
+            ]
+          : []),
+        // Without a pinned commit the plan is still applicable, but apply may fail against the
+        // same remote. Say so now rather than letting a mistyped branch look like a healthy plan.
+        ...(remoteHead?.status === 'unreadable'
+          ? [
+              createMachineWarning(
+                'remote-head-unreadable',
+                `${remoteHead.message} The plan cannot pin an expected commit, and apply will fail if the branch is wrong.`
+              )
+            ]
+          : [])
+      ],
       nextActions: [
         createNextAction(
           'apply-skillpack-setup',
@@ -507,10 +522,20 @@ function resolveSkillpackConfig(
   };
 }
 
+type RemoteHeadResult =
+  | {status: 'ok'; commitHash: string}
+  | {status: 'unreadable'; message: string};
+
+/**
+ * Reads the remote branch head with a read-only `git ls-remote`.
+ *
+ * Failure is reported rather than swallowed: a caller that cannot pin the expected commit needs
+ * to say so, otherwise a mistyped branch looks like a healthy plan and only fails at apply time.
+ */
 async function readRemoteHead(
   environment: ApplicationEnvironment,
   skillpack: SkillpackConfig
-): Promise<string | undefined> {
+): Promise<RemoteHeadResult> {
   try {
     const output = (
       await environment.git(['ls-remote', skillpack.repositoryUrl, `refs/heads/${skillpack.branch}`])
@@ -518,9 +543,19 @@ async function readRemoteHead(
     const firstLine = output.split('\n').find((line) => line.trim() !== '');
     const commitHash = firstLine?.split(/\s+/)[0]?.trim().toLowerCase();
 
-    return commitHash !== undefined && /^[a-f0-9]{7,64}$/.test(commitHash) ? commitHash : undefined;
-  } catch {
-    return undefined;
+    if (commitHash === undefined || !/^[a-f0-9]{7,64}$/.test(commitHash)) {
+      return {
+        status: 'unreadable',
+        message: `No branch named "${skillpack.branch}" was found at ${skillpack.repositoryUrl}.`
+      };
+    }
+
+    return {status: 'ok', commitHash};
+  } catch (error) {
+    return {
+      status: 'unreadable',
+      message: `Remote head lookup failed: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`
+    };
   }
 }
 

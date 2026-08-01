@@ -206,15 +206,68 @@ describe('skillpack setup', () => {
     }
   });
 
-  it('plans without a remote head when the remote is unreachable', async () => {
+  it('warns when the remote head cannot be read, instead of silently omitting it', async () => {
     const home = await newHome();
     const stubGit = createStubGit({commitHash: remoteCommit, failRemote: true});
     const result = await appFor(home, stubGit).skillpackSetupPlan();
 
     expect(result.ok).toBe(true);
 
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.plan.expectedCommitHash).toBeUndefined();
+    expect(result.warnings.map((warning) => warning.code)).toContain('remote-head-unreadable');
+    expect(result.warnings.find((warning) => warning.code === 'remote-head-unreadable')?.message).toContain(
+      'apply will fail if the branch is wrong'
+    );
+  });
+
+  it('warns when the branch does not exist on the remote', async () => {
+    const home = await newHome();
+    const stubGit = createStubGit({commitHash: remoteCommit});
+    const emptyLsRemote = {
+      ...stubGit,
+      runner: async (args: string[], runOptions?: {cwd?: string}) =>
+        args[0] === 'ls-remote' ? {stdout: '', stderr: ''} : stubGit.runner(args, runOptions)
+    };
+    const result = await appFor(home, emptyLsRemote).skillpackSetupPlan({branch: 'does-not-exist'});
+
+    expect(result.ok).toBe(true);
+
     if (result.ok) {
-      expect(result.data.plan.expectedCommitHash).toBeUndefined();
+      expect(result.warnings.map((warning) => warning.code)).toContain('remote-head-unreadable');
+      expect(result.warnings.find((warning) => warning.code === 'remote-head-unreadable')?.message).toContain(
+        'does-not-exist'
+      );
+    }
+  });
+
+  it('does not warn about the remote head when it reads cleanly', async () => {
+    const home = await newHome();
+    const stubGit = createStubGit({commitHash: remoteCommit});
+    const result = await appFor(home, stubGit).skillpackSetupPlan();
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      expect(result.warnings.map((warning) => warning.code)).not.toContain('remote-head-unreadable');
+      expect(result.data.plan.expectedCommitHash).toBe(remoteCommit);
+    }
+  });
+
+  it('does not look up the remote head when a snapshot already exists', async () => {
+    const home = await newHome({skillpack: v2SkillpackFixture});
+    const stubGit = createStubGit({commitHash: home.commitHash, failRemote: true});
+    const result = await appFor(home, stubGit).skillpackSetupPlan();
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      // An existing snapshot is inspected, never re-cloned, so a failing remote is irrelevant.
+      expect(result.warnings.map((warning) => warning.code)).not.toContain('remote-head-unreadable');
+      expect(result.warnings.map((warning) => warning.code)).toContain('skillpack-already-present');
     }
   });
 

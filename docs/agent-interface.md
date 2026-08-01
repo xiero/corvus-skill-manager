@@ -208,3 +208,10 @@ corvus-skills skills list --json
 
 Setup clones only when the active snapshot is absent. Re-running a successful setup is an
 idempotent no-op that inspects the existing snapshot rather than repairing or re-cloning it.
+
+**Check the plan's warnings, not just its exit code.** `setup-plan` succeeds with exit 0 even
+when it could not read the remote branch head — a mistyped `--branch`, or an unreachable
+repository. It reports this as a `remote-head-unreadable` warning and omits
+`data.plan.expectedCommitHash`; the failure would otherwise only surface at `setup-apply`
+(exit 6). If you see that warning, confirm the repository and branch with the user before
+applying.
