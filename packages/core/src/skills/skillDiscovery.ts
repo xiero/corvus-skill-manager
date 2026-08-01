@@ -5,8 +5,13 @@ import {z} from 'zod';
 import {isPathInside, resolveUserPath} from '../paths.js';
 import {
   type RegistrySkillEntry,
+  normalizeProseList,
+  normalizeSkillIdList,
+  normalizeTokenList,
   registrySkillEntrySchema,
+  semanticMetadataFields
 } from '../registry/registrySchema.js';
+import {validateSkillRelationships} from './skillRelationships.js';
 
 export type SkillDiscoverySeverity = 'error' | 'warning';
 
@@ -28,6 +33,19 @@ export interface DiscoveredSkill {
   description: string;
   supportedAgents: RegistrySkillEntry['supportedAgents'];
   tags: string[];
+  /** Registry v2 semantic metadata, normalized to empty arrays when absent. */
+  domains: string[];
+  tasks: string[];
+  languages: string[];
+  technologies: string[];
+  platforms: string[];
+  keywords: string[];
+  useCases: string[];
+  nonGoals: string[];
+  /** Registry v2 relationships, normalized to empty arrays when absent. */
+  requires: string[];
+  recommends: string[];
+  conflictsWith: string[];
   relativePath: string;
   absolutePath: string;
   skillFilePath: string;
@@ -38,9 +56,15 @@ export interface DiscoveredSkill {
   riskWarnings: SkillRiskWarning[];
 }
 
+export type SkillDiscoverySource = 'registry' | 'registryless';
+
 export interface SkillDiscoveryResult {
   skillpackRoot: string;
   registryPath: string;
+  /** How skills were found: from `registry.json`, or from `SKILL.md` fallback scanning. */
+  source: SkillDiscoverySource;
+  /** The version declared by `registry.json`, when one is declared. */
+  registryVersion?: number;
   skills: DiscoveredSkill[];
   warnings: SkillRiskWarning[];
   errors: SkillDiscoveryIssue[];
@@ -61,7 +85,7 @@ const rawRegistrySchema = z
   .strict();
 
 type RegistryLoadResult =
-  | {status: 'loaded'; skills: unknown[]}
+  | {status: 'loaded'; skills: unknown[]; version?: number}
   | {status: 'missing'}
   | {status: 'invalid'};
 
@@ -95,6 +119,7 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
   const result: SkillDiscoveryResult = {
     skillpackRoot: resolvedRoot,
     registryPath,
+    source: 'registry',
     skills: [],
     warnings: [],
     errors: []
@@ -103,6 +128,7 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
   const registry = await loadRegistry(registryPath, result.errors);
 
   if (registry.status === 'missing') {
+    result.source = 'registryless';
     result.warnings.push({
       severity: 'warning',
       code: 'missing-registry',
@@ -110,11 +136,16 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
       path: registryPath
     });
     await discoverSkillsWithoutRegistry(resolvedRoot, result);
+    applyRelationshipValidation(result);
     return result;
   }
 
   if (registry.status === 'invalid') {
     return result;
+  }
+
+  if (registry.version !== undefined) {
+    result.registryVersion = registry.version;
   }
 
   const seenSkillIds = new Set<string>();
@@ -183,24 +214,96 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
       skillFileContent: skillFile.content
     });
     result.warnings.push(...riskWarnings);
-    result.skills.push({
-      id: entry.id,
-      title: entry.title,
-      description: entry.description,
-      supportedAgents: entry.supportedAgents,
-      tags: entry.tags ?? [],
-      relativePath: entry.path,
-      absolutePath: resolvedSkillPath,
-      skillFilePath,
-      frontmatter: {
-        name: parsedFrontmatter.data.name,
-        description: parsedFrontmatter.data.description
-      },
-      riskWarnings
-    });
+
+    if (registry.version === 1 && entryDeclaresSemanticMetadata(rawEntry)) {
+      result.warnings.push({
+        severity: 'warning',
+        code: 'semantic-metadata-in-v1-registry',
+        message: `Skill "${entry.id}" declares registry v2 semantic metadata but registry.json declares version 1; bump the registry version to 2.`,
+        skillId: entry.id,
+        path: registryPath
+      });
+    }
+
+    result.skills.push(
+      toDiscoveredSkill({
+        entry,
+        relativePath: entry.path,
+        absolutePath: resolvedSkillPath,
+        skillFilePath,
+        frontmatter: {
+          name: parsedFrontmatter.data.name,
+          description: parsedFrontmatter.data.description
+        },
+        riskWarnings
+      })
+    );
   }
 
+  applyRelationshipValidation(result);
   return result;
+}
+
+/**
+ * Builds the normalized runtime model for one skill. Every optional registry array becomes a
+ * normalized, deduplicated array so downstream catalog/search/planning code never has to
+ * re-read registry JSON or handle `undefined`.
+ */
+function toDiscoveredSkill(options: {
+  entry: RegistrySkillEntry;
+  relativePath: string;
+  absolutePath: string;
+  skillFilePath: string;
+  frontmatter: {name: string; description: string};
+  riskWarnings: SkillRiskWarning[];
+}): DiscoveredSkill {
+  const {entry} = options;
+
+  return {
+    id: entry.id,
+    title: entry.title,
+    description: entry.description,
+    supportedAgents: entry.supportedAgents,
+    tags: normalizeTokenList(entry.tags),
+    domains: normalizeTokenList(entry.domains),
+    tasks: normalizeTokenList(entry.tasks),
+    languages: normalizeTokenList(entry.languages),
+    technologies: normalizeTokenList(entry.technologies),
+    platforms: normalizeTokenList(entry.platforms),
+    keywords: normalizeTokenList(entry.keywords),
+    useCases: normalizeProseList(entry.useCases),
+    nonGoals: normalizeProseList(entry.nonGoals),
+    requires: normalizeSkillIdList(entry.requires),
+    recommends: normalizeSkillIdList(entry.recommends),
+    conflictsWith: normalizeSkillIdList(entry.conflictsWith),
+    relativePath: options.relativePath,
+    absolutePath: options.absolutePath,
+    skillFilePath: options.skillFilePath,
+    frontmatter: options.frontmatter,
+    riskWarnings: options.riskWarnings
+  };
+}
+
+function entryDeclaresSemanticMetadata(rawEntry: unknown): boolean {
+  if (rawEntry === null || typeof rawEntry !== 'object') {
+    return false;
+  }
+
+  const keys = Object.keys(rawEntry as Record<string, unknown>);
+
+  return (
+    semanticMetadataFields.some((field) => keys.includes(field)) ||
+    ['requires', 'recommends', 'conflictsWith'].some((field) => keys.includes(field))
+  );
+}
+
+function applyRelationshipValidation(result: SkillDiscoveryResult): void {
+  const relationshipIssues = validateSkillRelationships(result.skills);
+
+  result.errors.push(...relationshipIssues.errors);
+  result.warnings.push(
+    ...relationshipIssues.warnings.map((issue): SkillRiskWarning => ({...issue, severity: 'warning'}))
+  );
 }
 
 async function loadRegistry(
@@ -256,7 +359,11 @@ async function loadRegistry(
     return {status: 'invalid'};
   }
 
-  return {status: 'loaded', skills: registryResult.data.skills};
+  return {
+    status: 'loaded',
+    skills: registryResult.data.skills,
+    ...(registryResult.data.version === undefined ? {} : {version: registryResult.data.version})
+  };
 }
 
 async function discoverSkillsWithoutRegistry(
@@ -337,21 +444,19 @@ async function discoverSkillsWithoutRegistry(
     });
 
     result.warnings.push(...riskWarnings);
-    result.skills.push({
-      id: entry.id,
-      title: entry.title,
-      description: entry.description,
-      supportedAgents: entry.supportedAgents,
-      tags: entry.tags ?? [],
-      relativePath: entry.path,
-      absolutePath: skillPath,
-      skillFilePath,
-      frontmatter: {
-        name: parsedFrontmatter.data.name,
-        description: parsedFrontmatter.data.description
-      },
-      riskWarnings
-    });
+    result.skills.push(
+      toDiscoveredSkill({
+        entry,
+        relativePath: entry.path,
+        absolutePath: skillPath,
+        skillFilePath,
+        frontmatter: {
+          name: parsedFrontmatter.data.name,
+          description: parsedFrontmatter.data.description
+        },
+        riskWarnings
+      })
+    );
   }
 }
 

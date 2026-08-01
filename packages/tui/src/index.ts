@@ -1,4 +1,9 @@
 export {App, type AppProps} from './App.js';
+export {
+  CorvusApplicationContext,
+  useCorvusApplication
+} from './application/applicationContext.js';
+export {describeMachineError, describeMachineErrors} from './application/errorMessages.js';
 export {CommandBar, type CommandHint} from './screens/CommandBar.js';
 export {ErrorBoundary, type ErrorBoundaryProps} from './ErrorBoundary.js';
 export {

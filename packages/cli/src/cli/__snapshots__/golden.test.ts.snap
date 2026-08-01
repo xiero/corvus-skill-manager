@@ -1,0 +1,821 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden protocol fixtures > agents list 1`] = `
+{
+  "changed": false,
+  "command": "agents.list",
+  "data": {
+    "agents": [
+      {
+        "defaultTargetPath": "~/.agents/skills",
+        "displayName": "OpenAI Codex CLI",
+        "effectiveTargetPath": "~/.agents/skills",
+        "enabled": true,
+        "id": "codex",
+        "notes": [],
+        "selectedSkillIds": [
+          "git-commit",
+        ],
+        "supportStatus": "supported",
+        "warnings": [],
+      },
+      {
+        "defaultTargetPath": "~/.claude/skills",
+        "displayName": "Claude Code",
+        "effectiveTargetPath": "~/.claude/skills",
+        "enabled": false,
+        "id": "claude",
+        "notes": [],
+        "selectedSkillIds": [],
+        "supportStatus": "supported",
+        "warnings": [],
+      },
+      {
+        "defaultTargetPath": "~/.copilot/skills",
+        "displayName": "GitHub Copilot CLI",
+        "effectiveTargetPath": "~/.copilot/skills",
+        "enabled": false,
+        "id": "copilot",
+        "notes": [
+          "Uses the implementation-plan Copilot CLI skill path strategy.",
+        ],
+        "selectedSkillIds": [],
+        "supportStatus": "supported",
+        "warnings": [],
+      },
+      {
+        "defaultTargetPath": "~/.config/opencode/skills",
+        "displayName": "OpenCode",
+        "effectiveTargetPath": "~/.config/opencode/skills",
+        "enabled": false,
+        "id": "opencode",
+        "notes": [
+          "Uses the implementation-plan OpenCode skill path strategy.",
+        ],
+        "selectedSkillIds": [],
+        "supportStatus": "supported",
+        "warnings": [],
+      },
+      {
+        "defaultTargetPath": "~/.pi/agent/skills",
+        "displayName": "Pi Agent",
+        "effectiveTargetPath": "~/.pi/agent/skills",
+        "enabled": false,
+        "id": "pi",
+        "notes": [
+          "Uses the implementation-plan Pi Agent skill path strategy.",
+        ],
+        "selectedSkillIds": [],
+        "supportStatus": "supported",
+        "warnings": [],
+      },
+      {
+        "displayName": "Custom Agent",
+        "enabled": false,
+        "id": "custom",
+        "notes": [
+          "Set a target path before planning links.",
+        ],
+        "selectedSkillIds": [],
+        "supportStatus": "custom",
+        "warnings": [],
+      },
+      {
+        "defaultTargetPath": "~/.gemini/skills",
+        "displayName": "Gemini CLI",
+        "effectiveTargetPath": "~/.gemini/skills",
+        "enabled": false,
+        "id": "gemini",
+        "notes": [
+          "Uses Gemini CLI Agent Skills directory support.",
+        ],
+        "selectedSkillIds": [],
+        "supportStatus": "supported",
+        "warnings": [],
+      },
+    ],
+  },
+  "errors": [],
+  "nextActions": [],
+  "ok": true,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > install plan blocked by an unmanaged target 1`] = `
+{
+  "changed": false,
+  "command": "install.plan",
+  "data": {
+    "plan": {
+      "configChanges": [
+        {
+          "agentId": "codex",
+          "enabledFrom": false,
+          "enabledTo": true,
+          "selectedSkillIdsFrom": [],
+          "selectedSkillIdsTo": [
+            "git-commit",
+          ],
+          "targetPathTo": "~/.agents/skills",
+        },
+      ],
+      "conflicts": [
+        {
+          "agentId": "codex",
+          "code": "unmanaged-target-exists",
+          "message": "Target already exists and is not manager-owned: <HOME>/.agents/skills/git-commit",
+          "path": "<HOME>/.agents/skills/git-commit",
+          "severity": "conflict",
+          "skillId": "git-commit",
+        },
+      ],
+      "managerStateDir": "<HOME>/.agents/corvus-skill-manager",
+      "operations": [],
+      "request": {
+        "allCompatible": false,
+        "replaceSelection": false,
+        "schemaVersion": 1,
+        "selectedSkills": [
+          {
+            "id": "git-commit",
+          },
+        ],
+        "targetAgents": [
+          "codex",
+        ],
+      },
+      "selections": [
+        {
+          "agentId": "codex",
+          "reason": "explicit",
+          "reasonKind": "explicit",
+          "skillId": "git-commit",
+        },
+      ],
+      "skillpackCheckoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      "stateFingerprint": {
+        "algorithm": "sha256",
+        "components": {
+          "<NORMALIZED>": "<SHA256>",
+        },
+        "value": "<SHA256>",
+      },
+      "summary": {
+        "alreadySatisfied": 0,
+        "configChanges": 1,
+        "conflicts": 1,
+        "creates": 0,
+        "dependenciesAdded": [],
+        "recommendationsNotSelected": [],
+        "removals": 0,
+        "riskWarnings": 0,
+      },
+      "targetAgents": [
+        "codex",
+      ],
+      "warnings": [],
+    },
+    "requiresConfirmation": false,
+  },
+  "errors": [
+    {
+      "agentId": "codex",
+      "category": "conflict",
+      "code": "UNMANAGED_TARGET_EXISTS",
+      "message": "Target already exists and is not manager-owned: <HOME>/.agents/skills/git-commit",
+      "path": "<HOME>/.agents/skills/git-commit",
+      "retryable": false,
+      "skillId": "git-commit",
+    },
+  ],
+  "nextActions": [
+    {
+      "code": "resolve-unmanaged-target",
+      "description": "Move or remove the unmanaged target yourself, or drop that skill, then plan again.",
+    },
+  ],
+  "ok": false,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > install plan with a dependency expansion 1`] = `
+{
+  "changed": false,
+  "command": "install.plan",
+  "data": {
+    "digest": "<SHA256>",
+    "plan": {
+      "configChanges": [
+        {
+          "agentId": "codex",
+          "enabledFrom": false,
+          "enabledTo": true,
+          "selectedSkillIdsFrom": [],
+          "selectedSkillIdsTo": [
+            "embedded-driver-development",
+            "embedded-toolchain",
+          ],
+          "targetPathTo": "~/.agents/skills",
+        },
+      ],
+      "conflicts": [],
+      "managerStateDir": "<HOME>/.agents/corvus-skill-manager",
+      "operations": [
+        {
+          "agentId": "codex",
+          "skillId": "embedded-driver-development",
+          "sourcePath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/skills/embedded-driver-development",
+          "targetPath": "<HOME>/.agents/skills/embedded-driver-development",
+          "type": "create-link",
+        },
+        {
+          "agentId": "codex",
+          "skillId": "embedded-toolchain",
+          "sourcePath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/skills/embedded-toolchain",
+          "targetPath": "<HOME>/.agents/skills/embedded-toolchain",
+          "type": "create-link",
+        },
+      ],
+      "request": {
+        "allCompatible": false,
+        "replaceSelection": false,
+        "schemaVersion": 1,
+        "selectedSkills": [
+          {
+            "id": "embedded-driver-development",
+          },
+        ],
+        "targetAgents": [
+          "codex",
+        ],
+      },
+      "selections": [
+        {
+          "agentId": "codex",
+          "reason": "explicit",
+          "reasonKind": "explicit",
+          "skillId": "embedded-driver-development",
+        },
+        {
+          "agentId": "codex",
+          "reason": "dependency-of:embedded-driver-development",
+          "reasonKind": "dependency-of",
+          "skillId": "embedded-toolchain",
+        },
+      ],
+      "skillpackCheckoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      "stateFingerprint": {
+        "algorithm": "sha256",
+        "components": {
+          "<NORMALIZED>": "<SHA256>",
+        },
+        "value": "<SHA256>",
+      },
+      "summary": {
+        "alreadySatisfied": 0,
+        "configChanges": 1,
+        "conflicts": 0,
+        "creates": 2,
+        "dependenciesAdded": [
+          "embedded-toolchain",
+        ],
+        "recommendationsNotSelected": [
+          "embedded-testing",
+        ],
+        "removals": 0,
+        "riskWarnings": 0,
+      },
+      "targetAgents": [
+        "codex",
+      ],
+      "warnings": [],
+    },
+    "planId": "install-<DIGEST32>",
+    "planPath": "<HOME>/.agents/corvus-skill-manager/plans/install-<DIGEST32>.json",
+    "requiresConfirmation": true,
+  },
+  "errors": [],
+  "nextActions": [
+    {
+      "code": "apply-install-plan",
+      "command": "corvus-skills install apply --plan-id install-<DIGEST32> --confirm install-<DIGEST32> --json",
+      "description": "Apply the reviewed plan with the exact confirmation token.",
+    },
+  ],
+  "ok": true,
+  "schemaVersion": 1,
+  "warnings": [
+    {
+      "code": "recommendation-not-selected",
+      "message": "Skill "embedded-testing" is recommended by a selected skill but was not selected; recommendations are never installed automatically.",
+      "skillId": "embedded-testing",
+    },
+  ],
+}
+`;
+
+exports[`golden protocol fixtures > invalid request document 1`] = `
+{
+  "changed": false,
+  "command": "install.plan",
+  "data": {},
+  "errors": [
+    {
+      "category": "invalid-request",
+      "code": "INVALID_REQUEST",
+      "field": "request",
+      "message": "targetAgents: Required",
+      "retryable": false,
+    },
+  ],
+  "nextActions": [
+    {
+      "code": "read-capabilities",
+      "command": "corvus-skills capabilities --json",
+      "description": "Inspect the request schema advertised by the binary.",
+    },
+  ],
+  "ok": false,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > skillpack status 1`] = `
+{
+  "changed": false,
+  "command": "skillpack.status",
+  "data": {
+    "configExists": true,
+    "configPath": "<HOME>/.agents/corvus-skill-manager/config.json",
+    "configValid": true,
+    "configured": true,
+    "skillpack": {
+      "branch": "main",
+      "checkoutExists": true,
+      "checkoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      "checkoutReadable": true,
+      "currentCommit": "<COMMIT>",
+      "dirty": false,
+      "dirtyFiles": [],
+      "discoveredSkillCount": 8,
+      "discoveryErrorCount": 0,
+      "discoveryWarningCount": 0,
+      "id": "corvus-skillpack",
+      "repositoryUrl": "https://github.com/xiero/skill-collection.git",
+    },
+  },
+  "errors": [],
+  "nextActions": [
+    {
+      "code": "list-skills",
+      "command": "corvus-skills skills list --json",
+      "description": "List the discovered skill catalog.",
+    },
+  ],
+  "ok": true,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > skills search 1`] = `
+{
+  "changed": false,
+  "command": "skills.search",
+  "data": {
+    "limit": 3,
+    "query": "embedded firmware cmake",
+    "results": [
+      {
+        "conflictsWith": [],
+        "description": "Helps implement and review embedded C/C++ peripheral drivers.",
+        "domains": [
+          "embedded",
+          "firmware",
+        ],
+        "id": "embedded-driver-development",
+        "keywords": [
+          "hal",
+          "registers",
+          "interrupts",
+          "peripherals",
+        ],
+        "languages": [
+          "c",
+          "cpp",
+        ],
+        "matchedFields": [
+          "description",
+          "domains",
+          "id",
+          "tags",
+          "technologies",
+          "title",
+        ],
+        "matchedTerms": [
+          "cmake",
+          "embedded",
+          "firmware",
+        ],
+        "matches": [
+          {
+            "field": "id",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 50,
+          },
+          {
+            "field": "title",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 30,
+          },
+          {
+            "field": "domains",
+            "kind": "exact",
+            "term": "embedded",
+            "weight": 40,
+          },
+          {
+            "field": "description",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 4,
+          },
+          {
+            "field": "domains",
+            "kind": "exact",
+            "term": "firmware",
+            "weight": 40,
+          },
+          {
+            "field": "tags",
+            "kind": "exact",
+            "term": "firmware",
+            "weight": 15,
+          },
+          {
+            "field": "technologies",
+            "kind": "exact",
+            "term": "cmake",
+            "weight": 25,
+          },
+        ],
+        "nonGoals": [
+          "General-purpose web application development",
+        ],
+        "platforms": [
+          "bare-metal",
+          "rtos",
+        ],
+        "recommends": [
+          "embedded-testing",
+        ],
+        "relativePath": "skills/embedded-driver-development",
+        "requires": [
+          "embedded-toolchain",
+        ],
+        "riskWarnings": [],
+        "score": 204,
+        "supportedAgents": [
+          "codex",
+          "claude",
+        ],
+        "tags": [
+          "firmware",
+        ],
+        "tasks": [
+          "driver-development",
+          "debugging",
+          "code-review",
+        ],
+        "technologies": [
+          "cmake",
+          "gcc",
+          "stm32",
+        ],
+        "title": "Embedded Driver Development",
+        "useCases": [
+          "Implement a new peripheral driver",
+        ],
+      },
+      {
+        "conflictsWith": [],
+        "description": "Configures cross-compilation toolchains and build files.",
+        "domains": [
+          "embedded",
+        ],
+        "id": "embedded-toolchain",
+        "keywords": [
+          "linker",
+          "cross-compile",
+        ],
+        "languages": [
+          "c",
+          "cpp",
+        ],
+        "matchedFields": [
+          "domains",
+          "id",
+          "tags",
+          "technologies",
+          "title",
+        ],
+        "matchedTerms": [
+          "cmake",
+          "embedded",
+          "firmware",
+        ],
+        "matches": [
+          {
+            "field": "id",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 50,
+          },
+          {
+            "field": "title",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 30,
+          },
+          {
+            "field": "domains",
+            "kind": "exact",
+            "term": "embedded",
+            "weight": 40,
+          },
+          {
+            "field": "tags",
+            "kind": "exact",
+            "term": "firmware",
+            "weight": 15,
+          },
+          {
+            "field": "technologies",
+            "kind": "exact",
+            "term": "cmake",
+            "weight": 25,
+          },
+        ],
+        "nonGoals": [],
+        "platforms": [
+          "bare-metal",
+        ],
+        "recommends": [],
+        "relativePath": "skills/embedded-toolchain",
+        "requires": [],
+        "riskWarnings": [],
+        "score": 160,
+        "supportedAgents": [
+          "codex",
+          "claude",
+          "gemini",
+        ],
+        "tags": [
+          "firmware",
+        ],
+        "tasks": [
+          "build-configuration",
+        ],
+        "technologies": [
+          "cmake",
+          "gcc",
+        ],
+        "title": "Embedded Toolchain",
+        "useCases": [
+          "Set up a cross-compilation toolchain",
+        ],
+      },
+      {
+        "conflictsWith": [],
+        "description": "Adds unit-testing and hardware abstraction guidance for firmware.",
+        "domains": [
+          "embedded",
+          "testing",
+        ],
+        "id": "embedded-testing",
+        "keywords": [
+          "mocks",
+          "fakes",
+          "hardware abstraction",
+        ],
+        "languages": [
+          "c",
+          "cpp",
+        ],
+        "matchedFields": [
+          "domains",
+          "id",
+          "tags",
+          "title",
+        ],
+        "matchedTerms": [
+          "embedded",
+          "firmware",
+        ],
+        "matches": [
+          {
+            "field": "id",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 50,
+          },
+          {
+            "field": "title",
+            "kind": "partial",
+            "term": "embedded",
+            "weight": 30,
+          },
+          {
+            "field": "domains",
+            "kind": "exact",
+            "term": "embedded",
+            "weight": 40,
+          },
+          {
+            "field": "tags",
+            "kind": "exact",
+            "term": "firmware",
+            "weight": 15,
+          },
+        ],
+        "nonGoals": [],
+        "platforms": [
+          "bare-metal",
+        ],
+        "recommends": [],
+        "relativePath": "skills/embedded-testing",
+        "requires": [],
+        "riskWarnings": [],
+        "score": 135,
+        "supportedAgents": [
+          "codex",
+          "claude",
+        ],
+        "tags": [
+          "firmware",
+        ],
+        "tasks": [
+          "testing",
+          "test-design",
+        ],
+        "technologies": [
+          "ceedling",
+          "unity",
+        ],
+        "title": "Embedded Testing",
+        "useCases": [
+          "Add unit tests around a peripheral driver",
+        ],
+      },
+    ],
+    "terms": [
+      "cmake",
+      "embedded",
+      "firmware",
+    ],
+    "totalMatches": 3,
+  },
+  "errors": [],
+  "nextActions": [
+    {
+      "code": "inspect-skills",
+      "command": "corvus-skills skills inspect <skill-id...> --json",
+      "description": "Inspect the top candidates, then pass exact skill IDs to install plan.",
+    },
+  ],
+  "ok": true,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > skills validate-registry 1`] = `
+{
+  "changed": false,
+  "command": "skills.validate-registry",
+  "data": {
+    "coverage": [
+      {
+        "field": "domains",
+        "percent": 100,
+        "skillsWithValues": 8,
+        "totalSkills": 8,
+      },
+      {
+        "field": "tasks",
+        "percent": 100,
+        "skillsWithValues": 8,
+        "totalSkills": 8,
+      },
+      {
+        "field": "languages",
+        "percent": 87,
+        "skillsWithValues": 7,
+        "totalSkills": 8,
+      },
+      {
+        "field": "technologies",
+        "percent": 100,
+        "skillsWithValues": 8,
+        "totalSkills": 8,
+      },
+      {
+        "field": "platforms",
+        "percent": 62,
+        "skillsWithValues": 5,
+        "totalSkills": 8,
+      },
+      {
+        "field": "keywords",
+        "percent": 100,
+        "skillsWithValues": 8,
+        "totalSkills": 8,
+      },
+      {
+        "field": "useCases",
+        "percent": 100,
+        "skillsWithValues": 8,
+        "totalSkills": 8,
+      },
+      {
+        "field": "nonGoals",
+        "percent": 25,
+        "skillsWithValues": 2,
+        "totalSkills": 8,
+      },
+      {
+        "field": "requires",
+        "percent": 12,
+        "skillsWithValues": 1,
+        "totalSkills": 8,
+      },
+      {
+        "field": "recommends",
+        "percent": 25,
+        "skillsWithValues": 2,
+        "totalSkills": 8,
+      },
+      {
+        "field": "conflictsWith",
+        "percent": 0,
+        "skillsWithValues": 0,
+        "totalSkills": 8,
+      },
+    ],
+    "currentRegistryVersion": 2,
+    "invalidEntries": [],
+    "registryPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/registry.json",
+    "registryVersion": 2,
+    "requiredDependencyCycles": [],
+    "skillCount": 8,
+    "skillsMissingSemanticMetadata": [],
+    "source": "registry",
+    "supportedRegistryVersions": [
+      1,
+      2,
+    ],
+    "unknownRelationshipTargets": [],
+    "valid": true,
+  },
+  "errors": [],
+  "nextActions": [],
+  "ok": true,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > unsupported skill and agent pair 1`] = `
+{
+  "changed": false,
+  "command": "install.plan",
+  "data": {},
+  "errors": [
+    {
+      "agentId": "gemini",
+      "category": "conflict",
+      "code": "SKILL_NOT_SUPPORTED_BY_AGENT",
+      "message": "Skill "react-component-design" does not support Gemini CLI.",
+      "retryable": false,
+      "skillId": "react-component-design",
+    },
+  ],
+  "nextActions": [
+    {
+      "code": "list-skills",
+      "command": "corvus-skills skills list --json",
+      "description": "List available skill IDs and their agent compatibility.",
+    },
+  ],
+  "ok": false,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;

@@ -226,12 +226,26 @@ async function planOrApplyRemove(
   return applied(operation, 'removed-managed-link', `Removed manager-owned link at ${targetPath}`);
 }
 
+/**
+ * Windows cannot create a directory symlink without elevation, so a directory source becomes a
+ * junction there. Everything else is a directory symlink. Exported (with the platform injected)
+ * so both branches are unit-testable on a single host.
+ */
+export function resolveManagedLinkType(platform: NodeJS.Platform, sourceIsDirectory: boolean): ManagedLinkType {
+  return platform === 'win32' && sourceIsDirectory ? 'junction' : 'symlink';
+}
+
+/** The `type` argument `fs.symlink` needs for a given managed link type. */
+export function managedLinkSymlinkType(linkType: ManagedLinkType): 'junction' | 'dir' {
+  return linkType === 'junction' ? 'junction' : 'dir';
+}
+
 async function createManagedLink(options: {sourcePath: string; targetPath: string}): Promise<ManagedLinkType> {
   await fs.mkdir(path.dirname(options.targetPath), {recursive: true});
   const sourceStat = await fs.stat(options.sourcePath);
-  const linkType: ManagedLinkType = process.platform === 'win32' && sourceStat.isDirectory() ? 'junction' : 'symlink';
+  const linkType = resolveManagedLinkType(process.platform, sourceStat.isDirectory());
 
-  await fs.symlink(options.sourcePath, options.targetPath, linkType === 'junction' ? 'junction' : 'dir');
+  await fs.symlink(options.sourcePath, options.targetPath, managedLinkSymlinkType(linkType));
   return linkType;
 }
 

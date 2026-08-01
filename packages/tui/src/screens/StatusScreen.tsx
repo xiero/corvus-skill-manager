@@ -1,9 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {Box, Text, useInput} from 'ink';
-import {
-  type StatusReport,
-  buildStatusReport
-} from '@corvus-tools/skill-manager-core';
+import type {StatusReport} from '@corvus-tools/skill-manager-core';
+import {useCorvusApplication} from '../application/applicationContext.js';
+import {describeMachineErrors} from '../application/errorMessages.js';
 import {CommandBar} from './CommandBar.js';
 
 type StatusScreenState =
@@ -18,16 +17,24 @@ export interface StatusScreenProps {
 
 export function StatusScreen({configPath, onBack}: StatusScreenProps): React.ReactElement {
   const [state, setState] = useState<StatusScreenState>({status: 'loading'});
+  const application = useCorvusApplication(configPath);
 
   useEffect(() => {
     let active = true;
     setState({status: 'loading'});
 
-    buildStatusReport({configPath, checkRemote: true})
-      .then((report) => {
-        if (active) {
-          setState({status: 'loaded', report});
+    application
+      .status({checkRemote: true})
+      .then((result) => {
+        if (!active) {
+          return;
         }
+
+        setState(
+          result.ok
+            ? {status: 'loaded', report: result.data.report}
+            : {status: 'error', message: describeMachineErrors(result.errors)}
+        );
       })
       .catch((error: unknown) => {
         if (active) {
@@ -38,7 +45,7 @@ export function StatusScreen({configPath, onBack}: StatusScreenProps): React.Rea
     return () => {
       active = false;
     };
-  }, [configPath]);
+  }, [application]);
 
   useInput((input) => {
     if (input === 'q' || input === 'h') {

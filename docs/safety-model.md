@@ -2,6 +2,10 @@
 
 Corvus Skill Manager is designed around small, auditable filesystem side effects.
 
+Every rule here is an invariant of the manager, enforced in the domain and application layers.
+It applies identically to the Ink TUI and to the machine JSON CLI — an agent driving Corvus is
+subject to exactly the same boundaries as a human, with no bypass, escape hatch, or force flag.
+
 ## Write Boundaries
 
 The manager may write only:
@@ -49,9 +53,27 @@ There is no copy fallback in the MVP. Skills are linked, not copied.
 
 Status remote checks, Doctor, Help, and discovery are read-only. Doctor reports actionable issues but never repairs them.
 
+The read-only machine commands are `status`, `doctor`, `agents list`, `skillpack status`,
+`skillpack update-check`, `skills list`, `skills search`, `skills inspect`,
+`skills validate-registry`, and `install verify`. None of them creates a default config as a
+side effect: a missing config is reported structurally, not fixed. Tests compare the whole home
+directory tree before and after these commands.
+
+## Machine Confirmation Model
+
+Every write-capable machine command is two-phase. A plan command persists a digest-identified
+artifact under `~/.agents/corvus-skill-manager/plans/`, and the apply command must repeat that
+plan id as an explicit `--confirm` token. Before mutating, apply re-validates the plan schema,
+its digest (detecting tampering), the confirmation token, and a fingerprint of the state the
+plan was computed against; a mismatch fails with `STALE_PLAN` rather than being auto-corrected.
+Only operations contained in the persisted plan are executed.
+
+`--json` is never implicit authorization, machine mode never prompts, and Corvus never
+regenerates a plan and applies it silently.
+
 ## Update Preview
 
-When the remote commit differs from the active commit, the TUI can download an inactive revision snapshot for preview. The preview summarizes added, removed, and changed skills. The active `current` link is unchanged until the user explicitly approves activation.
+When the remote commit differs from the active commit, the manager can download an inactive revision snapshot for preview. The preview summarizes added, removed, and changed skills. The active `current` link is unchanged until activation is explicitly approved — with `a` in the TUI, or with a matching `--confirm` token in the machine CLI.
 
 ## Gemini CLI
 

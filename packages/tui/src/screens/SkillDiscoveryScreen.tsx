@@ -1,10 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {Box, Text, useInput} from 'ink';
-import {
-  type ManagerConfig,
-  type SkillDiscoveryResult,
-  discoverSkillsFromCheckout
-} from '@corvus-tools/skill-manager-core';
+import type {ManagerConfig, SkillDiscoveryResult} from '@corvus-tools/skill-manager-core';
+import {useCorvusApplication} from '../application/applicationContext.js';
+import {describeMachineErrors} from '../application/errorMessages.js';
 import {CommandBar} from './CommandBar.js';
 
 type DiscoveryState =
@@ -22,6 +20,7 @@ export function SkillDiscoveryScreen({config, onBack}: SkillDiscoveryScreenProps
   const [state, setState] = useState<DiscoveryState>(
     config?.skillpack === undefined ? {status: 'not-configured'} : {status: 'loading'}
   );
+  const application = useCorvusApplication();
 
   useEffect(() => {
     if (config?.skillpack === undefined) {
@@ -32,11 +31,18 @@ export function SkillDiscoveryScreen({config, onBack}: SkillDiscoveryScreenProps
     let active = true;
     setState({status: 'loading'});
 
-    discoverSkillsFromCheckout(config.skillpack.checkoutPath)
+    application
+      .discoverSkills()
       .then((result) => {
-        if (active) {
-          setState({status: 'loaded', result});
+        if (!active) {
+          return;
         }
+
+        setState(
+          result.ok
+            ? {status: 'loaded', result: result.data.discovery}
+            : {status: 'error', message: describeMachineErrors(result.errors)}
+        );
       })
       .catch((error: unknown) => {
         if (active) {
@@ -47,7 +53,7 @@ export function SkillDiscoveryScreen({config, onBack}: SkillDiscoveryScreenProps
     return () => {
       active = false;
     };
-  }, [config?.skillpack]);
+  }, [application, config?.skillpack]);
 
   useInput((input) => {
     if (input === 'q' || input === 'h') {

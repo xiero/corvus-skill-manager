@@ -648,9 +648,35 @@ async function activateRevisionSnapshot(options: {
     await fs.unlink(options.currentPath);
   }
 
-  const relativeTarget = path.relative(path.dirname(options.currentPath), options.repoPath);
-  const linkTarget = process.platform === 'win32' ? options.repoPath : relativeTarget;
-  await fs.symlink(linkTarget, options.currentPath, process.platform === 'win32' ? 'junction' : 'dir');
+  const {linkTarget, linkType} = resolveActiveLinkTarget({
+    platform: process.platform,
+    currentPath: options.currentPath,
+    repoPath: options.repoPath
+  });
+
+  await fs.symlink(linkTarget, options.currentPath, linkType);
+}
+
+/**
+ * The manager-owned `current` link points at a revision snapshot with a path relative to the
+ * skillpack root, so the whole tree stays relocatable. Windows junctions require an absolute
+ * target, so that platform uses the absolute revision path instead.
+ *
+ * Exported with the platform injected so both branches are unit-testable on a single host.
+ */
+export function resolveActiveLinkTarget(options: {
+  platform: NodeJS.Platform;
+  currentPath: string;
+  repoPath: string;
+}): {linkTarget: string; linkType: 'junction' | 'dir'} {
+  if (options.platform === 'win32') {
+    return {linkTarget: options.repoPath, linkType: 'junction'};
+  }
+
+  return {
+    linkTarget: path.relative(path.dirname(options.currentPath), options.repoPath),
+    linkType: 'dir'
+  };
 }
 
 async function readRemoteCommitHash(config: SkillpackConfig, git: GitRunner): Promise<string> {
@@ -742,6 +768,17 @@ function skillSignature(skill: DiscoveredSkill): string {
     description: skill.description,
     supportedAgents: [...skill.supportedAgents].sort(),
     tags: [...skill.tags].sort(),
+    domains: [...skill.domains].sort(),
+    tasks: [...skill.tasks].sort(),
+    languages: [...skill.languages].sort(),
+    technologies: [...skill.technologies].sort(),
+    platforms: [...skill.platforms].sort(),
+    keywords: [...skill.keywords].sort(),
+    useCases: [...skill.useCases].sort(),
+    nonGoals: [...skill.nonGoals].sort(),
+    requires: [...skill.requires].sort(),
+    recommends: [...skill.recommends].sort(),
+    conflictsWith: [...skill.conflictsWith].sort(),
     relativePath: skill.relativePath,
     frontmatter: skill.frontmatter
   });

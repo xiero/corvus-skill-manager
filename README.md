@@ -2,7 +2,9 @@
 
 Corvus Skill Manager is a TUI-first manager for wiring local skillpacks into supported coding agents. It helps you configure one skillpack snapshot, discover skills, detect remote collection updates, select which agents should receive which skills, preview a link plan, and apply only confirmed manager-owned links.
 
-The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Command workflows such as `corvus-skills update` or `corvus-skills install` are not part of the MVP.
+`corvus-skills` with no arguments launches the Ink TUI, exactly as before. With a subcommand it
+runs a deterministic JSON command interface built for coding agents — see
+[AI Agents](#ai-agents) below.
 
 ## What It Does
 
@@ -14,6 +16,7 @@ The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Comm
 - Generates a deterministic dry-run link plan.
 - Applies confirmed plans by creating/removing manager-owned symlinks or Windows junctions.
 - Shows read-only Status, Doctor, and Help views.
+- Exposes the same workflows to coding agents as a deterministic JSON CLI, with plan-then-apply confirmation.
 
 ## What It Does Not Do
 
@@ -23,6 +26,7 @@ The CLI binary is intentionally thin: `corvus-skills` launches the Ink TUI. Comm
 - It does not execute skill scripts or install dependencies inside the skillpack.
 - It does not generate Gemini `.toml` command wrappers.
 - It does not provide marketplace, cloud, auth, Express, backend, or copy-fallback behavior.
+- It does not embed an LLM, require an AI API key, or make a semantic choice invisibly. The calling agent interprets intent; Corvus executes deterministic operations.
 
 ## Run From npm
 
@@ -95,6 +99,47 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 The guided wizard uses one approval key consistently: `a` applies or approves the write-capable action on the current step.
 
 If no skills are selected, the plan has no create-link operations and no links are created. **Setup Skillpack** and **Configure Agents** remain available from Home as manual advanced screens.
+
+## AI Agents
+
+You can ask an installed coding agent (Codex, Claude Code, Gemini CLI, Copilot CLI, OpenCode,
+Pi Agent, …) to drive Corvus for you, without knowing any Corvus commands:
+
+> "Use Corvus Skill Manager to install the whole compatible skillpack for yourself."
+>
+> "Install `spec-unleashed` and `git-commit` for Codex and Claude Code."
+>
+> "Install a balanced set of skills useful for embedded development."
+
+The agent's discovery entrypoint is a single command:
+
+```bash
+corvus-skills capabilities --json
+```
+
+That returns the protocol version, every supported command, whether each is read-only or
+write-capable, the confirmation model, the supported agent adapters, the request schema, the
+relevant paths, and the exit-code contract — everything needed to operate the binary without
+external documentation.
+
+The agent then follows: `status` → make the skillpack ready → `skills search` / `skills inspect`
+→ choose exact skill IDs → `install plan` → review conflicts → `install apply --plan-id <id>
+--confirm <id>` → `install verify`.
+
+Two properties matter:
+
+- **Corvus never makes a semantic choice.** Search ranking is local, lexical, and deterministic,
+  and returns the score and matched fields for every candidate. Choosing which skills to install
+  is the calling agent's job, and its reasoning is recorded in the plan as provenance.
+- **Every write is plan-then-apply.** A plan is persisted with a digest and a fingerprint of the
+  state it was computed against; apply must repeat the plan id as an explicit confirmation token
+  and re-validates everything before mutating. `--json` is never implicit authorization, and
+  unmanaged files are never overwritten.
+
+Details: [Agent Interface](docs/agent-interface.md) ·
+[Machine Protocol v1](docs/agent-protocol-v1.md) ·
+[Semantic Registry](docs/semantic-registry.md) ·
+[Request examples](docs/examples/agent-install-requests.json)
 
 ## Supported Agents
 
@@ -179,7 +224,12 @@ Open Guided Flow, preview the update, review added/changed/removed skills, then 
 ## Docs
 
 - [Architecture](architecture.md)
+- [Agent-Native Architecture](docs/agent-native-architecture.md)
+- [Agent Interface](docs/agent-interface.md)
+- [Machine Protocol v1](docs/agent-protocol-v1.md)
+- [Semantic Registry](docs/semantic-registry.md)
 - [Skillpack Contract](docs/skillpack-contract.md)
+- [Registry v1 to v2 Migration](docs/skillpack-registry-migration.md)
 - [Managed Manifest Behavior](docs/managed-manifest.md)
 - [Safety Model](docs/safety-model.md)
 - [npm Publishing](docs/npm-publishing.md)

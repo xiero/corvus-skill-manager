@@ -2,13 +2,16 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {Box, useApp, useInput} from 'ink';
 import {
   type ConfigLoadResult,
+  type CorvusApplication,
   type ManagerPackageRuntime,
   type ManagerConfig,
   type ManagerSelfUpdateInspection,
+  createCorvusApplication,
   defaultConfigPath,
   ensureDefaultConfig,
   inspectManagerSelfUpdate
 } from '@corvus-tools/skill-manager-core';
+import {CorvusApplicationContext} from './application/applicationContext.js';
 import {
   type ConfigStatus,
   type HomeManagerUpdateState,
@@ -42,6 +45,8 @@ export interface AppProps {
   loadConfig?: () => Promise<ConfigLoadResult>;
   managerPackage?: ManagerPackageRuntime;
   inspectSelfUpdate?: typeof inspectManagerSelfUpdate;
+  /** Shared workflow services. Tests may supply one bound to a temporary home directory. */
+  application?: CorvusApplication;
 }
 
 const menuItems: MenuItem[] = [
@@ -58,7 +63,8 @@ export function App({
   initialConfigState,
   loadConfig = ensureDefaultConfig,
   managerPackage,
-  inspectSelfUpdate = inspectManagerSelfUpdate
+  inspectSelfUpdate = inspectManagerSelfUpdate,
+  application: providedApplication
 }: AppProps): React.ReactElement {
   const {exit} = useApp();
   const [view, setView] = useState<View>('home');
@@ -205,8 +211,14 @@ export function App({
     () => menuItems.map(({label, hint}) => ({label, hint})),
     []
   );
+  const application = useMemo(
+    () => providedApplication ?? createCorvusApplication({configPath: configState.configPath}),
+    [providedApplication, configState.configPath]
+  );
   const renderWithCorvusHeader = (screen: React.ReactElement): React.ReactElement => (
-    withCorvusHeader(screen, managerPackage?.currentVersion)
+    <CorvusApplicationContext.Provider value={application}>
+      {withCorvusHeader(screen, managerPackage?.currentVersion)}
+    </CorvusApplicationContext.Provider>
   );
 
   if (view === 'wizard') {

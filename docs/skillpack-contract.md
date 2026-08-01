@@ -37,7 +37,10 @@ The preferred skillpack root contains:
 registry.json
 ```
 
-The registry shape is:
+Two registry versions are supported. **v2 is a strict superset of v1**, so an existing v1
+registry stays valid with no edits at all.
+
+### Registry v1
 
 ```json
 {
@@ -63,6 +66,110 @@ Rules:
 - Absolute paths and `../` traversal are rejected.
 - Paths must resolve inside the active skillpack snapshot.
 - Duplicate skill ids are rejected.
+- `version` may be omitted; a missing version is treated exactly as before.
+
+### Registry v2
+
+v2 adds optional **semantic classification** and optional **relationships**. Both exist so a
+coding agent can translate a broad user intent ("a balanced set for embedded development")
+into exact skill IDs without guessing from file names.
+
+```json
+{
+  "version": 2,
+  "skills": [
+    {
+      "id": "embedded-driver-development",
+      "path": "skills/embedded-driver-development",
+      "title": "Embedded Driver Development",
+      "description": "Helps implement and review embedded C/C++ drivers.",
+      "supportedAgents": ["codex", "claude"],
+      "tags": ["firmware"],
+      "domains": ["embedded", "firmware"],
+      "tasks": ["driver-development", "debugging", "code-review"],
+      "languages": ["c", "cpp"],
+      "technologies": ["cmake", "gcc", "stm32"],
+      "platforms": ["bare-metal", "rtos"],
+      "keywords": ["hal", "registers", "interrupts", "peripherals"],
+      "useCases": ["Implement a new peripheral driver"],
+      "nonGoals": ["General-purpose web application development"],
+      "requires": [],
+      "recommends": ["embedded-testing"],
+      "conflictsWith": []
+    }
+  ]
+}
+```
+
+Semantic fields (all optional, all arrays):
+
+| Field | Meaning |
+|---|---|
+| `domains` | Broad problem areas, e.g. `embedded`, `web`, `testing`, `documentation`. |
+| `tasks` | What the skill helps *do*, e.g. `driver-development`, `code-review`. |
+| `languages` | Programming languages, e.g. `c`, `typescript`. |
+| `technologies` | Tools/frameworks/libraries, e.g. `cmake`, `react`, `git`. |
+| `platforms` | Runtime/target environments, e.g. `bare-metal`, `browser`, `server`. |
+| `keywords` | Free-form search terms not covered above. |
+| `useCases` | Short sentences describing when the skill applies. |
+| `nonGoals` | Short sentences describing when it does **not** apply. Used as a negative search signal. |
+
+Relationship fields (all optional, all arrays of skill IDs in the same registry):
+
+| Field | Meaning |
+|---|---|
+| `requires` | Hard dependencies. Installing the skill also installs these, with reason `dependency-of:<skill-id>`. |
+| `recommends` | Soft suggestions. Surfaced to the calling agent but **never installed automatically**. |
+| `conflictsWith` | Skills that should not be installed alongside this one. Treated symmetrically. |
+
+Validation rules for v2 metadata:
+
+- every value is a non-empty, trimmed string — leading/trailing whitespace is rejected rather
+  than silently fixed, so registry files stay canonical;
+- classification tokens are at most 64 characters, prose (`useCases`, `nonGoals`) at most 280;
+- token/relationship arrays hold at most 32 entries, prose arrays at most 16;
+- `requires` and `conflictsWith` must reference skills that exist in the registry, and a
+  missing target is a blocking discovery error;
+- a missing `recommends` target is a warning, not an error;
+- a skill may not require or conflict with itself;
+- cycles in `requires` are rejected;
+- unknown fields are rejected in both versions, so a misspelled `domain` or `recommend` fails
+  loudly instead of being ignored.
+
+**Case-normalization rule.** Classification tokens (`tags`, `domains`, `tasks`, `languages`,
+`technologies`, `platforms`, `keywords`) are trimmed, lowercased, and have internal whitespace
+runs collapsed to a single space. Duplicates after normalization are removed, keeping the first
+occurrence. `useCases` and `nonGoals` keep their authored casing but are deduplicated
+case-insensitively. Skill IDs are compared exactly. Omitted arrays normalize to `[]`, so
+consumers never have to handle `undefined`.
+
+### Migrating v1 to v2
+
+1. Change `"version": 1` to `"version": 2`. Nothing else is required — v2 with no semantic
+   fields behaves exactly like v1.
+2. Add semantic metadata per skill, **by inspecting each skill's `SKILL.md`**. Do not infer
+   metadata from file names alone; wrong metadata is worse than absent metadata because it
+   makes search confidently incorrect.
+3. Prefer a few accurate tokens over many speculative ones. `domains` and `tasks` carry the most
+   search weight, followed by `languages`/`technologies`/`platforms`, then `keywords`/`tags`.
+4. Use `nonGoals` for skills that are easily confused with a neighbouring domain — it actively
+   demotes the skill for unrelated queries.
+5. Declare `requires` only for genuine hard dependencies; use `recommends` for everything else.
+6. Validate before committing:
+
+   ```bash
+   corvus-skills skills validate-registry --json
+   ```
+
+   The command is read-only and reports the registry version, invalid entries, missing semantic
+   metadata, unknown relationship targets, cycles, and per-field coverage statistics. It is
+   suitable for skillpack CI.
+
+While a registry still declares `version: 1` but an entry uses v2 fields, discovery accepts the
+entry and emits a `semantic-metadata-in-v1-registry` warning asking for the version bump.
+
+The manager never writes to `registry.json` or to skill files. Migration happens in the
+skillpack repository, by its maintainers.
 
 ## Skill Files
 
@@ -87,4 +194,6 @@ The manager parses frontmatter and scans for risk indicators, but it does not re
 
 If `registry.json` is missing, the manager can discover `SKILL.md` files in read-only fallback mode. This is useful for MVP compatibility, but Doctor reports it as a warning because the registry contract is more explicit.
 
-Fallback-discovered skills default to Codex support and receive the `registryless` tag.
+Fallback-discovered skills default to Codex support and receive the `registryless` tag. All v2
+semantic and relationship arrays are empty for fallback-discovered skills, so they are still
+listable and inspectable but rank low in intent-based search.

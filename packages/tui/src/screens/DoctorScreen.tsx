@@ -1,10 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {Box, Text, useInput} from 'ink';
-import {
-  type DoctorIssue,
-  type DoctorReport,
-  buildDoctorReport
-} from '@corvus-tools/skill-manager-core';
+import type {DoctorIssue, DoctorReport} from '@corvus-tools/skill-manager-core';
+import {useCorvusApplication} from '../application/applicationContext.js';
+import {describeMachineErrors} from '../application/errorMessages.js';
 import {CommandBar} from './CommandBar.js';
 
 type DoctorScreenState =
@@ -19,16 +17,24 @@ export interface DoctorScreenProps {
 
 export function DoctorScreen({configPath, onBack}: DoctorScreenProps): React.ReactElement {
   const [state, setState] = useState<DoctorScreenState>({status: 'loading'});
+  const application = useCorvusApplication(configPath);
 
   useEffect(() => {
     let active = true;
     setState({status: 'loading'});
 
-    buildDoctorReport({configPath})
-      .then((report) => {
-        if (active) {
-          setState({status: 'loaded', report});
+    application
+      .doctor()
+      .then((result) => {
+        if (!active) {
+          return;
         }
+
+        setState(
+          result.ok
+            ? {status: 'loaded', report: result.data.report}
+            : {status: 'error', message: describeMachineErrors(result.errors)}
+        );
       })
       .catch((error: unknown) => {
         if (active) {
@@ -39,7 +45,7 @@ export function DoctorScreen({configPath, onBack}: DoctorScreenProps): React.Rea
     return () => {
       active = false;
     };
-  }, [configPath]);
+  }, [application]);
 
   useInput((input) => {
     if (input === 'q' || input === 'h') {
