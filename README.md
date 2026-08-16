@@ -108,6 +108,37 @@ If no skills are selected, the plan has no create-link operations and no links a
 
 Choose **+ Add repository** or press `a` to add another source. Enter the Git URL first; Corvus derives a unique repository ID from the repo name, uses `main` as the branch, and generates `~/.agents/skillpacks/<id>/current` as the active path. Review the generated values before applying, or open **Advanced settings** to change them. Once registered, the repository ID remains read-only so qualified skill references stay stable.
 
+### Managing repository sources from the machine CLI
+
+Adding a source is also plan-then-apply. First generate and review a setup plan:
+
+```bash
+corvus-skills skillpack setup-plan \
+  --skillpack-id team-skills \
+  --repository https://github.com/acme/team-skills.git \
+  --branch main \
+  --checkout-path "$HOME/.agents/skillpacks/team-skills/current" \
+  --json
+```
+
+Then repeat the returned `planId` as the confirmation token:
+
+```bash
+corvus-skills skillpack setup-apply \
+  --plan-id <plan-id> \
+  --confirm <plan-id> \
+  --json
+```
+
+Inspect one source or install one of its skills with its qualified reference:
+
+```bash
+corvus-skills skillpack status --skillpack-id team-skills --check-remote --json
+corvus-skills install plan --agent codex --skill team-skills:review-helper --json
+```
+
+An unused additional source can be unregistered with `skillpack remove-plan --skillpack-id team-skills`, followed by `skillpack remove-apply` with the returned plan ID and matching confirmation token. Removal preserves its immutable revisions and `current` link.
+
 ## AI Agents
 
 You can ask an installed coding agent (Codex, Claude Code, Gemini CLI, Copilot CLI, OpenCode,
@@ -130,7 +161,7 @@ write-capable, the confirmation model, the supported agent adapters, the request
 relevant paths, and the exit-code contract — everything needed to operate the binary without
 external documentation.
 
-The agent then follows: `status` → make the skillpack ready → `skills search` / `skills inspect`
+The agent then follows: `status` → make the required skillpack sources ready → `skills search` / `skills inspect`
 → choose exact skill IDs → `install plan` → review conflicts → `install apply --plan-id <id>
 --confirm <id>` → `install verify`.
 
@@ -176,7 +207,7 @@ The main files are:
 - `config.json`: manager config, all skillpack sources, and qualified agent selections
 - `lock.json`: recorded skillpack commit and branch after setup/inspection
 - `manifest.json`: manager-owned link records
-- `plans/<plan-id>.json`: persisted plan artifacts written by the machine CLI's plan commands, each carrying its own digest and a fingerprint of the state it was computed against
+- `plans/<plan-id>.json`: persisted plan artifacts written by machine commands and **Manage Skillpacks**, each carrying its own digest and a fingerprint of the state it was computed against
 
 Default skillpack layout:
 
@@ -238,6 +269,10 @@ Doctor reports dirty skillpack checkouts, but will not reset or repair them. Rev
 **Remote update available**
 
 Open Guided Flow, preview the update, review added/changed/removed skills, then press `a` on the Update step if you want `current` to point at the new revision.
+
+**An additional repository is unavailable**
+
+Explicit operations using qualified references from other readable repositories continue with a warning. `install plan --all-compatible` blocks until every configured repository is readable, because otherwise it could silently produce an incomplete selection.
 
 **A machine command exits non-zero**
 
