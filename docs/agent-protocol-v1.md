@@ -72,13 +72,14 @@ meaning and never changes category. `details` carries structured extras — for 
 |---|---|---:|---|
 | `INVALID_REQUEST` | invalid-request | 2 | Malformed flags, request document, or option value. |
 | `CONFIG_INVALID` | invalid-request | 2 | `config.json` does not match its schema. |
-| `SKILL_NOT_FOUND` | invalid-request | 2 | No such skill id in the active skillpack. |
+| `SKILL_NOT_FOUND` | invalid-request | 2 | No such qualified or default-pack skill id in the readable configured catalogs. |
 | `UNKNOWN_AGENT` | invalid-request | 2 | Not a known agent adapter. |
 | `CONFIG_NOT_FOUND` | conflict | 3 | Manager config does not exist yet. |
 | `SKILLPACK_NOT_CONFIGURED` | conflict | 3 | No skillpack is configured. |
 | `SKILLPACK_NOT_READY` | conflict | 3 | The active snapshot is missing or unreadable. |
 | `SKILL_NOT_SUPPORTED_BY_AGENT` | conflict | 3 | The skill does not declare support for that agent. |
 | `SKILL_CONFLICT` | conflict | 3 | Two selected skills declare a mutual conflict. |
+| `SKILL_TARGET_NAME_CONFLICT` | conflict | 3 | Skills from different packs would claim the same agent target directory. |
 | `AGENT_NOT_SUPPORTED` | conflict | 3 | The adapter cannot receive linked skills. |
 | `AGENT_TARGET_REQUIRED` | conflict | 3 | The agent has no target path (always true for `custom`). |
 | `UNMANAGED_TARGET_EXISTS` | conflict | 3 | Something not manager-owned occupies the target path. |
@@ -168,3 +169,14 @@ Empty input, invalid JSON, and multiple concatenated documents are all rejected 
 request, so the two entry points cannot produce different plans.
 
 See `docs/examples/agent-install-requests.json` for validated examples.
+
+## Multiple skillpacks
+
+The protected default source is `corvus-skillpack`. Additional sources are addressed with
+`--skillpack-id` on setup, status, update, and removal operations. Catalog entries include a
+qualified `ref` such as `team-pack:private-review`; install and inspect accept that form.
+Legacy unqualified IDs deterministically mean `corvus-skillpack:<id>`.
+
+`skillpack remove-plan --skillpack-id <id>` refuses the default pack and any pack still used by
+agent selections or managed links. Confirmed `remove-apply` unregisters the source without
+deleting its immutable revision snapshots.

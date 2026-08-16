@@ -30,10 +30,18 @@ describe('config store', () => {
     expect(result.managerStateDir).toBe(defaultManagerStateDir(tempHome));
     expect(result.configPath).toBe(defaultConfigPath(tempHome));
     expect(result.config).toEqual({
-      version: 1,
+      version: 2,
       managerStateDir: defaultManagerStateDir(tempHome),
       createdAt: '2026-01-02T03:04:05.000Z',
-      updatedAt: '2026-01-02T03:04:05.000Z'
+      updatedAt: '2026-01-02T03:04:05.000Z',
+      skillpacks: {
+        [defaultSkillpackId]: {
+          id: defaultSkillpackId,
+          repositoryUrl: defaultSkillpackRepositoryUrl,
+          branch: defaultSkillpackBranch,
+          checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome)
+        }
+      }
     });
     await expect(fs.access(result.configPath)).resolves.toBeUndefined();
   });
@@ -50,6 +58,32 @@ describe('config store', () => {
     const loadedConfig = await loadConfig(configPath);
 
     expect(loadedConfig).toEqual(config);
+  });
+
+  it('normalizes v2 configs so the protected default remains beside secondary skillpacks', () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const parsed = parseManagerConfig({
+      version: 2,
+      managerStateDir,
+      createdAt: '2026-02-03T04:05:06.000Z',
+      updatedAt: '2026-02-03T04:05:06.000Z',
+      skillpacks: {
+        team: {
+          id: 'team',
+          repositoryUrl: 'https://example.test/team.git',
+          branch: 'main',
+          checkoutPath: path.join(tempHome, '.agents', 'skillpacks', 'team', 'current')
+        }
+      }
+    });
+
+    expect(parsed.skillpacks?.team?.id).toBe('team');
+    expect(parsed.skillpacks?.[defaultSkillpackId]).toEqual({
+      id: defaultSkillpackId,
+      repositoryUrl: defaultSkillpackRepositoryUrl,
+      branch: defaultSkillpackBranch,
+      checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome)
+    });
   });
 
   it('migrates the legacy default skillpack checkout out of manager state', async () => {

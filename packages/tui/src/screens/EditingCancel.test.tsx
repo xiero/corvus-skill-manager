@@ -19,6 +19,7 @@ type InputKey = {
   meta?: boolean;
   upArrow?: boolean;
   downArrow?: boolean;
+  escape?: boolean;
 };
 type InputHandler = (input: string, key: InputKey) => void;
 
@@ -45,7 +46,7 @@ beforeEach(() => {
 });
 
 describe('cancelable TUI field editing', () => {
-  it('cancels manual skillpack id edits with q before Home navigation', () => {
+  it('cancels repository URL edits before backing out to Home', () => {
     const onBack = vi.fn();
     let renderer: ReactTestRenderer | undefined;
 
@@ -61,16 +62,22 @@ describe('cancelable TUI field editing', () => {
     });
 
     press('', {return: true});
+    press('e');
+    press('', {return: true});
     press('x');
-    expect(collectText(renderer!.toJSON())).toContain(`Skillpack ID: [${defaultSkillpackId}x]`);
+    expect(collectText(renderer!.toJSON())).toContain('skill-collection.gitx]');
 
-    press('q');
+    press('', {escape: true});
     const afterCancel = collectText(renderer!.toJSON());
 
     expect(onBack).not.toHaveBeenCalled();
-    expect(afterCancel).toContain(`Skillpack ID: ${defaultSkillpackId}`);
-    expect(afterCancel).not.toContain(`${defaultSkillpackId}x`);
+    expect(afterCancel).toContain('skill-collection.git');
+    expect(afterCancel).not.toContain('skill-collection.gitx');
 
+    press('q');
+    expect(onBack).not.toHaveBeenCalled();
+    press('q');
+    expect(onBack).not.toHaveBeenCalled();
     press('q');
     expect(onBack).toHaveBeenCalledTimes(1);
   });
@@ -91,26 +98,27 @@ describe('cancelable TUI field editing', () => {
       );
     });
 
-    press('', {downArrow: true});
+    press('', {return: true});
+    press('e');
     press('', {downArrow: true});
     press('', {downArrow: true});
     press('', {return: true});
     press('x');
     expect(collectText(renderer!.toJSON())).toContain(`${defaultCheckoutPath}x`);
 
-    press('h');
+    press('', {escape: true});
 
     expect(onBack).not.toHaveBeenCalled();
     expect(collectText(renderer!.toJSON())).toContain(`Active path: ${defaultCheckoutPath}`);
   });
 
-  it('keeps a manual edit when it is accepted with Enter', () => {
+  it('keeps an accepted branch edit while repository id remains read-only', () => {
     let renderer: ReactTestRenderer | undefined;
 
     act(() => {
       renderer = create(
         <SkillpackSetupScreen
-          config={customSkillpackConfig}
+          config={baseConfig}
           configPath="/tmp/corvus/config.json"
           onBack={() => {}}
           onConfigSaved={() => {}}
@@ -119,10 +127,15 @@ describe('cancelable TUI field editing', () => {
     });
 
     press('', {return: true});
+    press('e');
+    press('', {downArrow: true});
+    press('', {return: true});
     press('x');
     press('', {return: true});
 
-    expect(collectText(renderer!.toJSON())).toContain('Skillpack ID: custom-packx');
+    const text = collectText(renderer!.toJSON());
+    expect(text).toContain('Branch: mainx');
+    expect(text).toContain(`Repository ID: ${defaultSkillpackId} [READ ONLY]`);
   });
 
   it('cancels manual agent target edits with q before Home navigation', () => {
@@ -227,16 +240,6 @@ const baseConfig: ManagerConfig = {
   managerStateDir: '/tmp/corvus',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
-};
-
-const customSkillpackConfig: ManagerConfig = {
-  ...baseConfig,
-  skillpack: {
-    id: 'custom-pack',
-    repositoryUrl: 'https://example.com/custom.git',
-    branch: 'main',
-    checkoutPath: '/tmp/custom-pack/current'
-  }
 };
 
 const agentConfig: ManagerConfig = {

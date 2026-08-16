@@ -136,11 +136,12 @@ export const commandCapabilities: readonly CommandCapability[] = [
   {
     command: 'skillpack.status',
     cli: 'skillpack status',
-    summary: 'Report the configured skillpack and its active snapshot.',
+    summary: 'Report configured skillpacks and their active snapshots.',
     mode: 'read-only',
     requiresConfirmation: false,
     options: [
-      {flag: '--check-remote', description: 'Also run the read-only remote update check.', required: false, repeatable: false}
+      {flag: '--check-remote', description: 'Also run the read-only remote update check.', required: false, repeatable: false},
+      {flag: '--skillpack-id <id>', description: 'Restrict output to one skillpack.', required: false, repeatable: false}
     ]
   },
   {
@@ -170,7 +171,7 @@ export const commandCapabilities: readonly CommandCapability[] = [
     summary: 'Read-only remote comparison using git ls-remote.',
     mode: 'read-only',
     requiresConfirmation: false,
-    options: []
+    options: [{flag: '--skillpack-id <id>', description: 'Skillpack to check.', required: false, repeatable: false}]
   },
   {
     command: 'skillpack.update-preview',
@@ -178,12 +179,28 @@ export const commandCapabilities: readonly CommandCapability[] = [
     summary: 'Create an inactive revision snapshot and an activation plan. The current link is untouched.',
     mode: 'write',
     requiresConfirmation: true,
-    options: []
+    options: [{flag: '--skillpack-id <id>', description: 'Skillpack to preview.', required: false, repeatable: false}]
   },
   {
     command: 'skillpack.update-apply',
     cli: 'skillpack update-apply',
     summary: 'Activate a previewed revision by repointing the manager-owned current link.',
+    mode: 'write',
+    requiresConfirmation: true,
+    options: [planIdOption, confirmOption]
+  },
+  {
+    command: 'skillpack.remove-plan',
+    cli: 'skillpack remove-plan',
+    summary: 'Plan config-only removal of an unused secondary skillpack; snapshots are preserved.',
+    mode: 'write',
+    requiresConfirmation: true,
+    options: [{flag: '--skillpack-id <id>', description: 'Secondary skillpack to remove.', required: true, repeatable: false}]
+  },
+  {
+    command: 'skillpack.remove-apply',
+    cli: 'skillpack remove-apply',
+    summary: 'Apply a reviewed secondary skillpack removal plan.',
     mode: 'write',
     requiresConfirmation: true,
     options: [planIdOption, confirmOption]
@@ -234,7 +251,7 @@ export const commandCapabilities: readonly CommandCapability[] = [
   {
     command: 'skills.validate-registry',
     cli: 'skills validate-registry',
-    summary: 'Validate the active skillpack registry and report coverage. Read-only, CI friendly.',
+    summary: 'Validate configured skillpack registries and report coverage. Read-only, CI friendly.',
     mode: 'read-only',
     requiresConfirmation: false,
     options: []

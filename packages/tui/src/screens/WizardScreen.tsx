@@ -28,6 +28,9 @@ import {
   discoverSkillsFromCheckout,
   generateLinkPlan,
   getAgentAdapters,
+  getSkillpacks,
+  qualifySkillId,
+  resolveSkillReference,
   inspectSkillpackCheckout,
   inspectSkillpackRemoteUpdate,
   parseSkillpackConfig,
@@ -165,7 +168,7 @@ export function WizardScreen({
     const states = new Map<string, SkillSelectionState>();
 
     for (const skill of sortedSkills) {
-      states.set(skill.id, selectionStateForSkill(skill.id, enabledAdapters, draftAgents));
+      states.set(skillRef(skill), selectionStateForSkill(skillRef(skill), enabledAdapters, draftAgents));
     }
 
     return states;
@@ -216,7 +219,15 @@ export function WizardScreen({
           return;
         }
 
-        setSkills(result.skills);
+        const skillpackId = workingConfig.skillpack?.id ?? defaultSkillpackId;
+        setSkills(result.skills.map((skill) => ({
+          ...skill,
+          skillpackId,
+          ref: qualifySkillId(skillpackId, skill.id),
+          requires: (skill.requires ?? []).map((id) => qualifySkillId(skillpackId, id)),
+          recommends: (skill.recommends ?? []).map((id) => qualifySkillId(skillpackId, id)),
+          conflictsWith: (skill.conflictsWith ?? []).map((id) => qualifySkillId(skillpackId, id))
+        })));
         setDiscoveryWarnings(result.warnings);
         setDiscoveryErrors(result.errors);
         setDiscoveryState('loaded');
@@ -514,7 +525,7 @@ export function WizardScreen({
       const skill = sortedSkills[selectedSkillIndex];
 
       if (skill !== undefined) {
-        toggleSkillAcrossEnabledAgents(skill.id);
+        toggleSkillAcrossEnabledAgents(skillRef(skill));
         setPlan(undefined);
       }
 
@@ -683,7 +694,9 @@ export function WizardScreen({
       const skillpackConfig = parseSkillpackForm(form);
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
+        version: 2,
         skillpack: skillpackConfig,
+        skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
       };
 
@@ -717,7 +730,9 @@ export function WizardScreen({
     try {
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
+        version: 2,
         skillpack: skillpackConfig,
+        skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
       };
 
@@ -798,7 +813,9 @@ export function WizardScreen({
     try {
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
+        version: 2,
         skillpack: skillpackConfig,
+        skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
       };
 
@@ -859,7 +876,8 @@ export function WizardScreen({
     return operations.generateLinkPlan({
       adapters,
       skills: sortedSkills.map((skill) => ({
-        id: skill.id,
+        id: skillRef(skill),
+        targetName: skill.id,
         absolutePath: skill.absolutePath
       })),
       selections: adapters.map((adapter) => ({
@@ -920,6 +938,7 @@ export function WizardScreen({
         plan: nextPlan,
         managerStateDir: updatedConfig.managerStateDir,
         skillpackCheckoutPath: updatedConfig.skillpack.checkoutPath,
+        skillpackCheckoutPaths: getSkillpacks(updatedConfig).map((skillpack) => skillpack.checkoutPath),
         confirmReplaceBrokenManagedLinks: true
       });
 
@@ -1268,8 +1287,8 @@ export function WizardSkillSelectionView({
     agentCount === 1 ?
       `4. Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
       `4. Skills for ${agentCount} agents`;
-  const anySelected = skills.some((skill) => (skillSelectionStates.get(skill.id) ?? 'none') !== 'none');
-  const anyMixed = skills.some((skill) => skillSelectionStates.get(skill.id) === 'some');
+  const anySelected = skills.some((skill) => (skillSelectionStates.get(skillRef(skill)) ?? 'none') !== 'none');
+  const anyMixed = skills.some((skill) => skillSelectionStates.get(skillRef(skill)) === 'some');
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -1286,11 +1305,12 @@ export function WizardSkillSelectionView({
         {anyMixed ? <Text dimColor>[~] selected for some, not all enabled agents.</Text> : null}
         {skills.map((skill, index) => {
           const selected = index === selectedSkillIndex;
-          const state = skillSelectionStates.get(skill.id) ?? 'none';
+          const ref = skillRef(skill);
+          const state = skillSelectionStates.get(ref) ?? 'none';
           const marker = state === 'all' ? '[x]' : state === 'some' ? '[~]' : '[ ]';
-          const line = `${selected ? '>' : ' '} ${marker} ${skill.id} - ${skill.title}`;
+          const line = `${selected ? '>' : ' '} ${marker} ${ref} - ${skill.title}`;
 
-          return selected ? <Text key={skill.id} color="cyan">{line}</Text> : <Text key={skill.id}>{line}</Text>;
+          return selected ? <Text key={ref} color="cyan">{line}</Text> : <Text key={ref}>{line}</Text>;
         })}
       </Box>
       <IssuePreview title="Discovery errors" color="red" issues={discoveryErrors.map((issue) => issue.message)} />
@@ -1444,6 +1464,10 @@ function createInitialSkillpackForm(config: ManagerConfig): SkillpackFormState {
   };
 }
 
+function skillRef(skill: DiscoveredSkill): string {
+  return skill.ref ?? skill.id;
+}
+
 function createDraftAgents(config: ManagerConfig, adapters: AgentAdapter[]): Record<AgentId, WizardDraftAgent> {
   return Object.fromEntries(
     adapters.map((adapter) => {
@@ -1455,7 +1479,9 @@ function createDraftAgents(config: ManagerConfig, adapters: AgentAdapter[]): Rec
         {
           enabled: isWizardAgentSelectable(adapter) ? configuredAgent?.enabled ?? false : false,
           targetPath,
-          selectedSkillIds: configuredAgent?.selectedSkillIds ?? []
+          selectedSkillIds: (configuredAgent?.selectedSkillIds ?? []).map((id) =>
+            resolveSkillReference(id, config.skillpack?.id ?? defaultSkillpackId)
+          )
         }
       ];
     })

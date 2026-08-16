@@ -36,7 +36,9 @@ export function HelpScreen({onBack}: HelpScreenProps): React.ReactElement {
         <Text>A global manager install can be updated with npm install -g @corvus-tools/skill-manager@latest.</Text>
         <Text>Existing unmanaged files or directories at target paths become conflicts.</Text>
         <Text>Gemini uses Agent Skills links under its configured skills directory.</Text>
-        <Text>Manual Setup Skillpack and Configure Agents remain available from Home for advanced changes.</Text>
+        <Text>Manage Skillpacks separates the protected default from additional repository sources.</Text>
+        <Text>Add repository starts with a Git URL and generates the ID and active path for review.</Text>
+        <Text>Configure Agents remains available from Home for advanced link changes.</Text>
       </Box>
 
       <Box flexDirection="column">

@@ -6,6 +6,7 @@ export const managedLinkTypeSchema = z.enum(['symlink', 'junction']);
 export const managedLinkManifestEntrySchema = z
   .object({
     agentId: agentIdSchema,
+    skillpackId: z.string().min(1).optional(),
     skillId: z.string().min(1),
     targetPath: z.string().min(1),
     sourcePath: z.string().min(1),

@@ -75,7 +75,7 @@ function DiscoveryBody({state}: {state: DiscoveryState}): React.ReactElement {
     return (
       <Box flexDirection="column">
         <Text color="yellow">Skillpack not configured.</Text>
-        <Text>Use Setup Skillpack before discovery.</Text>
+        <Text>Use Manage Skillpacks before discovery.</Text>
       </Box>
     );
   }
@@ -98,6 +98,11 @@ export function DiscoveryResultView({result}: {result: SkillDiscoveryResult}): R
         <Text>
           Skillpack root: <Text color="cyan">{result.skillpackRoot}</Text>
         </Text>
+        {(result.skillpacks ?? []).map((skillpack) => (
+          <Text key={skillpack.id} color={skillpack.ready ? 'green' : 'yellow'}>
+            {skillpack.id}: {skillpack.ready ? `${skillpack.skillCount} skills` : skillpack.message ?? 'not ready'}
+          </Text>
+        ))}
         <Text>
           Registry: <Text color="cyan">{result.registryPath}</Text>
         </Text>
@@ -109,7 +114,7 @@ export function DiscoveryResultView({result}: {result: SkillDiscoveryResult}): R
         {result.skills.map((skill) => (
           <Box key={skill.id} flexDirection="column">
             <Text>
-              <Text color="green">{skill.id}</Text> - {skill.title}
+              <Text color="green">{skill.ref ?? skill.id}</Text> - {skill.title}
             </Text>
             <Text dimColor>
               {skill.description} [{skill.supportedAgents.join(', ')}]

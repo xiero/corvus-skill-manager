@@ -12,7 +12,7 @@ describe('HomeScreen', () => {
         selectedIndex={0}
         menuItems={[
           {label: 'Guided Flow', hint: '(recommended wizard)'},
-          {label: 'Setup Skillpack', hint: '(manual/advanced)'},
+          {label: 'Manage Skillpacks', hint: '(manual/advanced)'},
           {label: 'Configure Agents', hint: '(manual plan/apply)'},
           {label: 'Status', hint: '(read-only report)'},
           {label: 'Doctor', hint: '(read-only checks)'},
@@ -27,7 +27,7 @@ describe('HomeScreen', () => {
     expect(text).toContain('/tmp/home/.agents/corvus-skill-manager/config.json');
     expect(text).toContain('Config status: created');
     expect(text).toContain('Guided Flow');
-    expect(text).toContain('Setup Skillpack');
+    expect(text).toContain('Manage Skillpacks');
     expect(text).toContain('Configure Agents');
     expect(text).toContain('Status');
     expect(text).toContain('Doctor');

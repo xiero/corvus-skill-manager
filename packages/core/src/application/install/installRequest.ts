@@ -1,6 +1,5 @@
 import {z} from 'zod';
 import {agentIdSchema} from '../../config/configSchema.js';
-import {skillIdPattern} from '../../registry/registrySchema.js';
 
 /**
  * Version of the install request contract. Deliberately independent from the machine protocol
@@ -31,7 +30,7 @@ const trimmedString = (max: number) =>
 
 export const selectedSkillRequestSchema = z
   .object({
-    id: z.string().min(1).regex(skillIdPattern, 'Use only letters, numbers, dots, underscores, and hyphens.'),
+    id: z.string().min(1).regex(/^[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)?$/, 'Use a skill id or <skillpack-id>:<skill-id>.'),
     reason: trimmedString(installRequestLimits.reasonLength).optional()
   })
   .strict();

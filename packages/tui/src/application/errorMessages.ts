@@ -8,13 +8,14 @@ import type {MachineError, MachineErrorCode} from '@corvus-tools/skill-manager-c
  */
 const messagesByCode: Record<MachineErrorCode, string> = {
   INVALID_REQUEST: 'That request was not valid.',
-  CONFIG_NOT_FOUND: 'Manager config is missing. Run Setup Skillpack to create it.',
+  CONFIG_NOT_FOUND: 'Manager config is missing. Open Manage Skillpacks to create it.',
   CONFIG_INVALID: 'Manager config is invalid. Fix config.json before continuing.',
-  SKILLPACK_NOT_CONFIGURED: 'No skillpack is configured yet. Use Setup Skillpack.',
+  SKILLPACK_NOT_CONFIGURED: 'No skillpack is configured yet. Use Manage Skillpacks.',
   SKILLPACK_NOT_READY: 'The active skillpack snapshot is missing or unreadable.',
-  SKILL_NOT_FOUND: 'That skill is not in the active skillpack.',
+  SKILL_NOT_FOUND: 'That skill is not in a readable configured skillpack.',
   SKILL_NOT_SUPPORTED_BY_AGENT: 'That skill does not support the selected agent.',
   SKILL_CONFLICT: 'Those skills declare a conflict and cannot both be installed.',
+  SKILL_TARGET_NAME_CONFLICT: 'Two selected skills would use the same agent target directory.',
   UNKNOWN_AGENT: 'That agent is not a known adapter.',
   AGENT_NOT_SUPPORTED: 'That agent cannot receive linked skills yet.',
   AGENT_TARGET_REQUIRED: 'Set a target path for that agent before planning links.',

@@ -69,7 +69,7 @@ describe('status and doctor reports', () => {
     });
     expect(report.agents.find((agent) => agent.id === 'codex')).toMatchObject({
       enabled: true,
-      selectedSkillIds: ['review']
+      selectedSkillIds: ['corvus-skillpack:review']
     });
     expect(report.managedLinkCount).toBe(0);
   });

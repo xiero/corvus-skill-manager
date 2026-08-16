@@ -28,6 +28,10 @@ export interface SkillRiskWarning extends SkillDiscoveryIssue {
 }
 
 export interface DiscoveredSkill {
+  /** Set by aggregate discovery. The local registry id remains in `id`. */
+  skillpackId?: string;
+  /** Stable `<skillpack-id>:<skill-id>` identity used for selection and persistence. */
+  ref?: string;
   id: string;
   title: string;
   description: string;
@@ -68,6 +72,17 @@ export interface SkillDiscoveryResult {
   skills: DiscoveredSkill[];
   warnings: SkillRiskWarning[];
   errors: SkillDiscoveryIssue[];
+  /** Per-pack provenance when this is an aggregate discovery result. */
+  skillpacks?: Array<{
+    id: string;
+    checkoutPath: string;
+    ready: boolean;
+    registryPath?: string;
+    skillCount: number;
+    warningCount: number;
+    errorCount: number;
+    message?: string;
+  }>;
 }
 
 const skillFrontmatterSchema = z

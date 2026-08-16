@@ -37,7 +37,7 @@ export function expandRequiredDependencies(
   skills: readonly DiscoveredSkill[],
   requestedSelections: readonly ResolvedSkillSelection[]
 ): ExpandRequiredDependenciesResult {
-  const skillsById = new Map(skills.map((skill) => [skill.id, skill]));
+  const skillsById = new Map(skills.map((skill) => [skill.ref ?? skill.id, skill]));
   const selections: ResolvedSkillSelection[] = [];
   const missing: Array<{skillId: string; requiredBy: string}> = [];
   const seenSelections = new Set<string>();
@@ -69,11 +69,12 @@ export function expandRequiredDependencies(
 
     for (const requiredSkillId of skill.requires) {
       if (!skillsById.has(requiredSkillId)) {
-        const missingKey = `${requiredSkillId} ${skill.id}`;
+        const skillRef = skill.ref ?? skill.id;
+        const missingKey = `${requiredSkillId} ${skillRef}`;
 
         if (!seenMissing.has(missingKey)) {
           seenMissing.add(missingKey);
-          missing.push({skillId: requiredSkillId, requiredBy: skill.id});
+          missing.push({skillId: requiredSkillId, requiredBy: skillRef});
         }
 
         continue;
@@ -85,7 +86,7 @@ export function expandRequiredDependencies(
 
       const dependencySelection: ResolvedSkillSelection = {
         skillId: requiredSkillId,
-        reason: `dependency-of:${skill.id}`,
+        reason: `dependency-of:${skill.ref ?? skill.id}`,
         reasonKind: 'dependency-of'
       };
 
@@ -107,7 +108,7 @@ export function findSkillConflicts(
   selectedSkillIds: readonly string[]
 ): SkillConflict[] {
   const selected = new Set(selectedSkillIds);
-  const skillsById = new Map(skills.map((skill) => [skill.id, skill]));
+  const skillsById = new Map(skills.map((skill) => [skill.ref ?? skill.id, skill]));
   const seenPairs = new Set<string>();
   const conflicts: SkillConflict[] = [];
 

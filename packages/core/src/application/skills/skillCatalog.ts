@@ -4,6 +4,8 @@ import type {DiscoveredSkill, SkillRiskWarning} from '../../skills/skillDiscover
 
 export interface SkillSummary {
   id: string;
+  skillpackId?: string;
+  ref?: string;
   title: string;
   description: string;
   supportedAgents: string[];
@@ -82,6 +84,8 @@ export const searchLimits = {
 export function toSkillSummary(skill: DiscoveredSkill): SkillSummary {
   return {
     id: skill.id,
+    ...(skill.skillpackId === undefined ? {} : {skillpackId: skill.skillpackId}),
+    ...(skill.ref === undefined ? {} : {ref: skill.ref}),
     title: skill.title,
     description: skill.description,
     supportedAgents: [...skill.supportedAgents],
@@ -176,7 +180,10 @@ export function searchSkills(options: SearchSkillsOptions): SkillSearchResult[] 
     });
   }
 
-  results.sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
+  results.sort(
+    (left, right) =>
+      right.score - left.score || (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
+  );
 
   return results.slice(0, limit);
 }

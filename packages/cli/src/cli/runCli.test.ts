@@ -320,7 +320,7 @@ describe('request documents', () => {
       (result.json as {data: {plan: {operations: Array<{skillId: string}>}}}).data.plan.operations.map(
         (operation) => operation.skillId
       )
-    ).toEqual(['node-api-development', 'react-component-design']);
+    ).toEqual(['corvus-skillpack:node-api-development', 'corvus-skillpack:react-component-design']);
   });
 
   it('accepts a request document from a file', async () => {

@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {afterEach, describe, expect, it} from 'vitest';
 
-const cliEntry = fileURLToPath(new URL('../index.ts', import.meta.url));
+const cliEntry = fileURLToPath(new URL('../../dist/index.js', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const cliSourceDir = fileURLToPath(new URL('../', import.meta.url));
 
@@ -36,19 +36,24 @@ async function spawnCli(
   args: string[],
   options: {homeDir: string; timeoutMs?: number}
 ): Promise<SpawnResult> {
+  const stdoutPath = path.join(options.homeDir, '.corvus-test-stdout');
+  const stderrPath = path.join(options.homeDir, '.corvus-test-stderr');
+  const stdoutFile = await fs.open(stdoutPath, 'w');
+  const stderrFile = await fs.open(stderrPath, 'w');
+
   return new Promise<SpawnResult>((resolve) => {
     const child = spawn(
       process.execPath,
-      ['--import', 'tsx', '--conditions=development', cliEntry, ...args],
+      [cliEntry, ...args],
       {
         cwd: repoRoot,
         env: {...process.env, HOME: options.homeDir, USERPROFILE: options.homeDir, NO_COLOR: '1'},
-        stdio: ['ignore', 'pipe', 'pipe']
+        // File-backed capture is stable in restricted environments where nested child-process
+        // pipes may be unavailable. It still exercises the real stdout/stderr file descriptors.
+        stdio: ['ignore', stdoutFile.fd, stderrFile.fd]
       }
     );
 
-    let stdout = '';
-    let stderr = '';
     let timedOut = false;
 
     const timer = setTimeout(() => {
@@ -56,14 +61,14 @@ async function spawnCli(
       child.kill('SIGKILL');
     }, options.timeoutMs ?? 30_000);
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8');
-    });
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf8');
-    });
-    child.on('close', (code, signal) => {
+    child.on('close', async (code, signal) => {
       clearTimeout(timer);
+      await stdoutFile.close();
+      await stderrFile.close();
+      const [stdout, stderr] = await Promise.all([
+        fs.readFile(stdoutPath, 'utf8'),
+        fs.readFile(stderrPath, 'utf8')
+      ]);
       resolve({code, signal, stdout, stderr, timedOut});
     });
   });

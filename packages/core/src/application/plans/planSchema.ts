@@ -6,7 +6,7 @@ import {canonicalJsonStringify} from '../protocol/canonicalJson.js';
 /** Version of the persisted plan artifact format. */
 export const planSchemaVersion = 1;
 
-export const planKinds = ['skillpack-setup', 'skillpack-update', 'install'] as const;
+export const planKinds = ['skillpack-setup', 'skillpack-update', 'skillpack-remove', 'install'] as const;
 
 export type PlanKind = (typeof planKinds)[number];
 
@@ -162,6 +162,7 @@ export const installPlanPayloadSchema = z
     warnings: z.array(planIssueSchema),
     summary: installPlanSummarySchema,
     skillpackCheckoutPath: z.string().min(1),
+    skillpackCheckoutPaths: z.array(z.string().min(1)).min(1).optional(),
     managerStateDir: z.string().min(1),
     stateFingerprint: stateFingerprintSchema
   })
@@ -211,6 +212,19 @@ export const skillpackUpdatePlanPayloadSchema = z
 
 export type SkillpackUpdatePlanPayload = z.infer<typeof skillpackUpdatePlanPayloadSchema>;
 
+export const skillpackRemovePlanPayloadSchema = z
+  .object({
+    skillpackId: z.string().min(1),
+    repositoryUrl: z.string().min(1),
+    activePath: z.string().min(1),
+    configPath: z.string().min(1),
+    managerStateDir: z.string().min(1),
+    stateFingerprint: stateFingerprintSchema
+  })
+  .strict();
+
+export type SkillpackRemovePlanPayload = z.infer<typeof skillpackRemovePlanPayloadSchema>;
+
 const planBaseShape = {
   planSchemaVersion: z.literal(planSchemaVersion),
   planId: planIdSchema,
@@ -227,6 +241,9 @@ export const persistedPlanSchema = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({...planBaseShape, kind: z.literal('skillpack-update'), payload: skillpackUpdatePlanPayloadSchema})
+    .strict(),
+  z
+    .object({...planBaseShape, kind: z.literal('skillpack-remove'), payload: skillpackRemovePlanPayloadSchema})
     .strict()
 ]);
 
@@ -234,6 +251,7 @@ export type PersistedPlan = z.infer<typeof persistedPlanSchema>;
 export type InstallPlanArtifact = Extract<PersistedPlan, {kind: 'install'}>;
 export type SkillpackSetupPlanArtifact = Extract<PersistedPlan, {kind: 'skillpack-setup'}>;
 export type SkillpackUpdatePlanArtifact = Extract<PersistedPlan, {kind: 'skillpack-update'}>;
+export type SkillpackRemovePlanArtifact = Extract<PersistedPlan, {kind: 'skillpack-remove'}>;
 
 /**
  * The digest covers exactly `{planSchemaVersion, kind, payload}`. `createdAt`, `planId`, and

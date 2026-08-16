@@ -1,5 +1,6 @@
 import {promises as fs} from 'node:fs';
 import type {AgentId} from '../../agents/AgentAdapter.js';
+import {resolveSkillReference} from '../../config/configSchema.js';
 import {getAgentAdapter} from '../../agents/adapters.js';
 import {
   type SemanticMetadataField,
@@ -35,6 +36,7 @@ export interface SkillsListOptions {
 
 export interface SkillsListData {
   skillpackCheckoutPath: string;
+  skillpackCheckoutPaths: string[];
   registryVersion?: number;
   source: string;
   skillCount: number;
@@ -96,6 +98,7 @@ export interface ValidateRegistryData {
 
 export interface DiscoverSkillsData {
   skillpackCheckoutPath: string;
+  skillpackCheckoutPaths: string[];
   discovery: import('../../skills/skillDiscovery.js').SkillDiscoveryResult;
 }
 
@@ -116,8 +119,12 @@ export async function discoverSkillsUseCase(
   }
 
   return succeed(
-    {skillpackCheckoutPath: ready.checkoutPath, discovery: ready.discovery},
-    {warnings: discoveryWarnings(ready.discovery.errors)}
+    {
+      skillpackCheckoutPath: ready.checkoutPath,
+      skillpackCheckoutPaths: ready.checkoutPaths,
+      discovery: ready.discovery
+    },
+    {warnings: discoveryWarnings([...ready.discovery.warnings, ...ready.discovery.errors])}
   );
 }
 
@@ -144,6 +151,7 @@ export async function skillsListUseCase(
   return succeed(
     {
       skillpackCheckoutPath: ready.checkoutPath,
+      skillpackCheckoutPaths: ready.checkoutPaths,
       ...(ready.discovery.registryVersion === undefined
         ? {}
         : {registryVersion: ready.discovery.registryVersion}),
@@ -152,7 +160,7 @@ export async function skillsListUseCase(
       skills
     },
     {
-      warnings: discoveryWarnings(ready.discovery.errors),
+      warnings: discoveryWarnings([...ready.discovery.warnings, ...ready.discovery.errors]),
       nextActions: [
         createNextAction(
           'inspect-skills',
@@ -227,7 +235,7 @@ export async function skillsSearchUseCase(
       results: allResults.slice(0, limit)
     },
     {
-      warnings: discoveryWarnings(ready.discovery.errors),
+      warnings: discoveryWarnings([...ready.discovery.warnings, ...ready.discovery.errors]),
       nextActions: [
         createNextAction(
           'inspect-skills',
@@ -255,14 +263,16 @@ export async function skillsInspectUseCase(
     return ready.failure;
   }
 
-  const skillsById = new Map(ready.discovery.skills.map((skill) => [skill.id, skill]));
-  const requestedSkillIds = [...new Set(options.skillIds)].sort((left, right) => left.localeCompare(right));
+  const skillsById = new Map(ready.discovery.skills.map((skill) => [skill.ref ?? skill.id, skill]));
+  const requestedSkillIds = [...new Set(options.skillIds.map((id) => resolveSkillReference(id)))].sort(
+    (left, right) => left.localeCompare(right)
+  );
   const missingSkillIds = requestedSkillIds.filter((skillId) => !skillsById.has(skillId));
 
   if (missingSkillIds.length > 0) {
     return fail(
       missingSkillIds.map((skillId) =>
-        createMachineError('SKILL_NOT_FOUND', `No skill named "${skillId}" in the active skillpack.`, {skillId})
+        createMachineError('SKILL_NOT_FOUND', `No skill named "${skillId}" in a readable skillpack.`, {skillId})
       ),
       {
         nextActions: [
@@ -382,7 +392,12 @@ function buildCoverage(skills: readonly DiscoveredSkill[]): RegistryFieldCoverag
 }
 
 type ReadyDiscovery =
-  | {ok: true; discovery: import('../../skills/skillDiscovery.js').SkillDiscoveryResult; checkoutPath: string}
+  | {
+      ok: true;
+      discovery: import('../../skills/skillDiscovery.js').SkillDiscoveryResult;
+      checkoutPath: string;
+      checkoutPaths: string[];
+    }
   | {ok: false; failure: UseCaseResult<never>};
 
 async function loadReadyDiscovery(environment: ApplicationEnvironment): Promise<ReadyDiscovery> {
@@ -393,7 +408,12 @@ async function loadReadyDiscovery(environment: ApplicationEnvironment): Promise<
     return {ok: false, failure: fail([ready.error], {nextActions: ready.nextActions})};
   }
 
-  return {ok: true, discovery: ready.discovery, checkoutPath: ready.skillpack.checkoutPath};
+  return {
+    ok: true,
+    discovery: ready.discovery,
+    checkoutPath: ready.skillpack.checkoutPath,
+    checkoutPaths: context.skillpacks.map((item) => item.config.checkoutPath)
+  };
 }
 
 function parseAgentIds(

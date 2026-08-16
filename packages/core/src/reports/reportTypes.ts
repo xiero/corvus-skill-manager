@@ -37,6 +37,7 @@ export interface StatusReport {
   configError?: string;
   managerStateDir?: string;
   skillpack?: StatusReportSkillpack;
+  skillpacks: StatusReportSkillpack[];
   agents: StatusReportAgent[];
   managedLinkCount: number;
   manifestPath: string;

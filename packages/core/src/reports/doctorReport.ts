@@ -76,45 +76,47 @@ function collectSkillpackIssues(context: ReportContext, issues: DoctorIssue[]): 
     return;
   }
 
-  if (context.config.skillpack === undefined) {
+  if (context.skillpacks.length === 0) {
     issues.push({
       severity: 'error',
       code: 'skillpack-not-configured',
       message: 'No skillpack is configured.',
-      action: 'Use Setup Skillpack to configure the source and active snapshot path.'
+      action: 'Use Manage Skillpacks to configure the source and active snapshot path.'
     });
     return;
   }
 
-  if (context.checkout === undefined || !context.checkout.exists) {
-    issues.push({
-      severity: 'error',
-      code: 'missing-skillpack-checkout',
-      message: `Skillpack checkout is missing at ${context.config.skillpack.checkoutPath}.`,
-      action: 'Run Setup Skillpack and confirm the initial clone if the checkout is absent.',
-      path: context.config.skillpack.checkoutPath
-    });
-    return;
-  }
+  for (const item of context.skillpacks) {
+    if (!item.checkout.exists) {
+      issues.push({
+        severity: 'error',
+        code: 'missing-skillpack-checkout',
+        message: `Skillpack "${item.config.id}" checkout is missing at ${item.config.checkoutPath}.`,
+        action: `Open Manage Skillpacks for ${item.config.id} and confirm the initial clone.`,
+        path: item.config.checkoutPath
+      });
+      continue;
+    }
 
-  if (!context.checkout.readable) {
-    issues.push({
-      severity: 'error',
-      code: 'unreadable-skillpack-checkout',
-      message: `Skillpack checkout is not readable: ${context.checkout.message}.`,
-      action: 'Check that the active path resolves to a git worktree and is readable.',
-      path: context.checkout.checkoutPath
-    });
-  }
+    if (!item.checkout.readable) {
+      issues.push({
+        severity: 'error',
+        code: 'unreadable-skillpack-checkout',
+        message: `Skillpack "${item.config.id}" checkout is not readable: ${item.checkout.message}.`,
+        action: 'Check that the active path resolves to a git worktree and is readable.',
+        path: item.checkout.checkoutPath
+      });
+    }
 
-  if (context.checkout.dirty) {
-    issues.push({
-      severity: 'warning',
-      code: 'dirty-checkout',
-      message: `Skillpack checkout has local changes (${context.checkout.dirtyFiles.length} item(s)).`,
-      action: 'Review the checkout manually. The manager will not pull, reset, or repair it.',
-      path: context.checkout.checkoutPath
-    });
+    if (item.checkout.dirty) {
+      issues.push({
+        severity: 'warning',
+        code: 'dirty-checkout',
+        message: `Skillpack "${item.config.id}" checkout has local changes (${item.checkout.dirtyFiles.length} item(s)).`,
+        action: 'Review the checkout manually. The manager will not pull, reset, or repair it.',
+        path: item.checkout.checkoutPath
+      });
+    }
   }
 }
 
@@ -194,7 +196,7 @@ function collectPlanIssues(context: ReportContext, issues: DoctorIssue[]): void 
 }
 
 async function collectManifestIssues(context: ReportContext, issues: DoctorIssue[]): Promise<void> {
-  const skillpackCheckoutPath = context.config?.skillpack?.checkoutPath;
+  const skillpackCheckoutPaths = context.skillpacks.map((item) => item.config.checkoutPath);
 
   for (const [manifestKey, entry] of Object.entries(context.manifest.links)) {
     if (manifestKey !== entry.targetPath) {
@@ -209,7 +211,10 @@ async function collectManifestIssues(context: ReportContext, issues: DoctorIssue
       });
     }
 
-    if (skillpackCheckoutPath !== undefined && !isPathInside(skillpackCheckoutPath, entry.sourcePath)) {
+    if (
+      skillpackCheckoutPaths.length > 0 &&
+      !skillpackCheckoutPaths.some((checkoutPath) => isPathInside(checkoutPath, entry.sourcePath))
+    ) {
       issues.push({
         severity: 'error',
         code: 'source-outside-skillpack',

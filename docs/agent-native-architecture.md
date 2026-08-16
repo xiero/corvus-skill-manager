@@ -66,14 +66,12 @@ human-readable sentences in `application/errorMessages.ts`; the TUI never render
 JSON.
 
 Screens on shared use cases today: Status (`status`), Doctor (`doctor`), Skill Discovery
-(`discoverSkills`).
+(`discoverSkills`), and Manage Skillpacks (`skillpack.setup-*`, `skillpack.update-*`, and
+`skillpack.remove-*`).
 
-**Where the TUI still drives core primitives directly, and why.** The Setup Skillpack screen and
-the wizard's skillpack step operate on an *unsaved, user-edited* skillpack form: the user can
-change the id, repository, branch, or active path and preview the result before any of it
-reaches `config.json`. The machine use cases deliberately work the other way round — they read
-committed config and persist a digest-identified plan artifact. There is no equivalent use case
-for "inspect this hypothetical config", so those screens call
+**Where the TUI still drives core primitives directly, and why.** The wizard's skillpack step
+operates on an *unsaved, user-edited* skillpack form before it reaches `config.json`. There is no
+equivalent use case for "inspect this hypothetical wizard draft", so that screen calls
 `inspectSkillpackCheckout` / `inspectSkillpackRemoteUpdate` / `prepareSkillpackUpdatePreview` /
 `applyInitialSkillpackSetup` / `applySkillpackUpdate` directly. Likewise the wizard's link
 preview calls `generateLinkPlan` / `applyLinkPlan` directly, because the wizard expresses

@@ -3,7 +3,10 @@ import type {AgentAdapter, AgentId} from '../agents/AgentAdapter.js';
 import {resolveUserPath} from '../paths.js';
 
 export interface LinkPlanSkill {
+  /** Selection identity; qualified for aggregate catalogs. */
   id: string;
+  /** Directory basename exposed to the agent. Defaults to `id`. */
+  targetName?: string;
   absolutePath: string;
 }
 
@@ -68,6 +71,7 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
   const warnings: LinkPlanIssue[] = [];
   const adaptersById = new Map(input.adapters.map((adapter) => [adapter.id, adapter]));
   const skillsById = new Map(input.skills.map((skill) => [skill.id, skill]));
+  const targetNamesById = new Map(input.skills.map((skill) => [skill.id, skill.targetName ?? skill.id]));
   const targetStatesByPath = new Map(
     (input.targetStates ?? []).map((targetState) => [resolveUserPath(targetState.path, input.homeDir), targetState])
   );
@@ -115,8 +119,31 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
     const selectedSkillIds = uniqueSorted(selection.selectedSkillIds);
     const previousSelectedSkillIds = uniqueSorted(selection.previousSelectedSkillIds ?? []);
     const selectedSkillIdSet = new Set(selectedSkillIds);
+    const refsByTargetName = new Map<string, string[]>();
 
     for (const skillId of selectedSkillIds) {
+      const skill = skillsById.get(skillId);
+      if (skill === undefined) continue;
+      const targetName = skill.targetName ?? skill.id;
+      refsByTargetName.set(targetName, [...(refsByTargetName.get(targetName) ?? []), skillId]);
+    }
+
+    const conflictingRefs = new Set<string>();
+    for (const [targetName, refs] of refsByTargetName) {
+      if (refs.length < 2) continue;
+      refs.forEach((ref) => conflictingRefs.add(ref));
+      conflicts.push({
+        severity: 'conflict',
+        code: 'skill-target-name-conflict',
+        message: `Skills ${refs.map((ref) => `"${ref}"`).join(' and ')} share target name "${targetName}" for ${adapter.displayName}.`,
+        agentId: adapter.id,
+        ...(refs[0] === undefined ? {} : {skillId: refs[0]}),
+        path: path.join(resolvedTargetRoot, targetName)
+      });
+    }
+
+    for (const skillId of selectedSkillIds) {
+      if (conflictingRefs.has(skillId)) continue;
       const skill = skillsById.get(skillId);
 
       if (skill === undefined) {
@@ -130,7 +157,8 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
         continue;
       }
 
-      const targetPath = path.join(resolvedTargetRoot, skill.id);
+      const targetName = skill.targetName ?? skill.id;
+      const targetPath = path.join(resolvedTargetRoot, targetName);
       const targetState = targetStatesByPath.get(targetPath);
 
       if (targetState?.exists === true && !targetState.managed) {
@@ -139,7 +167,7 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
           code: 'unmanaged-target-exists',
           message: `Target already exists and is not manager-owned: ${targetPath}`,
           agentId: adapter.id,
-          skillId: skill.id,
+          skillId,
           path: targetPath
         });
         continue;
@@ -149,9 +177,9 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
         warnings.push({
           severity: 'warning',
           code: 'managed-link-already-present',
-          message: `Managed link already exists for ${adapter.displayName}/${skill.id}.`,
+          message: `Managed link already exists for ${adapter.displayName}/${targetName}.`,
           agentId: adapter.id,
-          skillId: skill.id,
+          skillId,
           path: targetPath
         });
         continue;
@@ -160,7 +188,7 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
       operations.push({
         type: 'create-link',
         agentId: adapter.id,
-        skillId: skill.id,
+        skillId,
         sourcePath: skill.absolutePath,
         targetPath
       });
@@ -175,7 +203,7 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
         type: 'remove-link',
         agentId: adapter.id,
         skillId,
-        targetPath: path.join(resolvedTargetRoot, skillId)
+        targetPath: path.join(resolvedTargetRoot, targetNamesById.get(skillId) ?? localSkillId(skillId))
       });
     }
   }
@@ -185,6 +213,11 @@ export function generateLinkPlan(input: GenerateLinkPlanInput): LinkPlan {
   warnings.sort(compareIssues);
 
   return {operations, conflicts, warnings};
+}
+
+function localSkillId(reference: string): string {
+  const separator = reference.indexOf(':');
+  return separator === -1 ? reference : reference.slice(separator + 1);
 }
 
 function uniqueSorted(values: string[]): string[] {

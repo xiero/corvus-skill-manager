@@ -1,6 +1,6 @@
 # Corvus Skill Manager
 
-Corvus Skill Manager is a TUI-first manager for wiring local skillpacks into supported coding agents. It helps you configure one skillpack snapshot, discover skills, detect remote collection updates, select which agents should receive which skills, preview a link plan, and apply only confirmed manager-owned links.
+Corvus Skill Manager is a TUI-first manager for wiring local skillpacks into supported coding agents. It keeps the protected default Corvus collection and any number of additional repositories side by side, discovers their skills as one catalog, previews link plans, and applies only confirmed manager-owned links.
 
 `corvus-skills` with no arguments launches the Ink TUI, exactly as before. With a subcommand it
 runs a deterministic JSON command interface built for coding agents — see
@@ -9,7 +9,8 @@ runs a deterministic JSON command interface built for coding agents — see
 ## What It Does
 
 - Creates and loads manager state under `~/.agents/corvus-skill-manager`.
-- Configures a skillpack source and performs the initial revision clone only when the active snapshot is absent.
+- Keeps the default `corvus-skillpack` and configures any number of additional skillpack sources.
+- Performs each pack's initial revision clone only when that pack's active snapshot is absent.
 - Detects remote skillpack changes in read-only mode and lets you preview/approve a new local revision snapshot.
 - Discovers skills from `registry.json`, or from `SKILL.md` files in read-only fallback mode when a registry is missing.
 - Reads optional registry v2 semantic metadata (domain, task, language, technology, platform, use case) and skill relationships, so skills can be found by intent rather than by name.
@@ -90,7 +91,7 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 1. Start the TUI with `npx @corvus-tools/skill-manager`, `pnpm dev`, or `corvus-skills`.
 2. The TUI opens **Home** first.
 3. Select **Guided Flow** for the recommended wizard.
-4. Skillpack: inspect the configured/default source, then press `a` only for the safe setup/config action shown.
+4. Skillpack: inspect the protected default source, then press `a` only for the safe setup/config action shown. Use **Manage Skillpacks** to add further repositories alongside it.
 5. Update: if a remote update is available, preview the inactive revision snapshot before pressing `a` to activate it. You can continue without updating.
 6. Agents: enable one or more supported agents with Space. Gemini CLI is supported through Agent Skills links.
 7. Skills: press Enter on an enabled agent, then select skills with Space. When more than one agent is enabled, a skill toggle applies to every enabled agent at once; a `[~]` marker means a skill is selected for some but not all of them.
@@ -99,7 +100,13 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 
 The guided wizard uses one approval key consistently: `a` applies or approves the write-capable action on the current step.
 
-If no skills are selected, the plan has no create-link operations and no links are created. **Setup Skillpack** and **Configure Agents** remain available from Home as manual advanced screens.
+If no skills are selected, the plan has no create-link operations and no links are created. **Manage Skillpacks** and **Configure Agents** remain available from Home as manual advanced screens.
+
+### Managing repository sources in the TUI
+
+**Manage Skillpacks** separates the protected default repository from additional repositories in two clearly labeled sections. Select a repository and press Enter to inspect its status, edit its settings, or preview an update. The default is marked `[DEFAULT] [PROTECTED]` and never offers a removal action.
+
+Choose **+ Add repository** or press `a` to add another source. Enter the Git URL first; Corvus derives a unique repository ID from the repo name, uses `main` as the branch, and generates `~/.agents/skillpacks/<id>/current` as the active path. Review the generated values before applying, or open **Advanced settings** to change them. Once registered, the repository ID remains read-only so qualified skill references stay stable.
 
 ## AI Agents
 
@@ -166,7 +173,7 @@ All manager-owned metadata lives under:
 
 The main files are:
 
-- `config.json`: manager config, skillpack source, agent selections
+- `config.json`: manager config, all skillpack sources, and qualified agent selections
 - `lock.json`: recorded skillpack commit and branch after setup/inspection
 - `manifest.json`: manager-owned link records
 - `plans/<plan-id>.json`: persisted plan artifacts written by the machine CLI's plan commands, each carrying its own digest and a fingerprint of the state it was computed against
@@ -187,13 +194,22 @@ Default skillpack source:
 https://github.com/xiero/skill-collection.git
 ```
 
-The TUI displays that source as `corvus-skillpack`.
+The TUI displays that source as `corvus-skillpack`. Additional sources use their own unique IDs and the same revision layout.
+
+Catalog entries expose both their local `id` and a stable `ref` in the form
+`<skillpack-id>:<skill-id>`. Unqualified machine requests remain compatible and refer to the
+default pack. Two packs may contain the same local ID, but both cannot be installed into the
+same agent target because they would claim the same directory name.
+
+Pack-specific machine operations accept `--skillpack-id`. Removing an unused secondary source
+uses `skillpack remove-plan` followed by `remove-apply`; the registration is removed but its
+immutable snapshots and `current` link are deliberately preserved.
 
 ## Revision Snapshot Model
 
 Initial clone creates an immutable revision under `revisions/<commit>/repo` and points `current` at it. The configured checkout path is `current`.
 
-Status can compare the active commit with the remote branch head without writing to the skillpack. When a remote update is available, Setup Skillpack can download an inactive preview snapshot. The active `current` link changes only after explicit approval.
+Status can compare the active commit with the remote branch head without writing to the skillpack. When a remote update is available, Manage Skillpacks can download an inactive preview snapshot. The active `current` link changes only after explicit approval.
 
 Status, Doctor, discovery, planning, and apply do not mutate active skillpack revisions. Apply only writes manager metadata under `~/.agents/corvus-skill-manager` and confirmed manager-owned links inside configured agent target directories.
 

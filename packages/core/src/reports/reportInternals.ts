@@ -3,7 +3,13 @@ import path from 'node:path';
 import {ZodError} from 'zod';
 import type {AgentAdapter, AgentId} from '../agents/AgentAdapter.js';
 import {getAgentAdapters} from '../agents/adapters.js';
-import type {ManagerConfig} from '../config/configSchema.js';
+import {
+  type ManagerConfig,
+  type SkillpackConfig,
+  getSkillpacks,
+  parseSkillReference,
+  qualifySkillId
+} from '../config/configSchema.js';
 import {loadConfig} from '../config/configStore.js';
 import type {GitRunner} from '../git/gitRunner.js';
 import {inspectSkillpackCheckout, inspectSkillpackRemoteUpdate} from '../git/skillpackSetup.js';
@@ -48,11 +54,19 @@ export interface ReportContext {
   manifestValid: boolean;
   manifestError?: string;
   adapters: AgentAdapter[];
+  skillpacks: SkillpackReportContext[];
   checkout?: Awaited<ReturnType<typeof inspectSkillpackCheckout>>;
   remoteUpdate?: Awaited<ReturnType<typeof inspectSkillpackRemoteUpdate>>;
   discovery?: SkillDiscoveryResult;
   plan?: LinkPlan;
   targetStates: TargetState[];
+}
+
+export interface SkillpackReportContext {
+  config: SkillpackConfig;
+  checkout: Awaited<ReturnType<typeof inspectSkillpackCheckout>>;
+  remoteUpdate?: Awaited<ReturnType<typeof inspectSkillpackRemoteUpdate>>;
+  discovery?: SkillDiscoveryResult;
 }
 
 export async function buildReportContext(options: ReportOptions = {}): Promise<ReportContext> {
@@ -84,10 +98,13 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
     manifestValid: manifestLoad.valid,
     ...(manifestLoad.error === undefined ? {} : {manifestError: manifestLoad.error}),
     adapters: getAgentAdapters(),
+    skillpacks: [],
     targetStates: []
   };
 
-  if (context.config?.skillpack === undefined) {
+  const configuredSkillpacks = getSkillpacks(context.config);
+
+  if (configuredSkillpacks.length === 0) {
     return context;
   }
 
@@ -95,18 +112,34 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
     options.git === undefined ?
       homeDir === undefined ? {} : {homeDir} :
       homeDir === undefined ? {git: options.git} : {homeDir, git: options.git};
-  context.checkout = await inspectSkillpackCheckout(context.config.skillpack.checkoutPath, inspectOptions);
+  for (const skillpack of configuredSkillpacks) {
+    const checkout = await inspectSkillpackCheckout(skillpack.checkoutPath, inspectOptions);
+    const packContext: SkillpackReportContext = {config: skillpack, checkout};
 
-  if (options.checkRemote === true) {
-    context.remoteUpdate = await inspectSkillpackRemoteUpdate(context.config.skillpack, inspectOptions);
+    if (options.checkRemote === true) {
+      packContext.remoteUpdate = await inspectSkillpackRemoteUpdate(skillpack, inspectOptions);
+    }
+
+    if (checkout.exists && checkout.readable) {
+      packContext.discovery = qualifyDiscovery(
+        skillpack.id,
+        await discoverSkillsFromCheckout(skillpack.checkoutPath)
+      );
+    }
+
+    context.skillpacks.push(packContext);
   }
 
-  if (context.checkout.exists) {
-    context.discovery = await discoverSkillsFromCheckout(context.config.skillpack.checkoutPath);
+  const primary = context.skillpacks.find((item) => item.config.id === 'corvus-skillpack') ?? context.skillpacks[0];
+  if (primary !== undefined) {
+    context.checkout = primary.checkout;
+    if (primary.remoteUpdate !== undefined) context.remoteUpdate = primary.remoteUpdate;
   }
+  const aggregateDiscovery = aggregateDiscoveries(context.skillpacks);
+  if (aggregateDiscovery !== undefined) context.discovery = aggregateDiscovery;
 
   context.targetStates = await buildTargetStates({
-    config: context.config,
+    config: context.config!,
     adapters: context.adapters,
     manifest: context.manifest,
     ...(context.discovery === undefined ? {} : {discovery: context.discovery}),
@@ -115,7 +148,8 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
   context.plan = generateLinkPlan({
     adapters: context.adapters,
     skills: (context.discovery?.skills ?? []).map((skill) => ({
-      id: skill.id,
+      id: skill.ref ?? skill.id,
+      targetName: skill.id,
       absolutePath: skill.absolutePath
     })),
     selections: context.adapters.map((adapter) => {
@@ -201,7 +235,7 @@ async function buildTargetStates(options: {
   homeDir?: string;
 }): Promise<TargetState[]> {
   const states: TargetState[] = [];
-  const skillsById = new Map((options.discovery?.skills ?? []).map((skill) => [skill.id, skill]));
+  const skillsById = new Map((options.discovery?.skills ?? []).map((skill) => [skill.ref ?? skill.id, skill]));
 
   for (const adapter of options.adapters) {
     const agentConfig = options.config.agents?.[adapter.id];
@@ -223,12 +257,66 @@ async function buildTargetStates(options: {
         continue;
       }
 
-      const targetPath = path.join(resolvedTargetRoot, skillId);
+      const targetPath = path.join(resolvedTargetRoot, skillsById.get(skillId)?.id ?? parseSkillReference(skillId)?.skillId ?? skillId);
       states.push(await inspectTargetState(targetPath, options.manifest));
     }
   }
 
   return states;
+}
+
+function qualifyDiscovery(skillpackId: string, discovery: SkillDiscoveryResult): SkillDiscoveryResult {
+  return {
+    ...discovery,
+    skills: discovery.skills.map((skill) => ({
+      ...skill,
+      skillpackId,
+      ref: qualifySkillId(skillpackId, skill.id),
+      requires: skill.requires.map((id) => qualifySkillId(skillpackId, id)),
+      recommends: skill.recommends.map((id) => qualifySkillId(skillpackId, id)),
+      conflictsWith: skill.conflictsWith.map((id) => qualifySkillId(skillpackId, id))
+    }))
+  };
+}
+
+function aggregateDiscoveries(skillpacks: readonly SkillpackReportContext[]): SkillDiscoveryResult | undefined {
+  const ready = skillpacks.filter((item) => item.discovery !== undefined);
+
+  if (ready.length === 0) return undefined;
+
+  return {
+    skillpackRoot: ready.length === 1 ? ready[0]!.discovery!.skillpackRoot : '(multiple skillpacks)',
+    registryPath: ready.length === 1 ? ready[0]!.discovery!.registryPath : '(multiple registries)',
+    source: ready.every((item) => item.discovery?.source === 'registry') ? 'registry' : 'registryless',
+    ...(ready.length === 1 && ready[0]!.discovery!.registryVersion !== undefined
+      ? {registryVersion: ready[0]!.discovery!.registryVersion}
+      : {}),
+    skills: ready.flatMap((item) => item.discovery?.skills ?? []).sort((left, right) =>
+      (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
+    ),
+    warnings: [
+      ...ready.flatMap((item) => item.discovery?.warnings ?? []),
+      ...skillpacks
+        .filter((item) => !item.checkout.readable || item.discovery === undefined)
+        .map((item) => ({
+          severity: 'warning' as const,
+          code: 'skillpack-not-ready',
+          message: `Skillpack "${item.config.id}" is not available to the aggregate catalog: ${item.checkout.message}.`,
+          path: item.config.checkoutPath
+        }))
+    ],
+    errors: ready.flatMap((item) => item.discovery?.errors ?? []),
+    skillpacks: skillpacks.map((item) => ({
+      id: item.config.id,
+      checkoutPath: item.config.checkoutPath,
+      ready: item.checkout.readable && item.discovery !== undefined,
+      ...(item.discovery?.registryPath === undefined ? {} : {registryPath: item.discovery.registryPath}),
+      skillCount: item.discovery?.skills.length ?? 0,
+      warningCount: item.discovery?.warnings.length ?? 0,
+      errorCount: item.discovery?.errors.length ?? 0,
+      ...(!item.checkout.readable ? {message: item.checkout.message} : {})
+    }))
+  };
 }
 
 async function inspectTargetState(targetPath: string, manifest: ManagerManifest): Promise<TargetState> {

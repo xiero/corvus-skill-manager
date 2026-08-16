@@ -11,6 +11,8 @@ import type {
   SkillpackSetupApplyData,
   SkillpackSetupPlanData,
   SkillpackSetupPlanOptions,
+  SkillpackRemoveApplyData,
+  SkillpackRemovePlanData,
   SkillpackUpdateApplyData,
   SkillpackUpdateCheckData,
   SkillpackUpdatePreviewData
@@ -55,12 +57,17 @@ export interface CorvusApplication {
     planId: string;
     confirm: string;
   }): Promise<UseCaseResult<SkillpackSetupApplyData>>;
-  skillpackUpdateCheck(): Promise<UseCaseResult<SkillpackUpdateCheckData>>;
-  skillpackUpdatePreview(): Promise<UseCaseResult<SkillpackUpdatePreviewData>>;
+  skillpackUpdateCheck(options?: {skillpackId?: string}): Promise<UseCaseResult<SkillpackUpdateCheckData>>;
+  skillpackUpdatePreview(options?: {skillpackId?: string}): Promise<UseCaseResult<SkillpackUpdatePreviewData>>;
   skillpackUpdateApply(options: {
     planId: string;
     confirm: string;
   }): Promise<UseCaseResult<SkillpackUpdateApplyData>>;
+  skillpackRemovePlan(options: {skillpackId: string}): Promise<UseCaseResult<SkillpackRemovePlanData>>;
+  skillpackRemoveApply(options: {
+    planId: string;
+    confirm: string;
+  }): Promise<UseCaseResult<SkillpackRemoveApplyData>>;
 
   /** Raw discovery result, sharing the same precondition handling as the catalog commands. */
   discoverSkills(): Promise<UseCaseResult<DiscoverSkillsData>>;

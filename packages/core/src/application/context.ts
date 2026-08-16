@@ -1,4 +1,4 @@
-import type {ManagerConfig, SkillpackConfig} from '../config/configSchema.js';
+import {type ManagerConfig, type SkillpackConfig, getSkillpacks} from '../config/configSchema.js';
 import {type ReportContext, buildReportContext} from '../reports/reportInternals.js';
 import type {SkillDiscoveryResult} from '../skills/skillDiscovery.js';
 import type {ApplicationEnvironment} from './ports.js';
@@ -83,7 +83,9 @@ export function requireReadySkillpack(context: ReportContext): ReadyConfig | Con
     return config;
   }
 
-  if (config.skillpack === undefined) {
+  const configuredSkillpacks = getSkillpacks(config);
+
+  if (configuredSkillpacks.length === 0) {
     return {
       error: createMachineError('SKILLPACK_NOT_CONFIGURED', 'No skillpack is configured.'),
       nextActions: [
@@ -96,12 +98,15 @@ export function requireReadySkillpack(context: ReportContext): ReadyConfig | Con
     };
   }
 
-  if (context.checkout === undefined || !context.checkout.exists) {
+  const readyPack = context.skillpacks.find((item) => item.checkout.readable && item.discovery !== undefined);
+
+  if (readyPack === undefined) {
+    const firstPack = context.skillpacks[0];
     return {
       error: createMachineError(
         'SKILLPACK_NOT_READY',
-        `Active skillpack snapshot is missing at ${config.skillpack.checkoutPath}.`,
-        {path: config.skillpack.checkoutPath}
+        `No configured skillpack has a readable active snapshot.`,
+        {...(firstPack === undefined ? {} : {path: firstPack.config.checkoutPath})}
       ),
       nextActions: [
         createNextAction(
@@ -113,25 +118,12 @@ export function requireReadySkillpack(context: ReportContext): ReadyConfig | Con
     };
   }
 
-  if (!context.checkout.readable) {
-    return {
-      error: createMachineError(
-        'SKILLPACK_NOT_READY',
-        `Active skillpack snapshot is not readable: ${context.checkout.message}.`,
-        {path: context.checkout.checkoutPath}
-      ),
-      nextActions: [
-        createNextAction('run-doctor', 'Inspect the active snapshot.', 'corvus-skills doctor --json')
-      ]
-    };
-  }
-
   if (context.discovery === undefined) {
     return {
       error: createMachineError(
         'SKILLPACK_NOT_READY',
         'Skill discovery did not run for the active skillpack snapshot.',
-        {path: context.checkout.checkoutPath}
+        {path: readyPack.config.checkoutPath}
       ),
       nextActions: [
         createNextAction('run-doctor', 'Inspect the active snapshot.', 'corvus-skills doctor --json')
@@ -139,7 +131,7 @@ export function requireReadySkillpack(context: ReportContext): ReadyConfig | Con
     };
   }
 
-  return {config, skillpack: config.skillpack, discovery: context.discovery};
+  return {config, skillpack: readyPack.config, discovery: context.discovery};
 }
 
 export function isPrecondition(value: unknown): value is ContextPrecondition {

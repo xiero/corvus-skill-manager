@@ -2,7 +2,8 @@ import path from 'node:path';
 import {
   type ManagerConfig,
   type SkillpackConfig,
-  createDefaultManagerConfig
+  createDefaultManagerConfig,
+  getSkillpack
 } from '../../config/configSchema.js';
 import {saveConfig} from '../../config/configStore.js';
 import {
@@ -15,7 +16,7 @@ import {
   resolveSkillpackSnapshotLayout,
   skillpackRevisionRepoPath
 } from '../../git/skillpackSetup.js';
-import {defaultSkillpackCheckoutPath} from '../../paths.js';
+import {defaultSkillpackCheckoutPath, isPathInside} from '../../paths.js';
 import {
   defaultSkillpackBranch,
   defaultSkillpackId,
@@ -25,10 +26,12 @@ import {isPrecondition, loadContext} from '../context.js';
 import {loadConfirmedPlan, requireFreshState} from '../plans/planGuards.js';
 import {
   type SkillpackSetupPlanPayload,
+  type SkillpackRemovePlanPayload,
   type SkillpackUpdatePlanPayload,
   computeStateFingerprint,
   createPlanArtifact,
   skillpackSetupPlanPayloadSchema,
+  skillpackRemovePlanPayloadSchema,
   skillpackUpdatePlanPayloadSchema
 } from '../plans/planSchema.js';
 import {savePlan} from '../plans/planStore.js';
@@ -85,6 +88,21 @@ export interface SkillpackUpdateApplyData {
   message: string;
 }
 
+export interface SkillpackRemovePlanData {
+  planId: string;
+  digest: string;
+  requiresConfirmation: true;
+  planPath: string;
+  plan: SkillpackRemovePlanPayload;
+}
+
+export interface SkillpackRemoveApplyData {
+  planId: string;
+  skillpackId: string;
+  status: 'removed';
+  snapshotsPreserved: true;
+}
+
 /**
  * Plans the initial skillpack setup. Read-only apart from writing the plan artifact: it reports
  * the repository, branch, id, active path, and revision path *before* any clone happens.
@@ -131,11 +149,11 @@ export async function skillpackSetupPlanUseCase(
     managerStateDir,
     configPath: context.configPath,
     alreadyPresent: checkout.exists,
-    createsConfig: !context.configExists || context.config?.skillpack === undefined,
+    createsConfig: !context.configExists || getSkillpack(context.config, skillpack.id) === undefined,
     stateFingerprint: computeStateFingerprint({
       config: {
         exists: context.configExists,
-        skillpack: context.config?.skillpack ?? null,
+        skillpacks: context.config?.skillpacks ?? null,
         managerStateDir
       },
       checkout: {exists: checkout.exists, readable: checkout.readable, commitHash: checkout.commitHash ?? null}
@@ -225,7 +243,7 @@ export async function skillpackSetupApplyUseCase(
     actual: computeStateFingerprint({
       config: {
         exists: context.configExists,
-        skillpack: context.config?.skillpack ?? null,
+        skillpacks: context.config?.skillpacks ?? null,
         managerStateDir: context.config?.managerStateDir ?? environment.managerStateDir
       },
       checkout: {exists: checkout.exists, readable: checkout.readable, commitHash: checkout.commitHash ?? null}
@@ -290,10 +308,11 @@ export async function skillpackSetupApplyUseCase(
 
 /** Strictly read-only: `git ls-remote` only, never a fetch or pull against the active checkout. */
 export async function skillpackUpdateCheckUseCase(
-  environment: ApplicationEnvironment
+  environment: ApplicationEnvironment,
+  options: {skillpackId?: string} = {}
 ): Promise<UseCaseResult<SkillpackUpdateCheckData>> {
   const context = await loadContext(environment);
-  const skillpack = context.config?.skillpack;
+  const skillpack = getSkillpack(context.config, options.skillpackId);
 
   if (skillpack === undefined) {
     return failWith(createMachineError('SKILLPACK_NOT_CONFIGURED', 'No skillpack is configured.'), {
@@ -320,7 +339,7 @@ export async function skillpackUpdateCheckUseCase(
             createNextAction(
               'preview-skillpack-update',
               'Preview the new revision before activating it.',
-              'corvus-skills skillpack update-preview --json'
+              `corvus-skills skillpack update-preview --skillpack-id ${skillpack.id} --json`
             )
           ]
         : []
@@ -333,10 +352,11 @@ export async function skillpackUpdateCheckUseCase(
  * is untouched here; activation requires the plan id plus explicit confirmation.
  */
 export async function skillpackUpdatePreviewUseCase(
-  environment: ApplicationEnvironment
+  environment: ApplicationEnvironment,
+  options: {skillpackId?: string} = {}
 ): Promise<UseCaseResult<SkillpackUpdatePreviewData>> {
   const context = await loadContext(environment);
-  const skillpack = context.config?.skillpack;
+  const skillpack = getSkillpack(context.config, options.skillpackId);
 
   if (skillpack === undefined) {
     return failWith(createMachineError('SKILLPACK_NOT_CONFIGURED', 'No skillpack is configured.'), {
@@ -443,7 +463,7 @@ export async function skillpackUpdateApplyUseCase(
 
   const payload = loadedPlan.payload;
   const context = await loadContext(environment);
-  const skillpack = context.config?.skillpack;
+  const skillpack = getSkillpack(context.config, payload.skillpackId);
 
   if (skillpack === undefined) {
     return failWith(createMachineError('SKILLPACK_NOT_CONFIGURED', 'No skillpack is configured.'));
@@ -506,13 +526,133 @@ export async function skillpackUpdateApplyUseCase(
   );
 }
 
+/** Plans config-only removal. Immutable snapshots and the manager-owned current link are retained. */
+export async function skillpackRemovePlanUseCase(
+  environment: ApplicationEnvironment,
+  options: {skillpackId: string}
+): Promise<UseCaseResult<SkillpackRemovePlanData>> {
+  if (options.skillpackId === defaultSkillpackId) {
+    return failWith(
+      createMachineError('SAFETY_POLICY_BLOCKED', 'The default corvus-skillpack is protected and cannot be removed.', {
+        details: {skillpackId: options.skillpackId}
+      })
+    );
+  }
+
+  const context = await loadContext(environment);
+  const skillpack = getSkillpack(context.config, options.skillpackId);
+
+  if (skillpack === undefined) {
+    return failWith(
+      createMachineError('SKILLPACK_NOT_CONFIGURED', `Skillpack "${options.skillpackId}" is not configured.`)
+    );
+  }
+
+  const usage = skillpackUsage(context.config, context.manifest.links, options.skillpackId, skillpack.checkoutPath);
+  if (usage.selectedByAgents.length > 0 || usage.managedTargets.length > 0) {
+    return failWith(
+      createMachineError(
+        'SAFETY_POLICY_BLOCKED',
+        `Skillpack "${options.skillpackId}" is still in use; remove its selected skills first.`,
+        {details: usage}
+      )
+    );
+  }
+
+  const payload = skillpackRemovePlanPayloadSchema.parse({
+    skillpackId: skillpack.id,
+    repositoryUrl: skillpack.repositoryUrl,
+    activePath: skillpack.checkoutPath,
+    configPath: context.configPath,
+    managerStateDir: context.config?.managerStateDir ?? environment.managerStateDir,
+    stateFingerprint: computeStateFingerprint({skillpack, usage})
+  });
+  const plan = createPlanArtifact({kind: 'skillpack-remove', payload, now: environment.now()});
+  const planPath = await savePlan(environment.plansDir, plan);
+
+  return succeed<SkillpackRemovePlanData>(
+    {planId: plan.planId, digest: plan.digest, requiresConfirmation: true, planPath, plan: payload},
+    {
+      nextActions: [
+        createNextAction(
+          'apply-skillpack-remove',
+          'Remove the reviewed skillpack registration while preserving its snapshots.',
+          `corvus-skills skillpack remove-apply --plan-id ${plan.planId} --confirm ${plan.planId} --json`
+        )
+      ]
+    }
+  );
+}
+
+export async function skillpackRemoveApplyUseCase(
+  environment: ApplicationEnvironment,
+  options: {planId: string; confirm: string}
+): Promise<UseCaseResult<SkillpackRemoveApplyData>> {
+  const loadedPlan = await loadConfirmedPlan({
+    plansDir: environment.plansDir,
+    planId: options.planId,
+    confirm: options.confirm,
+    kind: 'skillpack-remove',
+    regenerateCommand: 'skillpack remove-plan --skillpack-id <secondary-skillpack-id>'
+  });
+
+  if (isPrecondition(loadedPlan)) return fail([loadedPlan.error], {nextActions: loadedPlan.nextActions});
+  if (loadedPlan.kind !== 'skillpack-remove') return failWith(createMachineError('PLAN_NOT_FOUND', 'Plan kind mismatch.'));
+
+  const payload = loadedPlan.payload;
+  const context = await loadContext(environment);
+  const skillpack = getSkillpack(context.config, payload.skillpackId);
+  if (skillpack === undefined || context.config === undefined) {
+    return failWith(createMachineError('STALE_PLAN', `Skillpack "${payload.skillpackId}" is no longer configured.`));
+  }
+  const usage = skillpackUsage(context.config, context.manifest.links, payload.skillpackId, skillpack.checkoutPath);
+  const staleness = requireFreshState({
+    planId: options.planId,
+    expected: payload.stateFingerprint,
+    actual: computeStateFingerprint({skillpack, usage}),
+    regenerateCommand: `skillpack remove-plan --skillpack-id ${payload.skillpackId}`
+  });
+  if (staleness !== undefined) return fail([staleness.error], {nextActions: staleness.nextActions});
+
+  const skillpacks = {...(context.config.skillpacks ?? {})};
+  delete skillpacks[payload.skillpackId];
+  await saveConfig(
+    {...context.config, version: 2, skillpacks, updatedAt: environment.now().toISOString()},
+    {configPath: environment.configPath}
+  );
+
+  return succeed<SkillpackRemoveApplyData>(
+    {planId: options.planId, skillpackId: payload.skillpackId, status: 'removed', snapshotsPreserved: true},
+    {changed: true}
+  );
+}
+
+function skillpackUsage(
+  config: ManagerConfig | undefined,
+  links: Record<string, {skillId: string; sourcePath: string}>,
+  skillpackId: string,
+  checkoutPath: string
+): {selectedByAgents: string[]; managedTargets: string[]} {
+  const prefix = `${skillpackId}:`;
+  return {
+    selectedByAgents: Object.entries(config?.agents ?? {})
+      .filter(([, agent]) => agent.selectedSkillIds.some((ref) => ref.startsWith(prefix)))
+      .map(([agentId]) => agentId)
+      .sort(),
+    managedTargets: Object.entries(links)
+      .filter(([, entry]) => entry.skillId.startsWith(prefix) || isPathInside(checkoutPath, entry.sourcePath))
+      .map(([targetPath]) => targetPath)
+      .sort()
+  };
+}
+
 function resolveSkillpackConfig(
   config: ManagerConfig | undefined,
   options: SkillpackSetupPlanOptions,
   homeDir: string
 ): SkillpackConfig {
-  const existing = config?.skillpack;
-  const id = options.skillpackId ?? existing?.id ?? defaultSkillpackId;
+  const id = options.skillpackId ?? defaultSkillpackId;
+  const existing = getSkillpack(config, id);
 
   return {
     id,
@@ -582,10 +722,15 @@ async function persistSkillpackConfig(
   const timestamp = environment.now().toISOString();
 
   if (existingConfig === undefined) {
+    const base = createDefaultManagerConfig({
+      managerStateDir: environment.managerStateDir,
+      homeDir: environment.homeDir,
+      now: environment.now()
+    });
     await saveConfig(
       {
-        ...createDefaultManagerConfig({managerStateDir: environment.managerStateDir, now: environment.now()}),
-        skillpack
+        ...base,
+        skillpacks: {...(base.skillpacks ?? {}), [skillpack.id]: skillpack}
       },
       {configPath: environment.configPath}
     );
@@ -594,15 +739,21 @@ async function persistSkillpackConfig(
   }
 
   if (
-    existingConfig.skillpack !== undefined &&
-    existingConfig.skillpack.id === skillpack.id &&
-    existingConfig.skillpack.repositoryUrl === skillpack.repositoryUrl &&
-    existingConfig.skillpack.branch === skillpack.branch &&
-    existingConfig.skillpack.checkoutPath === skillpack.checkoutPath
+    getSkillpack(existingConfig, skillpack.id)?.repositoryUrl === skillpack.repositoryUrl &&
+    getSkillpack(existingConfig, skillpack.id)?.branch === skillpack.branch &&
+    getSkillpack(existingConfig, skillpack.id)?.checkoutPath === skillpack.checkoutPath
   ) {
     return false;
   }
 
-  await saveConfig({...existingConfig, updatedAt: timestamp, skillpack}, {configPath: environment.configPath});
+  await saveConfig(
+    {
+      ...existingConfig,
+      version: 2,
+      updatedAt: timestamp,
+      skillpacks: {...(existingConfig.skillpacks ?? {}), [skillpack.id]: skillpack}
+    },
+    {configPath: environment.configPath}
+  );
   return true;
 }

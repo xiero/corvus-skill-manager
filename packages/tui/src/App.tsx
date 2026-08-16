@@ -51,7 +51,7 @@ export interface AppProps {
 
 const menuItems: MenuItem[] = [
   {label: 'Guided Flow', hint: '(recommended wizard)', action: 'wizard'},
-  {label: 'Setup Skillpack', hint: '(manual/advanced)', action: 'setup'},
+  {label: 'Manage Skillpacks', hint: '(manual/advanced)', action: 'setup'},
   {label: 'Configure Agents', hint: '(manual plan/apply)', action: 'settings'},
   {label: 'Status', hint: '(read-only report)', action: 'status'},
   {label: 'Doctor', hint: '(read-only checks)', action: 'doctor'},
@@ -253,7 +253,7 @@ export function App({
     if (configState.config === undefined) {
       return renderWithCorvusHeader(
         <PlaceholderScreen
-          title="Setup Skillpack"
+          title="Manage Skillpacks"
           body="Manager config is still loading."
         />
       );

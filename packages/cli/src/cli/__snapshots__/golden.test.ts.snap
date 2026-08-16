@@ -14,7 +14,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "id": "codex",
         "notes": [],
         "selectedSkillIds": [
-          "git-commit",
+          "corvus-skillpack:git-commit",
         ],
         "supportStatus": "supported",
         "warnings": [],
@@ -116,7 +116,7 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
           "enabledTo": true,
           "selectedSkillIdsFrom": [],
           "selectedSkillIdsTo": [
-            "git-commit",
+            "corvus-skillpack:git-commit",
           ],
           "targetPathTo": "~/.agents/skills",
         },
@@ -128,7 +128,7 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
           "message": "Target already exists and is not manager-owned: <HOME>/.agents/skills/git-commit",
           "path": "<HOME>/.agents/skills/git-commit",
           "severity": "conflict",
-          "skillId": "git-commit",
+          "skillId": "corvus-skillpack:git-commit",
         },
       ],
       "managerStateDir": "<HOME>/.agents/corvus-skill-manager",
@@ -151,10 +151,13 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
           "agentId": "codex",
           "reason": "explicit",
           "reasonKind": "explicit",
-          "skillId": "git-commit",
+          "skillId": "corvus-skillpack:git-commit",
         },
       ],
       "skillpackCheckoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      "skillpackCheckoutPaths": [
+        "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      ],
       "stateFingerprint": {
         "algorithm": "sha256",
         "components": {
@@ -187,7 +190,7 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
       "message": "Target already exists and is not manager-owned: <HOME>/.agents/skills/git-commit",
       "path": "<HOME>/.agents/skills/git-commit",
       "retryable": false,
-      "skillId": "git-commit",
+      "skillId": "corvus-skillpack:git-commit",
     },
   ],
   "nextActions": [
@@ -216,8 +219,8 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
           "enabledTo": true,
           "selectedSkillIdsFrom": [],
           "selectedSkillIdsTo": [
-            "embedded-driver-development",
-            "embedded-toolchain",
+            "corvus-skillpack:embedded-driver-development",
+            "corvus-skillpack:embedded-toolchain",
           ],
           "targetPathTo": "~/.agents/skills",
         },
@@ -227,14 +230,14 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
       "operations": [
         {
           "agentId": "codex",
-          "skillId": "embedded-driver-development",
+          "skillId": "corvus-skillpack:embedded-driver-development",
           "sourcePath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/skills/embedded-driver-development",
           "targetPath": "<HOME>/.agents/skills/embedded-driver-development",
           "type": "create-link",
         },
         {
           "agentId": "codex",
-          "skillId": "embedded-toolchain",
+          "skillId": "corvus-skillpack:embedded-toolchain",
           "sourcePath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/skills/embedded-toolchain",
           "targetPath": "<HOME>/.agents/skills/embedded-toolchain",
           "type": "create-link",
@@ -258,16 +261,19 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
           "agentId": "codex",
           "reason": "explicit",
           "reasonKind": "explicit",
-          "skillId": "embedded-driver-development",
+          "skillId": "corvus-skillpack:embedded-driver-development",
         },
         {
           "agentId": "codex",
-          "reason": "dependency-of:embedded-driver-development",
+          "reason": "dependency-of:corvus-skillpack:embedded-driver-development",
           "reasonKind": "dependency-of",
-          "skillId": "embedded-toolchain",
+          "skillId": "corvus-skillpack:embedded-toolchain",
         },
       ],
       "skillpackCheckoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      "skillpackCheckoutPaths": [
+        "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      ],
       "stateFingerprint": {
         "algorithm": "sha256",
         "components": {
@@ -281,10 +287,10 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
         "conflicts": 0,
         "creates": 2,
         "dependenciesAdded": [
-          "embedded-toolchain",
+          "corvus-skillpack:embedded-toolchain",
         ],
         "recommendationsNotSelected": [
-          "embedded-testing",
+          "corvus-skillpack:embedded-testing",
         ],
         "removals": 0,
         "riskWarnings": 0,
@@ -311,8 +317,8 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
   "warnings": [
     {
       "code": "recommendation-not-selected",
-      "message": "Skill "embedded-testing" is recommended by a selected skill but was not selected; recommendations are never installed automatically.",
-      "skillId": "embedded-testing",
+      "message": "Skill "corvus-skillpack:embedded-testing" is recommended by a selected skill but was not selected; recommendations are never installed automatically.",
+      "skillId": "corvus-skillpack:embedded-testing",
     },
   ],
 }
@@ -368,6 +374,22 @@ exports[`golden protocol fixtures > skillpack status 1`] = `
       "id": "corvus-skillpack",
       "repositoryUrl": "https://github.com/xiero/skill-collection.git",
     },
+    "skillpacks": [
+      {
+        "branch": "main",
+        "checkoutExists": true,
+        "checkoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+        "checkoutReadable": true,
+        "currentCommit": "<COMMIT>",
+        "dirty": false,
+        "dirtyFiles": [],
+        "discoveredSkillCount": 8,
+        "discoveryErrorCount": 0,
+        "discoveryWarningCount": 0,
+        "id": "corvus-skillpack",
+        "repositoryUrl": "https://github.com/xiero/skill-collection.git",
+      },
+    ],
   },
   "errors": [],
   "nextActions": [
@@ -474,14 +496,16 @@ exports[`golden protocol fixtures > skills search 1`] = `
           "rtos",
         ],
         "recommends": [
-          "embedded-testing",
+          "corvus-skillpack:embedded-testing",
         ],
+        "ref": "corvus-skillpack:embedded-driver-development",
         "relativePath": "skills/embedded-driver-development",
         "requires": [
-          "embedded-toolchain",
+          "corvus-skillpack:embedded-toolchain",
         ],
         "riskWarnings": [],
         "score": 204,
+        "skillpackId": "corvus-skillpack",
         "supportedAgents": [
           "codex",
           "claude",
@@ -568,10 +592,12 @@ exports[`golden protocol fixtures > skills search 1`] = `
           "bare-metal",
         ],
         "recommends": [],
+        "ref": "corvus-skillpack:embedded-toolchain",
         "relativePath": "skills/embedded-toolchain",
         "requires": [],
         "riskWarnings": [],
         "score": 160,
+        "skillpackId": "corvus-skillpack",
         "supportedAgents": [
           "codex",
           "claude",
@@ -650,10 +676,12 @@ exports[`golden protocol fixtures > skills search 1`] = `
           "bare-metal",
         ],
         "recommends": [],
+        "ref": "corvus-skillpack:embedded-testing",
         "relativePath": "skills/embedded-testing",
         "requires": [],
         "riskWarnings": [],
         "score": 135,
+        "skillpackId": "corvus-skillpack",
         "supportedAgents": [
           "codex",
           "claude",
@@ -802,9 +830,9 @@ exports[`golden protocol fixtures > unsupported skill and agent pair 1`] = `
       "agentId": "gemini",
       "category": "conflict",
       "code": "SKILL_NOT_SUPPORTED_BY_AGENT",
-      "message": "Skill "react-component-design" does not support Gemini CLI.",
+      "message": "Skill "corvus-skillpack:react-component-design" does not support Gemini CLI.",
       "retryable": false,
-      "skillId": "react-component-design",
+      "skillId": "corvus-skillpack:react-component-design",
     },
   ],
   "nextActions": [

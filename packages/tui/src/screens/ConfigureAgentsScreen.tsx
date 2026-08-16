@@ -9,11 +9,12 @@ import {
   type LinkPlan,
   type ManagerConfig,
   applyLinkPlan,
-  discoverSkillsFromCheckout,
   generateLinkPlan,
   getAgentAdapters,
+  getSkillpacks,
   saveConfig
 } from '@corvus-tools/skill-manager-core';
+import {useCorvusApplication} from '../application/applicationContext.js';
 import {CommandBar, type CommandHint} from './CommandBar.js';
 
 type ConfigureMode =
@@ -65,6 +66,7 @@ export function ConfigureAgentsScreen({
   const [applyResult, setApplyResult] = useState<ApplyLinkPlanResult | undefined>();
   const [message, setMessage] = useState<string | undefined>();
   const [targetEditSession, setTargetEditSession] = useState<TargetEditSession | undefined>();
+  const application = useCorvusApplication(configPath);
 
   const selectedAdapter = adapters[selectedAgentIndex] ?? adapters[0];
   const selectedAgentDraft = selectedAdapter === undefined ? undefined : draftAgents[selectedAdapter.id];
@@ -75,23 +77,28 @@ export function ConfigureAgentsScreen({
   );
 
   useEffect(() => {
-    if (config.skillpack === undefined) {
+    if (getSkillpacks(config).length === 0) {
       setSkills([]);
-      setDiscoveryErrors(['Skillpack is not configured. Use Setup Skillpack first, then return here to select skills.']);
+      setDiscoveryErrors(['No skillpack is configured. Use Manage Skillpacks first, then return here to select skills.']);
       return;
     }
 
     let active = true;
 
-    discoverSkillsFromCheckout(config.skillpack.checkoutPath)
+    application.discoverSkills()
       .then((result) => {
         if (!active) {
           return;
         }
 
-        setSkills(result.skills);
-        setDiscoveryErrors(result.errors.map((error) => error.message));
-        setDiscoveryWarnings(result.warnings.map((warning) => warning.message));
+        if (!result.ok) {
+          setSkills([]);
+          setDiscoveryErrors(result.errors.map((error) => error.message));
+          return;
+        }
+        setSkills(result.data.discovery.skills);
+        setDiscoveryErrors(result.data.discovery.errors.map((error) => error.message));
+        setDiscoveryWarnings(result.data.discovery.warnings.map((warning) => warning.message));
       })
       .catch((error: unknown) => {
         if (active) {
@@ -102,7 +109,7 @@ export function ConfigureAgentsScreen({
     return () => {
       active = false;
     };
-  }, [config.skillpack]);
+  }, [application, config.skillpacks]);
 
   useInput((input, key) => {
     if (mode === 'saving' || mode === 'applying') {
@@ -221,7 +228,7 @@ export function ConfigureAgentsScreen({
         const skill = sortedSkills[selectedSkillIndex];
 
         if (skill !== undefined && selectedAdapter !== undefined) {
-          toggleSkill(selectedAdapter.id, skill.id);
+          toggleSkill(selectedAdapter.id, skill.ref ?? skill.id);
         }
       }
 
@@ -312,7 +319,8 @@ export function ConfigureAgentsScreen({
     return generateLinkPlan({
       adapters,
       skills: sortedSkills.map((skill) => ({
-        id: skill.id,
+        id: skill.ref ?? skill.id,
+        targetName: skill.id,
         absolutePath: skill.absolutePath
       })),
       selections: adapters.map((adapter) => ({
@@ -356,7 +364,8 @@ export function ConfigureAgentsScreen({
   async function applyCurrentPlan(): Promise<void> {
     const currentPlan = plan ?? createPlan();
 
-    if (config.skillpack === undefined) {
+    const configuredSkillpacks = getSkillpacks(config);
+    if (configuredSkillpacks.length === 0) {
       setMessage('Apply failed: skillpack is not configured.');
       setMode('plan');
       return;
@@ -368,7 +377,8 @@ export function ConfigureAgentsScreen({
       const result = await applyLinkPlan({
         plan: currentPlan,
         managerStateDir: config.managerStateDir,
-        skillpackCheckoutPath: config.skillpack.checkoutPath,
+        skillpackCheckoutPath: configuredSkillpacks[0]!.checkoutPath,
+        skillpackCheckoutPaths: configuredSkillpacks.map((skillpack) => skillpack.checkoutPath),
         confirmReplaceBrokenManagedLinks: true
       });
 
@@ -524,13 +534,14 @@ function SkillSelectionView({
       ) : null}
       {skills.map((skill, index) => {
         const selected = index === selectedSkillIndex;
-        const enabled = selectedSkillIds.has(skill.id) ? '[x]' : '[ ]';
-        const line = `${selected ? '>' : ' '} ${enabled} ${skill.id} - ${skill.title}`;
+        const skillRef = skill.ref ?? skill.id;
+        const enabled = selectedSkillIds.has(skillRef) ? '[x]' : '[ ]';
+        const line = `${selected ? '>' : ' '} ${enabled} ${skillRef} - ${skill.title}`;
 
         return selected ? (
-          <Text key={skill.id} color="cyan">{line}</Text>
+          <Text key={skillRef} color="cyan">{line}</Text>
         ) : (
-          <Text key={skill.id}>{line}</Text>
+          <Text key={skillRef}>{line}</Text>
         );
       })}
       <IssuePreview title="Discovery errors" color="red" issues={discoveryErrors} />

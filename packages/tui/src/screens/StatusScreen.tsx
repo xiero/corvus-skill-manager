@@ -93,40 +93,41 @@ export function StatusReportView({report}: {report: StatusReport}): React.ReactE
       </Box>
 
       <Box flexDirection="column">
-        <Text bold>Skillpack</Text>
-        {report.skillpack === undefined ? <Text color="yellow">Not configured.</Text> : (
-          <>
-            <Text>ID: {report.skillpack.id}</Text>
-            <Text>Checkout: {report.skillpack.checkoutPath}</Text>
-            <Text>Repository: {report.skillpack.repositoryUrl}</Text>
-            <Text>Branch: {report.skillpack.branch}</Text>
-            <Text>Recorded commit: {report.skillpack.recordedCommit ?? '(none)'}</Text>
-            <Text>Current commit: {report.skillpack.currentCommit ?? '(unreadable)'}</Text>
-            {report.skillpack.activeRevisionPath === undefined ? null : (
-              <Text>Active revision: {report.skillpack.activeRevisionPath}</Text>
+        <Text bold>Skillpacks ({report.skillpacks.length})</Text>
+        {report.skillpacks.length === 0 ? <Text color="yellow">Not configured.</Text> : null}
+        {report.skillpacks.map((skillpack) => (
+          <Box key={skillpack.id} flexDirection="column" marginBottom={1}>
+            <Text>ID: {skillpack.id}</Text>
+            <Text>Checkout: {skillpack.checkoutPath}</Text>
+            <Text>Repository: {skillpack.repositoryUrl}</Text>
+            <Text>Branch: {skillpack.branch}</Text>
+            <Text>Recorded commit: {skillpack.recordedCommit ?? '(none)'}</Text>
+            <Text>Current commit: {skillpack.currentCommit ?? '(unreadable)'}</Text>
+            {skillpack.activeRevisionPath === undefined ? null : (
+              <Text>Active revision: {skillpack.activeRevisionPath}</Text>
             )}
-            <Text>Remote commit: {report.skillpack.remoteCommit ?? '(not checked)'}</Text>
-            {report.skillpack.updateAvailable === undefined ? null : (
+            <Text>Remote commit: {skillpack.remoteCommit ?? '(not checked)'}</Text>
+            {skillpack.updateAvailable === undefined ? null : (
               <Text>
                 Remote update:{' '}
-                <Text color={report.skillpack.updateAvailable ? 'yellow' : 'green'}>
-                  {report.skillpack.updateAvailable ? 'available' : 'none'}
+                <Text color={skillpack.updateAvailable ? 'yellow' : 'green'}>
+                  {skillpack.updateAvailable ? 'available' : 'none'}
                 </Text>
               </Text>
             )}
-            {report.skillpack.updateMessage === undefined ? null : <Text dimColor>{report.skillpack.updateMessage}</Text>}
+            {skillpack.updateMessage === undefined ? null : <Text dimColor>{skillpack.updateMessage}</Text>}
             <Text>
               Dirty:{' '}
-              <Text color={report.skillpack.dirty ? 'yellow' : 'green'}>
-                {report.skillpack.dirty === undefined ? 'unknown' : report.skillpack.dirty ? 'yes' : 'no'}
+              <Text color={skillpack.dirty ? 'yellow' : 'green'}>
+                {skillpack.dirty === undefined ? 'unknown' : skillpack.dirty ? 'yes' : 'no'}
               </Text>
             </Text>
             <Text>
-              Discovered skills: {report.skillpack.discoveredSkillCount} ({report.skillpack.discoveryWarningCount} warnings,{' '}
-              {report.skillpack.discoveryErrorCount} errors)
+              Discovered skills: {skillpack.discoveredSkillCount} ({skillpack.discoveryWarningCount} warnings,{' '}
+              {skillpack.discoveryErrorCount} errors)
             </Text>
-          </>
-        )}
+          </Box>
+        ))}
       </Box>
 
       <Box flexDirection="column">

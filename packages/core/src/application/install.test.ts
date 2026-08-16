@@ -133,22 +133,22 @@ describe('install plan', () => {
       return;
     }
 
-    expect(result.data.plan.summary.dependenciesAdded).toEqual(['embedded-toolchain']);
+    expect(result.data.plan.summary.dependenciesAdded).toEqual(['corvus-skillpack:embedded-toolchain']);
     expect(result.data.plan.selections).toEqual([
       {
         agentId: 'codex',
-        skillId: 'embedded-driver-development',
+        skillId: 'corvus-skillpack:embedded-driver-development',
         reason: 'Relevant to embedded drivers.',
         reasonKind: 'explicit'
       },
       {
         agentId: 'codex',
-        skillId: 'embedded-toolchain',
-        reason: 'dependency-of:embedded-driver-development',
+        skillId: 'corvus-skillpack:embedded-toolchain',
+        reason: 'dependency-of:corvus-skillpack:embedded-driver-development',
         reasonKind: 'dependency-of'
       }
     ]);
-    expect(result.data.plan.summary.recommendationsNotSelected).toEqual(['embedded-testing']);
+    expect(result.data.plan.summary.recommendationsNotSelected).toEqual(['corvus-skillpack:embedded-testing']);
     expect(result.warnings.some((warning) => warning.code === 'recommendation-not-selected')).toBe(true);
   });
 
@@ -222,9 +222,9 @@ describe('install plan', () => {
 
     if (result.ok) {
       expect(result.data.plan.operations.map((operation) => operation.skillId).sort()).toEqual([
-        'embedded-toolchain',
-        'git-commit',
-        'test-driven-development'
+        'corvus-skillpack:embedded-toolchain',
+        'corvus-skillpack:git-commit',
+        'corvus-skillpack:test-driven-development'
       ]);
     }
   });
@@ -259,8 +259,8 @@ describe('install plan', () => {
 
     if (result.ok) {
       expect(result.data.plan.configChanges[0]?.selectedSkillIdsTo).toEqual([
-        'git-commit',
-        'test-driven-development'
+        'corvus-skillpack:git-commit',
+        'corvus-skillpack:test-driven-development'
       ]);
       expect(result.data.plan.operations.filter((operation) => operation.type === 'remove-link')).toEqual([]);
     }
@@ -280,10 +280,10 @@ describe('install plan', () => {
     expect(result.ok).toBe(true);
 
     if (result.ok) {
-      expect(result.data.plan.configChanges[0]?.selectedSkillIdsTo).toEqual(['test-driven-development']);
+      expect(result.data.plan.configChanges[0]?.selectedSkillIdsTo).toEqual(['corvus-skillpack:test-driven-development']);
       expect(
         result.data.plan.operations.filter((operation) => operation.type === 'remove-link').map((op) => op.skillId)
-      ).toEqual(['git-commit']);
+      ).toEqual(['corvus-skillpack:git-commit']);
       expect(result.data.plan.summary.removals).toBe(1);
     }
   });
@@ -394,7 +394,7 @@ describe('install apply', () => {
 
     expect(apply.data.status).toBe('applied');
     expect(apply.changed).toBe(true);
-    expect(apply.data.operations[0]).toMatchObject({status: 'applied', skillId: 'git-commit'});
+    expect(apply.data.operations[0]).toMatchObject({status: 'applied', skillId: 'corvus-skillpack:git-commit'});
     expect((await fs.lstat(targetPath)).isSymbolicLink()).toBe(true);
     expect(await fs.readFile(path.join(targetPath, 'SKILL.md'), 'utf8')).toContain('git-commit');
 
@@ -402,7 +402,7 @@ describe('install apply', () => {
       agents?: Record<string, {enabled: boolean; selectedSkillIds: string[]}>;
     };
 
-    expect(config.agents?.codex).toMatchObject({enabled: true, selectedSkillIds: ['git-commit']});
+    expect(config.agents?.codex).toMatchObject({enabled: true, selectedSkillIds: ['corvus-skillpack:git-commit']});
 
     const verify = await app.installVerify({planId});
 
@@ -609,7 +609,7 @@ describe('install apply', () => {
       // The unaffected skill still lands, and config records only what actually linked.
       expect(
         (result.data.operations as Array<{skillId: string; status: string}>).find(
-          (operation) => operation.skillId === 'test-driven-development'
+          (operation) => operation.skillId === 'corvus-skillpack:test-driven-development'
         )
       ).toMatchObject({status: 'applied'});
     }
@@ -775,7 +775,7 @@ describe('install verify', () => {
 
     if (verify.ok) {
       expect(
-        verify.data.checks.find((check) => check.kind === 'dependency' && check.skillId === 'embedded-toolchain')
+        verify.data.checks.find((check) => check.kind === 'dependency' && check.skillId === 'corvus-skillpack:embedded-toolchain')
       ).toMatchObject({satisfied: true});
     }
   });

@@ -27,6 +27,8 @@ export const machineCommands = [
   'skillpack.update-check',
   'skillpack.update-preview',
   'skillpack.update-apply',
+  'skillpack.remove-plan',
+  'skillpack.remove-apply',
   'skills.list',
   'skills.search',
   'skills.inspect',

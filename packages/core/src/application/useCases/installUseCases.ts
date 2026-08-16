@@ -136,6 +136,20 @@ export async function installPlanUseCase(
     return fail([ready.error], {nextActions: ready.nextActions});
   }
 
+  const unavailableSkillpacks = context.skillpacks.filter(
+    (item) => !item.checkout.readable || item.discovery === undefined
+  );
+  if (normalizedRequest.allCompatible && unavailableSkillpacks.length > 0) {
+    return failWith(
+      createMachineError(
+        'SKILLPACK_NOT_READY',
+        `allCompatible requires every configured skillpack to be readable; unavailable: ${unavailableSkillpacks.map((item) => item.config.id).join(', ')}.`,
+        {details: {skillpackIds: unavailableSkillpacks.map((item) => item.config.id)}}
+      ),
+      {nextActions: [createNextAction('run-doctor', 'Inspect unavailable skillpacks.', 'corvus-skills doctor --json')]}
+    );
+  }
+
   const adapters = getAgentAdapters();
   const resolved = resolveSelections({
     request: normalizedRequest,
@@ -174,6 +188,7 @@ export async function installPlanUseCase(
     warnings: toPlanIssues(built.linkPlan.warnings),
     summary,
     skillpackCheckoutPath: ready.skillpack.checkoutPath,
+    skillpackCheckoutPaths: context.skillpacks.map((item) => item.config.checkoutPath),
     managerStateDir: context.config?.managerStateDir ?? environment.managerStateDir,
     stateFingerprint: fingerprintFor({
       context,
@@ -195,11 +210,17 @@ export async function installPlanUseCase(
   if (built.linkPlan.conflicts.length > 0) {
     return fail(
       built.linkPlan.conflicts.map((conflict) =>
-        createMachineError('UNMANAGED_TARGET_EXISTS', conflict.message, {
+        createMachineError(
+          conflict.code === 'skill-target-name-conflict'
+            ? 'SKILL_TARGET_NAME_CONFLICT'
+            : 'UNMANAGED_TARGET_EXISTS',
+          conflict.message,
+          {
           ...(conflict.path === undefined ? {} : {path: conflict.path}),
           ...(conflict.agentId === undefined ? {} : {agentId: conflict.agentId}),
           ...(conflict.skillId === undefined ? {} : {skillId: conflict.skillId})
-        })
+          }
+        )
       ),
       {
         data: {plan: payload, requiresConfirmation: false},
@@ -221,6 +242,13 @@ export async function installPlanUseCase(
     {planId: plan.planId, digest: plan.digest, requiresConfirmation: true, planPath, plan: payload},
     {
       warnings: [
+        ...unavailableSkillpacks.map((item) =>
+          createMachineWarning(
+            'skillpack-not-ready',
+            `Skillpack "${item.config.id}" was excluded because its active snapshot is not readable.`,
+            {path: item.config.checkoutPath}
+          )
+        ),
         ...planWarnings,
         ...riskWarningsFor(ready.discovery.skills, resolved.agents),
         ...resolved.recommendationsNotSelected.map((skillId) =>
@@ -346,6 +374,7 @@ export async function installApplyUseCase(
   const applyResult = await applyLinkPlan({
     plan: {operations: payload.operations, conflicts: [], warnings: []} satisfies LinkPlan,
     skillpackCheckoutPath: payload.skillpackCheckoutPath,
+    ...(payload.skillpackCheckoutPaths === undefined ? {} : {skillpackCheckoutPaths: payload.skillpackCheckoutPaths}),
     homeDir: environment.homeDir,
     managerStateDir: payload.managerStateDir,
     now: environment.now(),
@@ -520,10 +549,11 @@ export async function installVerifyUseCase(
         continue;
       }
 
-      if (!isPathInside(payload.skillpackCheckoutPath, manifestEntry.sourcePath)) {
+      const checkoutPaths = payload.skillpackCheckoutPaths ?? [payload.skillpackCheckoutPath];
+      if (!checkoutPaths.some((checkoutPath) => isPathInside(checkoutPath, manifestEntry.sourcePath))) {
         drift = true;
         checks.push(
-          linkCheck(operation, targetPath, false, 'source-outside-skillpack', 'Link source is outside the active skillpack snapshot.')
+          linkCheck(operation, targetPath, false, 'source-outside-skillpack', 'Link source is outside configured active skillpack snapshots.')
         );
         continue;
       }
@@ -922,9 +952,9 @@ function fingerprintFor(options: {
 }) {
   const skillIds = new Set(options.operations.map((operation) => operation.skillId));
   const relevantSkills = options.skills
-    .filter((skill) => skillIds.has(skill.id))
+    .filter((skill) => skillIds.has(skill.ref ?? skill.id))
     .map((skill) => ({
-      id: skill.id,
+      id: skill.ref ?? skill.id,
       absolutePath: skill.absolutePath,
       supportedAgents: [...skill.supportedAgents].sort(),
       requires: [...skill.requires].sort(),
@@ -936,7 +966,7 @@ function fingerprintFor(options: {
   );
 
   return computeStateFingerprint({
-    config: {skillpack: options.context.config?.skillpack ?? null},
+    config: {skillpacks: options.context.config?.skillpacks ?? null},
     manifest: Object.fromEntries(
       Object.entries(options.context.manifest.links)
         .filter(([targetPath]) => !planTargetPaths.has(targetPath))
@@ -946,12 +976,12 @@ function fingerprintFor(options: {
         ])
         .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     ),
-    skillpack: {
-      checkoutPath: options.context.config?.skillpack?.checkoutPath ?? null,
-      commitHash: options.context.checkout?.commitHash ?? null,
-      activeRevisionPath:
-        options.context.lock?.skillpacks[options.context.config?.skillpack?.id ?? '']?.activeRevisionPath ?? null
-    },
+    skillpacks: options.context.skillpacks.map((item) => ({
+      id: item.config.id,
+      checkoutPath: item.config.checkoutPath,
+      commitHash: item.checkout.commitHash ?? null,
+      activeRevisionPath: options.context.lock?.skillpacks[item.config.id]?.activeRevisionPath ?? null
+    })),
     skills: relevantSkills,
     targets: uniqueSorted([...planTargetPaths])
   });

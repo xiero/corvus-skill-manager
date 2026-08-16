@@ -92,9 +92,9 @@ describe('skillpack setup', () => {
     expect((await fs.lstat(activePath)).isSymbolicLink()).toBe(true);
     expect(await fs.readFile(path.join(activePath, 'registry.json'), 'utf8')).toContain('embedded-driver-development');
 
-    const config = JSON.parse(await fs.readFile(home.configPath, 'utf8')) as {skillpack?: {id: string}};
+    const config = JSON.parse(await fs.readFile(home.configPath, 'utf8')) as {skillpacks?: Record<string, {id: string}>};
 
-    expect(config.skillpack?.id).toBe('corvus-skillpack');
+    expect(config.skillpacks?.['corvus-skillpack']?.id).toBe('corvus-skillpack');
 
     const skills = await app.listSkills();
 
@@ -444,17 +444,16 @@ describe('skillpack update', () => {
     expect(await fs.readlink(home.checkoutPath)).toContain(home.commitHash);
   });
 
-  it('requires a configured skillpack', async () => {
+  it('normalizes a legacy empty config with the protected default skillpack', async () => {
     const home = await newHome({writeConfig: true, configureSkillpack: false});
     const stubGit = createStubGit();
     const app = appFor(home, stubGit);
 
-    for (const result of [await app.skillpackUpdateCheck(), await app.skillpackUpdatePreview()]) {
-      expect(result.ok).toBe(false);
-
-      if (!result.ok) {
-        expect(result.errors[0]?.code).toBe('SKILLPACK_NOT_CONFIGURED');
-      }
-    }
+    const check = await app.skillpackUpdateCheck();
+    const preview = await app.skillpackUpdatePreview();
+    expect(check.ok).toBe(true);
+    expect(preview.ok).toBe(true);
+    if (check.ok) expect(check.data.inspection.status).toBe('active-missing');
+    if (preview.ok) expect(preview.data.requiresConfirmation).toBe(false);
   });
 });

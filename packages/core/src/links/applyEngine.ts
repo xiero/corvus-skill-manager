@@ -34,6 +34,7 @@ export interface ApplyLinkPlanResult {
 export interface ApplyLinkPlanOptions extends ManifestStoreOptions {
   plan: LinkPlan;
   skillpackCheckoutPath: string;
+  skillpackCheckoutPaths?: string[];
   dryRun?: boolean;
   confirmReplaceBrokenManagedLinks?: boolean;
 }
@@ -42,7 +43,10 @@ export async function applyLinkPlan(options: ApplyLinkPlanOptions): Promise<Appl
   const dryRun = options.dryRun ?? false;
   const loadedManifest = await loadManifestOrDefault(options);
   const manifest = cloneManifest(loadedManifest.manifest);
-  const skillpackCheckoutPath = resolveUserPath(options.skillpackCheckoutPath, options.homeDir);
+  const skillpackCheckoutPaths = [...new Set([
+    options.skillpackCheckoutPath,
+    ...(options.skillpackCheckoutPaths ?? [])
+  ])].map((checkoutPath) => resolveUserPath(checkoutPath, options.homeDir));
   const applied: ApplyActionResult[] = [];
   const skipped: ApplyActionResult[] = [];
   const planned: ApplyActionResult[] = [];
@@ -52,7 +56,7 @@ export async function applyLinkPlan(options: ApplyLinkPlanOptions): Promise<Appl
     const result = operation.type === 'create-link' ?
       await planOrApplyCreate(operation, {
         manifest,
-        skillpackCheckoutPath,
+        skillpackCheckoutPaths,
         dryRun,
         confirmReplaceBrokenManagedLinks: options.confirmReplaceBrokenManagedLinks ?? false,
         ...nowOption
@@ -90,7 +94,7 @@ async function planOrApplyCreate(
   operation: LinkCreateOperation,
   options: {
     manifest: ManagerManifest;
-    skillpackCheckoutPath: string;
+    skillpackCheckoutPaths: string[];
     dryRun: boolean;
     confirmReplaceBrokenManagedLinks: boolean;
     now?: Date;
@@ -99,7 +103,7 @@ async function planOrApplyCreate(
   const sourcePath = resolveUserPath(operation.sourcePath);
   const targetPath = resolveUserPath(operation.targetPath);
 
-  if (!isPathInside(options.skillpackCheckoutPath, sourcePath)) {
+  if (!options.skillpackCheckoutPaths.some((checkoutPath) => isPathInside(checkoutPath, sourcePath))) {
     return skipped(operation, 'source-outside-skillpack', `Source is outside the configured active skillpack snapshot: ${sourcePath}`);
   }
 
@@ -299,9 +303,11 @@ function upsertManifestEntry(
   }
 ): void {
   const timestamp = (options.now ?? new Date()).toISOString();
+  const separator = options.skillId.indexOf(':');
 
   manifest.links[options.targetPath] = {
     agentId: options.agentId,
+    ...(separator <= 0 ? {} : {skillpackId: options.skillId.slice(0, separator)}),
     skillId: options.skillId,
     targetPath: options.targetPath,
     sourcePath: options.sourcePath,

@@ -61,8 +61,8 @@ describe('Skills step broadcast selection', () => {
     press('p');
 
     const text = collectText(renderer!.toJSON());
-    expect(text).toContain('create-link claude/review-helper');
-    expect(text).toContain('create-link codex/review-helper');
+    expect(text).toContain('create-link claude/corvus-skillpack:review-helper');
+    expect(text).toContain('create-link codex/corvus-skillpack:review-helper');
   });
 
   it('removes a fully-selected skill from every enabled agent', async () => {
@@ -83,7 +83,7 @@ describe('Skills step broadcast selection', () => {
     });
 
     // Starts fully selected for both agents.
-    expect(collectText(renderer!.toJSON())).toContain('[x] review-helper');
+    expect(collectText(renderer!.toJSON())).toContain('[x] corvus-skillpack:review-helper');
 
     // Toggle off broadcasts the removal to every enabled agent. Because the skill was
     // already saved as selected, the plan records a remove-link for each enabled agent.

@@ -38,6 +38,7 @@ export interface AgentListData {
 export interface SkillpackStatusData {
   configured: boolean;
   skillpack?: StatusReport['skillpack'];
+  skillpacks: StatusReport['skillpacks'];
   configPath: string;
   configExists: boolean;
   configValid: boolean;
@@ -45,6 +46,7 @@ export interface SkillpackStatusData {
 
 export interface StatusUseCaseOptions {
   checkRemote?: boolean;
+  skillpackId?: string;
 }
 
 export async function statusUseCase(
@@ -53,7 +55,6 @@ export async function statusUseCase(
 ): Promise<UseCaseResult<StatusData>> {
   const context = await loadContext(environment, contextOptions(options));
   const report = statusReportFromContext(context);
-
   return succeed(
     {report},
     {
@@ -115,11 +116,16 @@ export async function skillpackStatusUseCase(
 ): Promise<UseCaseResult<SkillpackStatusData>> {
   const context = await loadContext(environment, contextOptions(options));
   const report = statusReportFromContext(context);
+  const selectedSkillpacks = options.skillpackId === undefined
+    ? report.skillpacks
+    : report.skillpacks.filter((skillpack) => skillpack.id === options.skillpackId);
+  const selectedPrimary = options.skillpackId === undefined ? report.skillpack : selectedSkillpacks[0];
 
   return succeed(
     {
-      configured: report.skillpack !== undefined,
-      ...(report.skillpack === undefined ? {} : {skillpack: report.skillpack}),
+      configured: selectedPrimary !== undefined,
+      ...(selectedPrimary === undefined ? {} : {skillpack: selectedPrimary}),
+      skillpacks: selectedSkillpacks,
       configPath: report.configPath,
       configExists: report.configExists,
       configValid: report.configValid

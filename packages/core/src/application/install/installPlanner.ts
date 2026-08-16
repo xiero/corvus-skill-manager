@@ -1,7 +1,13 @@
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import type {AgentAdapter, AgentId} from '../../agents/AgentAdapter.js';
-import type {AgentConfig, ManagerConfig} from '../../config/configSchema.js';
+import {
+  type AgentConfig,
+  type ManagerConfig,
+  parseSkillReference,
+  resolveSkillReference
+} from '../../config/configSchema.js';
+import {defaultSkillpackId} from '../../skillpackDefaults.js';
 import {
   type AgentLinkSelection,
   type LinkPlan,
@@ -56,7 +62,7 @@ export function resolveSelections(options: {
 }): ResolveSelectionsResult {
   const errors: MachineError[] = [];
   const agents: AgentPlanInput[] = [];
-  const skillsById = new Map(options.skills.map((skill) => [skill.id, skill]));
+  const skillsById = new Map(options.skills.map((skill) => [skill.ref ?? skill.id, skill]));
   const adaptersById = new Map(options.adapters.map((adapter) => [adapter.id, adapter]));
   const dependenciesAdded = new Set<string>();
   const recommendations = new Set<string>();
@@ -126,20 +132,21 @@ export function resolveSelections(options: {
       }
 
       if (!skill.supportedAgents.includes(adapter.id)) {
+        const skillRef = skill.ref ?? skill.id;
         errors.push(
           createMachineError(
             'SKILL_NOT_SUPPORTED_BY_AGENT',
             selection.reasonKind === 'dependency-of'
-              ? `Required dependency "${skill.id}" (${selection.reason}) does not support ${adapter.displayName}.`
-              : `Skill "${skill.id}" does not support ${adapter.displayName}.`,
-            {skillId: skill.id, agentId: adapter.id}
+              ? `Required dependency "${skillRef}" (${selection.reason}) does not support ${adapter.displayName}.`
+              : `Skill "${skillRef}" does not support ${adapter.displayName}.`,
+            {skillId: skillRef, agentId: adapter.id}
           )
         );
         continue;
       }
 
       if (selection.reasonKind === 'dependency-of') {
-        dependenciesAdded.add(skill.id);
+        dependenciesAdded.add(skill.ref ?? skill.id);
       }
 
       for (const recommended of skill.recommends) {
@@ -150,7 +157,10 @@ export function resolveSelections(options: {
     const resolvedSkillIds = expanded.selections
       .filter((selection) => skillsById.has(selection.skillId))
       .map((selection) => selection.skillId);
-    const previousSelectedSkillIds = [...(agentConfig?.selectedSkillIds ?? [])];
+    const legacyPackId = options.config?.skillpack?.id ?? defaultSkillpackId;
+    const previousSelectedSkillIds = (agentConfig?.selectedSkillIds ?? []).map((id) =>
+      resolveSkillReference(id, legacyPackId)
+    );
     const nextSelectedSkillIds = options.request.replaceSelection
       ? uniqueSorted(resolvedSkillIds)
       : uniqueSorted([...previousSelectedSkillIds, ...resolvedSkillIds]);
@@ -198,18 +208,20 @@ function requestedSelectionsFor(
   if (request.allCompatible) {
     return skills
       .filter((skill) => skill.supportedAgents.includes(agentId))
-      .map((skill) => ({skillId: skill.id, reason: 'all-compatible', reasonKind: 'all-compatible' as const}));
+      .map((skill) => ({skillId: skill.ref ?? skill.id, reason: 'all-compatible', reasonKind: 'all-compatible' as const}));
   }
 
   const selections: ResolvedSkillSelection[] = [];
   let hasUnknownSkill = false;
 
   for (const selected of request.selectedSkills ?? []) {
-    if (!skillsById.has(selected.id)) {
+    const skillRef = resolveSkillReference(selected.id);
+
+    if (!skillsById.has(skillRef)) {
       hasUnknownSkill = true;
       errors.push(
-        createMachineError('SKILL_NOT_FOUND', `No skill named "${selected.id}" in the active skillpack.`, {
-          skillId: selected.id,
+        createMachineError('SKILL_NOT_FOUND', `No skill named "${skillRef}" in a readable skillpack.`, {
+          skillId: skillRef,
           agentId,
           field: 'selectedSkills'
         })
@@ -218,7 +230,7 @@ function requestedSelectionsFor(
     }
 
     selections.push({
-      skillId: selected.id,
+      skillId: skillRef,
       reason: selected.reason ?? 'explicit',
       reasonKind: 'explicit'
     });
@@ -245,7 +257,7 @@ export async function buildInstallLinkPlan(options: {
   manifest: ManagerManifest;
   homeDir: string;
 }): Promise<BuildLinkPlanResult> {
-  const targetStates = await inspectTargetStates(options.agents, options.manifest, options.homeDir);
+  const targetStates = await inspectTargetStates(options.agents, options.skills, options.manifest, options.homeDir);
   const selections: AgentLinkSelection[] = options.agents.map((agent) => ({
     agentId: agent.adapter.id,
     enabled: true,
@@ -255,7 +267,11 @@ export async function buildInstallLinkPlan(options: {
   }));
   const linkPlan = generateLinkPlan({
     adapters: [...options.adapters],
-    skills: options.skills.map((skill) => ({id: skill.id, absolutePath: skill.absolutePath})),
+    skills: options.skills.map((skill) => ({
+      id: skill.ref ?? skill.id,
+      targetName: skill.id,
+      absolutePath: skill.absolutePath
+    })),
     selections,
     homeDir: options.homeDir,
     targetStates
@@ -300,6 +316,7 @@ function hasConfigChange(agent: AgentPlanInput): boolean {
 
 async function inspectTargetStates(
   agents: readonly AgentPlanInput[],
+  skills: readonly DiscoveredSkill[],
   manifest: ManagerManifest,
   homeDir: string
 ): Promise<TargetState[]> {
@@ -311,7 +328,12 @@ async function inspectTargetStates(
     const skillIds = uniqueSorted([...agent.nextSelectedSkillIds, ...agent.previousSelectedSkillIds]);
 
     for (const skillId of skillIds) {
-      const targetPath = path.join(resolvedTargetRoot, skillId);
+      const targetPath = path.join(
+        resolvedTargetRoot,
+        skills.find((skill) => (skill.ref ?? skill.id) === skillId)?.id ??
+          parseSkillReference(skillId)?.skillId ??
+          skillId
+      );
 
       if (seenPaths.has(targetPath)) {
         continue;

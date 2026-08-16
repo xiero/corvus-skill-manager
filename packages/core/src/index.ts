@@ -13,9 +13,17 @@ export {
   agentConfigSchema,
   agentIdSchema,
   createDefaultManagerConfig,
+  createDefaultSkillpackConfig,
+  getSkillpack,
+  getSkillpacks,
   managerConfigSchema,
   parseManagerConfig,
   parseSkillpackConfig,
+  parseSkillReference,
+  qualifySkillId,
+  resolveSkillReference,
+  skillReferencePattern,
+  skillpackIdPattern,
   skillpackConfigSchema
 } from './config/configSchema.js';
 export {type AgentAdapter, type AgentId, type AgentSupportStatus} from './agents/AgentAdapter.js';
@@ -246,6 +254,7 @@ export {
   type PlanKind,
   type ResolvedPlanSelection,
   type SkillpackSetupPlanPayload,
+  type SkillpackRemovePlanPayload,
   type SkillpackUpdatePlanPayload,
   type StateFingerprint,
   computePlanDigest,
@@ -313,6 +322,8 @@ export {
 } from './application/useCases/statusUseCases.js';
 export {
   type SkillpackSetupApplyData,
+  type SkillpackRemoveApplyData,
+  type SkillpackRemovePlanData,
   type SkillpackSetupPlanData,
   type SkillpackSetupPlanOptions,
   type SkillpackUpdateApplyData,

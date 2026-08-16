@@ -9,7 +9,7 @@ describe('HelpScreen', () => {
     const text = collectText(tree);
 
     expect(text).toContain('Guided Flow');
-    expect(text).toContain('Setup Skillpack');
+    expect(text).toContain('Manage Skillpacks');
     expect(text).toContain('Configure Agents');
     expect(text).toContain('No selected skills means no links are created.');
     expect(text).toContain('Saving config stores selections');

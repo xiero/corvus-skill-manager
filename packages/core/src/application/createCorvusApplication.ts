@@ -8,6 +8,8 @@ import {
 } from './useCases/installUseCases.js';
 import {
   skillpackSetupApplyUseCase,
+  skillpackRemoveApplyUseCase,
+  skillpackRemovePlanUseCase,
   skillpackSetupPlanUseCase,
   skillpackUpdateApplyUseCase,
   skillpackUpdateCheckUseCase,
@@ -43,9 +45,11 @@ export function createCorvusApplication(options: CorvusApplicationOptions = {}):
     skillpackStatus: (statusOptions) => skillpackStatusUseCase(environment, statusOptions),
     skillpackSetupPlan: (planOptions) => skillpackSetupPlanUseCase(environment, planOptions),
     skillpackSetupApply: (applyOptions) => skillpackSetupApplyUseCase(environment, applyOptions),
-    skillpackUpdateCheck: () => skillpackUpdateCheckUseCase(environment),
-    skillpackUpdatePreview: () => skillpackUpdatePreviewUseCase(environment),
+    skillpackUpdateCheck: (skillpackOptions) => skillpackUpdateCheckUseCase(environment, skillpackOptions),
+    skillpackUpdatePreview: (skillpackOptions) => skillpackUpdatePreviewUseCase(environment, skillpackOptions),
     skillpackUpdateApply: (applyOptions) => skillpackUpdateApplyUseCase(environment, applyOptions),
+    skillpackRemovePlan: (removeOptions) => skillpackRemovePlanUseCase(environment, removeOptions),
+    skillpackRemoveApply: (applyOptions) => skillpackRemoveApplyUseCase(environment, applyOptions),
     discoverSkills: () => discoverSkillsUseCase(environment),
     listSkills: (listOptions) => skillsListUseCase(environment, listOptions),
     searchSkills: (searchOptions) => skillsSearchUseCase(environment, searchOptions),

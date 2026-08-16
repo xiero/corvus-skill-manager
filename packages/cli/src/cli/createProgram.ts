@@ -97,8 +97,12 @@ export function createProgram(options: {
     skillpack
       .command('status')
       .description('Report the configured skillpack and its active snapshot.')
-      .option('--check-remote', 'Also run the read-only remote update check.'),
-    async (opts) => options.executor.skillpackStatus({checkRemote: opts.checkRemote === true})
+      .option('--check-remote', 'Also run the read-only remote update check.')
+      .option('--skillpack-id <id>', 'Restrict output to one skillpack.'),
+    async (opts) => options.executor.skillpackStatus({
+      checkRemote: opts.checkRemote === true,
+      ...(typeof opts.skillpackId === 'string' ? {skillpackId: opts.skillpackId} : {})
+    })
   );
 
   register(
@@ -129,15 +133,21 @@ export function createProgram(options: {
   );
 
   register(
-    skillpack.command('update-check').description('Read-only remote comparison using git ls-remote.'),
-    async () => options.executor.skillpackUpdateCheck()
+    skillpack.command('update-check').description('Read-only remote comparison using git ls-remote.')
+      .option('--skillpack-id <id>', 'Skillpack to check (defaults to corvus-skillpack).'),
+    async (opts) => options.executor.skillpackUpdateCheck(
+      typeof opts.skillpackId === 'string' ? {skillpackId: opts.skillpackId} : {}
+    )
   );
 
   register(
     skillpack
       .command('update-preview')
-      .description('Create an inactive revision snapshot and an activation plan.'),
-    async () => options.executor.skillpackUpdatePreview()
+      .description('Create an inactive revision snapshot and an activation plan.')
+      .option('--skillpack-id <id>', 'Skillpack to preview (defaults to corvus-skillpack).'),
+    async (opts) => options.executor.skillpackUpdatePreview(
+      typeof opts.skillpackId === 'string' ? {skillpackId: opts.skillpackId} : {}
+    )
   );
 
   register(
@@ -148,6 +158,24 @@ export function createProgram(options: {
       .requiredOption('--confirm <id>', 'Must repeat the exact plan id.'),
     async (opts) =>
       options.executor.skillpackUpdateApply({planId: String(opts.planId), confirm: String(opts.confirm)})
+  );
+
+  register(
+    skillpack
+      .command('remove-plan')
+      .description('Plan removal of an unused secondary skillpack registration.')
+      .requiredOption('--skillpack-id <id>', 'Secondary skillpack to remove.'),
+    async (opts) => options.executor.skillpackRemovePlan({skillpackId: String(opts.skillpackId)})
+  );
+
+  register(
+    skillpack
+      .command('remove-apply')
+      .description('Apply a reviewed skillpack removal plan; snapshots are preserved.')
+      .requiredOption('--plan-id <id>', 'Identifier of the persisted plan.')
+      .requiredOption('--confirm <id>', 'Must repeat the exact plan id.'),
+    async (opts) =>
+      options.executor.skillpackRemoveApply({planId: String(opts.planId), confirm: String(opts.confirm)})
   );
 
   const skills = program.command('skills').description('Skill catalog commands.');

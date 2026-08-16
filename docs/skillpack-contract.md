@@ -1,6 +1,6 @@
 # Skillpack Contract
 
-Corvus Skill Manager reads a local skillpack snapshot. The active snapshot is read-only from the manager's perspective. Updates are modeled as immutable revisions, never as `git pull` against the active checkout.
+Corvus Skill Manager reads one protected default skillpack plus any number of additional local skillpack snapshots. Every active snapshot is read-only from the manager's perspective. Updates are modeled independently as immutable revisions, never as `git pull` against an active checkout.
 
 ## Snapshot Layout
 

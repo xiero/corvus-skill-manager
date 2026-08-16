@@ -29,6 +29,7 @@ Allowed:
 - read `registry.json`
 - read `SKILL.md`
 - scan for risk indicators
+- unregister an unused secondary skillpack after a confirmed removal plan, while preserving its snapshots
 
 Forbidden:
 
@@ -42,6 +43,7 @@ Forbidden:
 - install dependencies
 - run scripts
 - rewrite registry or frontmatter
+- remove revision snapshots as part of unregistering a skillpack
 
 ## Agent Target Boundary
 

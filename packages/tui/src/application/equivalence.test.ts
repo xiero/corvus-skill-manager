@@ -5,7 +5,8 @@ import {
   type CorvusApplication,
   createCorvusApplication,
   generateLinkPlan,
-  getAgentAdapters
+  getAgentAdapters,
+  resolveSkillReference
 } from '@corvus-tools/skill-manager-core';
 import {type TestHome, createStubGit, createTestHome} from '../../../../test/support/appHarness.js';
 import {v2SkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
@@ -55,7 +56,11 @@ async function wizardLinkPlan(
   return generateLinkPlan({
     adapters,
     homeDir: home.homeDir,
-    skills: sortedSkills.map((skill) => ({id: skill.id, absolutePath: skill.absolutePath})),
+    skills: sortedSkills.map((skill) => ({
+      id: skill.ref ?? skill.id,
+      targetName: skill.id,
+      absolutePath: skill.absolutePath
+    })),
     selections: adapters.map((adapter) => {
       const draftAgent = draft.find((entry) => entry.agentId === adapter.id);
 
@@ -65,7 +70,7 @@ async function wizardLinkPlan(
         ...(draftAgent?.targetPath === undefined || draftAgent.targetPath === ''
           ? {}
           : {targetPath: draftAgent.targetPath}),
-        selectedSkillIds: draftAgent?.selectedSkillIds ?? [],
+        selectedSkillIds: (draftAgent?.selectedSkillIds ?? []).map((id) => resolveSkillReference(id)),
         previousSelectedSkillIds: []
       };
     })

@@ -173,7 +173,7 @@ describe('read-only commands', () => {
       enabled: true,
       defaultTargetPath: '~/.agents/skills',
       effectiveTargetPath: '~/.agents/skills',
-      selectedSkillIds: ['embedded-testing', 'git-commit']
+      selectedSkillIds: ['corvus-skillpack:embedded-testing', 'corvus-skillpack:git-commit']
     });
   });
 
@@ -220,8 +220,8 @@ describe('skills catalog', () => {
     // Listing preserves registry order, which is deterministic for a given snapshot.
     expect(geminiOnly.data.skills.map((skill) => skill.id)).toEqual([
       'embedded-toolchain',
-      'test-driven-development',
-      'git-commit'
+      'git-commit',
+      'test-driven-development'
     ]);
     expect(geminiOnly.data.skills[0]?.compatibility).toEqual([{agentId: 'gemini', supported: true}]);
   });
@@ -394,7 +394,7 @@ describe('skills inspect', () => {
 
     expect(withoutContent.data.skills[0]?.content).toBeUndefined();
     expect(withContent.data.skills[0]?.content).toContain('embedded-driver-development');
-    expect(withoutContent.data.skills[0]?.requires).toEqual(['embedded-toolchain']);
+    expect(withoutContent.data.skills[0]?.requires).toEqual(['corvus-skillpack:embedded-toolchain']);
   });
 
   it('reports unknown skill ids', async () => {

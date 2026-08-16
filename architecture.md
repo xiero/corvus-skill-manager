@@ -84,6 +84,12 @@ The required local layout is:
 
 Initial clone is allowed only when the active `current` path does not exist. Existing active checkouts and existing revisions are inspected and reported; they are not repaired, updated, formatted, reset, re-cloned over, committed, pulled, or pushed.
 
+Config v2 stores an ID-keyed collection of skillpacks. `corvus-skillpack` remains the protected
+default and additional packs use the same independent revision layout. Skills retain their
+repository-local ID for the target directory and gain a qualified
+`<skillpack-id>:<skill-id>` selection identity. Registry relationships are scoped to their
+declaring pack, and cross-pack target-name collisions are explicit plan conflicts.
+
 Remote change detection is read-only and compares the active commit with `git ls-remote`. Approved updates create or reuse an immutable revision snapshot under `revisions/<commit>/repo`, then switch the manager-owned `current` link only after a preview and an explicit approval — `a` in the TUI, or a matching `--confirm` plan token in the machine CLI.
 
 ## Link Planning And Apply

@@ -54,12 +54,14 @@ export interface Executor {
   status(options: {checkRemote?: boolean}): Promise<MachineEnvelope>;
   doctor(options: {checkRemote?: boolean}): Promise<MachineEnvelope>;
   agentsList(): Promise<MachineEnvelope>;
-  skillpackStatus(options: {checkRemote?: boolean}): Promise<MachineEnvelope>;
+  skillpackStatus(options: {checkRemote?: boolean; skillpackId?: string}): Promise<MachineEnvelope>;
   skillpackSetupPlan(flags: SkillpackSetupPlanFlags): Promise<MachineEnvelope>;
   skillpackSetupApply(flags: PlanRefFlags): Promise<MachineEnvelope>;
-  skillpackUpdateCheck(): Promise<MachineEnvelope>;
-  skillpackUpdatePreview(): Promise<MachineEnvelope>;
+  skillpackUpdateCheck(flags?: {skillpackId?: string}): Promise<MachineEnvelope>;
+  skillpackUpdatePreview(flags?: {skillpackId?: string}): Promise<MachineEnvelope>;
   skillpackUpdateApply(flags: PlanRefFlags): Promise<MachineEnvelope>;
+  skillpackRemovePlan(flags: {skillpackId: string}): Promise<MachineEnvelope>;
+  skillpackRemoveApply(flags: PlanRefFlags): Promise<MachineEnvelope>;
   skillsList(flags: {agent?: string[]}): Promise<MachineEnvelope>;
   skillsSearch(flags: {query: string; agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
   skillsInspect(skillIds: string[], flags: {includeContent?: boolean}): Promise<MachineEnvelope>;
@@ -90,7 +92,10 @@ export function createExecutor(options: ExecutorOptions): Executor {
     doctor: async (flags) => toMachineEnvelope('doctor', await app.doctor(checkRemote(flags))),
     agentsList: async () => toMachineEnvelope('agents.list', await app.listAgents()),
     skillpackStatus: async (flags) =>
-      toMachineEnvelope('skillpack.status', await app.skillpackStatus(checkRemote(flags))),
+      toMachineEnvelope('skillpack.status', await app.skillpackStatus({
+        ...checkRemote(flags),
+        ...(flags.skillpackId === undefined ? {} : {skillpackId: flags.skillpackId})
+      })),
     skillpackSetupPlan: async (flags) =>
       toMachineEnvelope(
         'skillpack.setup-plan',
@@ -106,14 +111,21 @@ export function createExecutor(options: ExecutorOptions): Executor {
         'skillpack.setup-apply',
         await app.skillpackSetupApply({planId: flags.planId, confirm: flags.confirm})
       ),
-    skillpackUpdateCheck: async () =>
-      toMachineEnvelope('skillpack.update-check', await app.skillpackUpdateCheck()),
-    skillpackUpdatePreview: async () =>
-      toMachineEnvelope('skillpack.update-preview', await app.skillpackUpdatePreview()),
+    skillpackUpdateCheck: async (flags = {}) =>
+      toMachineEnvelope('skillpack.update-check', await app.skillpackUpdateCheck(flags)),
+    skillpackUpdatePreview: async (flags = {}) =>
+      toMachineEnvelope('skillpack.update-preview', await app.skillpackUpdatePreview(flags)),
     skillpackUpdateApply: async (flags) =>
       toMachineEnvelope(
         'skillpack.update-apply',
         await app.skillpackUpdateApply({planId: flags.planId, confirm: flags.confirm})
+      ),
+    skillpackRemovePlan: async (flags) =>
+      toMachineEnvelope('skillpack.remove-plan', await app.skillpackRemovePlan(flags)),
+    skillpackRemoveApply: async (flags) =>
+      toMachineEnvelope(
+        'skillpack.remove-apply',
+        await app.skillpackRemoveApply({planId: flags.planId, confirm: flags.confirm})
       ),
     skillsList: async (flags) =>
       toMachineEnvelope(

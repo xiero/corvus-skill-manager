@@ -67,14 +67,34 @@ export async function saveConfig(
   config: ManagerConfig,
   options: Pick<ConfigStoreOptions, 'configPath'> = {}
 ): Promise<void> {
-  const parsedConfig = parseManagerConfig(config);
+  const explicitLegacySkillpack = Object.prototype.propertyIsEnumerable.call(config, 'skillpack')
+    ? config.skillpack
+    : undefined;
+  const parsedConfig = parseManagerConfig(
+    explicitLegacySkillpack === undefined
+      ? config
+      : {
+          ...config,
+          version: 2,
+          skillpack: undefined,
+          skillpacks: {...(config.skillpacks ?? {}), [explicitLegacySkillpack.id]: explicitLegacySkillpack}
+        }
+  );
   const configPath = resolveUserPath(
     options.configPath ?? path.join(parsedConfig.managerStateDir, configFileName)
   );
 
   assertPathInside(parsedConfig.managerStateDir, configPath);
   await fs.mkdir(path.dirname(configPath), {recursive: true});
-  await fs.writeFile(configPath, `${JSON.stringify(parsedConfig, null, 2)}\n`, 'utf8');
+  const persisted = {
+    version: 2 as const,
+    managerStateDir: parsedConfig.managerStateDir,
+    createdAt: parsedConfig.createdAt,
+    updatedAt: parsedConfig.updatedAt,
+    skillpacks: parsedConfig.skillpacks ?? {},
+    ...(parsedConfig.agents === undefined ? {} : {agents: parsedConfig.agents})
+  };
+  await fs.writeFile(configPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8');
 }
 
 export async function ensureDefaultConfig(options: ConfigStoreOptions = {}): Promise<ConfigLoadResult> {
@@ -106,7 +126,9 @@ export async function ensureDefaultConfig(options: ConfigStoreOptions = {}): Pro
   }
 
   const config = createDefaultManagerConfig(
-    options.now === undefined ? {managerStateDir} : {managerStateDir, now: options.now}
+    options.now === undefined
+      ? {managerStateDir, ...(options.homeDir === undefined ? {} : {homeDir: options.homeDir})}
+      : {managerStateDir, now: options.now, ...(options.homeDir === undefined ? {} : {homeDir: options.homeDir})}
   );
   await saveConfig(config, {configPath});
   return {config, configPath, managerStateDir, created: true, migrated: false};
@@ -116,19 +138,20 @@ export function migrateLoadedConfig(
   config: ManagerConfig,
   options: Pick<ConfigStoreOptions, 'homeDir' | 'now'> = {}
 ): ConfigMigrationResult {
-  if (config.skillpack === undefined) {
-    return {config, migrated: false};
-  }
+  const explicitSkillpack = Object.prototype.propertyIsEnumerable.call(config, 'skillpack')
+    ? config.skillpack
+    : undefined;
+  const defaultSkillpack = (explicitSkillpack?.id === defaultSkillpackId ? explicitSkillpack : undefined) ??
+    config.skillpacks?.[defaultSkillpackId] ??
+    (config.skillpack?.id === defaultSkillpackId ? config.skillpack : undefined);
+
+  if (defaultSkillpack === undefined) return {config, migrated: false};
 
   const legacyCheckoutPath = path.join(resolveUserPath(config.managerStateDir, options.homeDir), 'skills');
-  const legacyFlatSkillpackPath = path.join(
-    defaultSkillpackRootPath(config.skillpack.id, options.homeDir),
-    'repo'
-  );
-  const configuredCheckoutPath = resolveUserPath(config.skillpack.checkoutPath, options.homeDir);
+  const legacyFlatSkillpackPath = path.join(defaultSkillpackRootPath(defaultSkillpack.id, options.homeDir), 'repo');
+  const configuredCheckoutPath = resolveUserPath(defaultSkillpack.checkoutPath, options.homeDir);
   const shouldMigrateLegacyDefaultSkillpack =
-    config.skillpack.id === defaultSkillpackId &&
-    config.skillpack.repositoryUrl === defaultSkillpackRepositoryUrl &&
+    defaultSkillpack.repositoryUrl === defaultSkillpackRepositoryUrl &&
     (configuredCheckoutPath === legacyCheckoutPath || configuredCheckoutPath === legacyFlatSkillpackPath);
 
   if (!shouldMigrateLegacyDefaultSkillpack) {
@@ -138,11 +161,21 @@ export function migrateLoadedConfig(
   const nextConfig: ManagerConfig = {
     ...config,
     updatedAt: (options.now ?? new Date()).toISOString(),
-    skillpack: {
-      ...config.skillpack,
-      checkoutPath: defaultSkillpackCheckoutPath(config.skillpack.id, options.homeDir)
+    skillpacks: {
+      ...(config.skillpacks ?? (config.skillpack === undefined ? {} : {[config.skillpack.id]: config.skillpack})),
+      [defaultSkillpackId]: {
+        ...defaultSkillpack,
+        checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpack.id, options.homeDir)
+      }
     }
   };
+
+  Object.defineProperty(nextConfig, 'skillpack', {
+    value: nextConfig.skillpacks?.[defaultSkillpackId],
+    enumerable: false,
+    configurable: true,
+    writable: true
+  });
 
   return {config: nextConfig, migrated: true};
 }

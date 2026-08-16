@@ -137,5 +137,7 @@ function applyCommandFor(kind: PlanKind): string {
     return 'install apply';
   }
 
-  return kind === 'skillpack-setup' ? 'skillpack setup-apply' : 'skillpack update-apply';
+  if (kind === 'skillpack-setup') return 'skillpack setup-apply';
+  if (kind === 'skillpack-remove') return 'skillpack remove-apply';
+  return 'skillpack update-apply';
 }
