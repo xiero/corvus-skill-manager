@@ -94,6 +94,19 @@ export {
   supportedAgentSchema
 } from './registry/registrySchema.js';
 export {
+  type SemanticVersion,
+  type SemanticVersionChangeKind,
+  type SemanticVersionRange,
+  type SemanticVersionValidationErrorCode,
+  SemanticVersionValidationError,
+  classifySemanticVersionChange,
+  parseSemanticVersion,
+  parseSemanticVersionRange,
+  satisfiesSemanticVersionRange,
+  semanticVersionChangeKinds,
+  semanticVersionValidationErrorCodes
+} from './versioning/semver.js';
+export {
   type DiscoveredSkill,
   type SkillDiscoveryIssue,
   type SkillDiscoveryResult,

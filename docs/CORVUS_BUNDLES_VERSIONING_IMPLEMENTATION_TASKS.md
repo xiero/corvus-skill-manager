@@ -103,9 +103,9 @@ For every task:
 - Explicitly preserve AGENTS.md invariants: TUI-first, shared application layer, plan-then-apply, immutable skillpacks.
 
 **Acceptance criteria:**
-- [ ] The spec contains normative examples for registry v1/v2/v3 and config v2/v3.
-- [ ] Every later task can reference a frozen decision instead of re-deciding architecture.
-- [ ] No runtime code changes are required in this task.
+- [x] The spec contains normative examples for registry v1/v2/v3 and config v2/v3.
+- [x] Every later task can reference a frozen decision instead of re-deciding architecture.
+- [x] No runtime code changes are required in this task.
 
 **Required tests / verification:**
 - Documentation-only; run existing `pnpm typecheck` and `pnpm test` to prove no regression.
@@ -133,9 +133,9 @@ For every task:
 - Keep the helper independent of registry/discovery code.
 
 **Acceptance criteria:**
-- [ ] Valid examples such as 1.0.0, 2.3.1 and prereleases per the chosen contract parse deterministically.
-- [ ] Invalid versions/ranges fail with stable, testable errors.
-- [ ] No registry behavior changes yet.
+- [x] Valid examples such as 1.0.0, 2.3.1 and prereleases per the chosen contract parse deterministically.
+- [x] Invalid versions/ranges fail with stable, testable errors.
+- [x] No registry behavior changes yet.
 
 **Required tests / verification:**
 - Unit tests for valid/invalid versions, ranges, prerelease behavior, and major/minor/patch classification.
