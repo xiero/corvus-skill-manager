@@ -2,7 +2,12 @@ import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, test} from 'vitest';
 import {createTestHome, createStubGit, type TestHome} from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture, writeSkillpack} from '../../../../test/support/skillpackFixtures.js';
+import {
+  type SkillpackFixture,
+  v2SkillpackFixture,
+  v3BundleSkillpackFixture,
+  writeSkillpack
+} from '../../../../test/support/skillpackFixtures.js';
 import {loadConfig, saveConfig} from '../config/configStore.js';
 import {createCorvusApplication} from './createCorvusApplication.js';
 
@@ -122,6 +127,34 @@ describe('multiple skillpacks', () => {
     expect((await fs.lstat(secondary.checkoutPath)).isSymbolicLink()).toBe(true);
     expect((await fs.stat(secondary.revisionPath)).isDirectory()).toBe(true);
   });
+
+  test('qualifies identical local bundle ids and their members by owning skillpack', async () => {
+    home = await createTestHome({skillpack: v3BundleSkillpackFixture});
+    await addSecondarySkillpack(home, v3BundleSkillpackFixture);
+    const app = createCorvusApplication({
+      homeDir: home.homeDir,
+      configPath: home.configPath,
+      git: createStubGit().runner
+    });
+
+    const discovery = await app.discoverSkills();
+    const list = await app.listBundles();
+
+    expect(discovery.ok && list.ok).toBe(true);
+    if (!discovery.ok || !list.ok) return;
+
+    const defaults = discovery.data.discovery.bundles.filter((bundle) => bundle.id === 'default');
+    expect(defaults.map((bundle) => bundle.ref)).toEqual([
+      'corvus-skillpack:default',
+      'team-pack:default'
+    ]);
+    expect(defaults[0]?.members.every((member) => member.ref?.startsWith('corvus-skillpack:'))).toBe(true);
+    expect(defaults[1]?.members.every((member) => member.ref?.startsWith('team-pack:'))).toBe(true);
+    expect(list.data.bundles.filter((bundle) => bundle.id === 'default').map((bundle) => bundle.ref)).toEqual([
+      'corvus-skillpack:default',
+      'team-pack:default'
+    ]);
+  });
 });
 
 function secondaryFixture(includeCollision = false) {
@@ -146,7 +179,7 @@ function secondaryFixture(includeCollision = false) {
   };
 }
 
-async function addSecondarySkillpack(home: TestHome, fixture: ReturnType<typeof secondaryFixture>) {
+async function addSecondarySkillpack(home: TestHome, fixture: SkillpackFixture) {
   const commit = 'b'.repeat(40);
   const root = path.join(home.homeDir, '.agents', 'skillpacks', 'team-pack');
   const checkoutPath = path.join(root, 'current');

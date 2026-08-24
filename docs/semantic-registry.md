@@ -2,7 +2,8 @@
 
 Registry v2 adds optional semantic metadata and skill relationships so a coding agent can turn a
 broad intent — "a balanced set for embedded development" — into exact skill IDs without guessing
-from file names.
+from file names. Registry v3 adds separately discoverable bundle compositions and exact skill
+versions without changing individual-skill search semantics.
 
 The schema itself is specified in [`skillpack-contract.md`](skillpack-contract.md). This document
 covers how the metadata is *used*, and how to author it well.
@@ -57,6 +58,26 @@ silently clamped. `--agent <id>` restricts results to skills that declare suppor
 
 Dependency expansion is breadth-first over the requested order and tracks visited ids, so it is
 deterministic and terminates even on a malformed cyclic registry.
+
+## Bundle discovery and compatibility
+
+Registry v3 bundles are returned separately from linkable skills. A discovered bundle has a
+qualified `<skillpack-id>:<bundle-id>` reference, its exact version and normalized catalog
+metadata, and member records containing the requested range plus the actual skill version in the
+active immutable snapshot. It has no source path or link target.
+
+The shared application service exposes read-only bundle list, search, and inspection methods.
+Bundle search is deliberately separate from skill search and scores only the approved bundle
+fields: exact id/title identity, id, title, tags, keywords, and description. Results are ordered by
+score and then qualified reference, with the same 1–100 limit and 20-result default as skill
+search.
+
+Bundle compatibility is atomic for each agent. Corvus traverses every direct member and its
+transitive hard dependencies breadth-first. The bundle is compatible only when every effective
+skill supports the agent; otherwise inspection returns stable reasons identifying the direct
+member, blocking skill, and immediate dependency parent. Incompatible members are never silently
+dropped. This phase is read-only: selection and installation are handled by later plan/apply
+contracts.
 
 ## Authoring guidance for skillpack maintainers
 

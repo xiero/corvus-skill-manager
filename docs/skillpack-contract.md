@@ -189,6 +189,8 @@ Registry v3 rules:
   tilde, and comparator-set ranges; `recommends` and `conflictsWith` remain local ID arrays;
 - `bundles` is required and may be `[]`; a bundle requires `id`, `version`, `title`, `description`,
   and at least one member in `skills`, with optional bounded `tags` and `keywords`;
+- bundle titles are at most 64 characters, descriptions at most 280, and each bundle contains at
+  most 32 members so catalog responses remain bounded;
 - bundles are catalog compositions only: they have no `path`, `SKILL.md`, link target, or
   filesystem operation of their own;
 - every dependency and bundle member must resolve to a skill in the same registry and satisfy its

@@ -8,7 +8,10 @@ import {
   createTestHome,
   listTree
 } from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
+import {
+  v2SkillpackFixture,
+  v3BundleSkillpackFixture
+} from '../../../../test/support/skillpackFixtures.js';
 import {createCorvusApplication} from './createCorvusApplication.js';
 import {machineCommands} from './protocol/envelope.js';
 import {exitCodeForErrorCode} from './protocol/errors.js';
@@ -406,6 +409,116 @@ describe('skills inspect', () => {
     if (!result.ok) {
       expect(result.errors[0]?.code).toBe('SKILL_NOT_FOUND');
     }
+  });
+});
+
+describe('bundle catalog', () => {
+  it('lists and filters bundles by whole-bundle agent compatibility without writing', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const before = await listTree(home.homeDir);
+    const app = appFor(home);
+    const all = await app.listBundles();
+    const claude = await app.listBundles({agentIds: ['claude']});
+
+    expect(await listTree(home.homeDir)).toEqual(before);
+    expect(all.ok && claude.ok).toBe(true);
+    if (!all.ok || !claude.ok) return;
+
+    expect(all.data.totalBundles).toBe(2);
+    expect(all.data.bundles.map((bundle) => bundle.ref)).toEqual([
+      'corvus-skillpack:default',
+      'corvus-skillpack:documentation'
+    ]);
+    expect(all.data.bundles[0]?.supportedAgents).toEqual(['codex']);
+    expect(claude.data.bundles.map((bundle) => bundle.id)).toEqual(['documentation']);
+    expect(claude.data.bundles[0]?.compatibility).toEqual([
+      {agentId: 'claude', compatible: true, issues: []}
+    ]);
+  });
+
+  it('searches bundle metadata separately with stable bounded results', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const before = await listTree(home.homeDir);
+    const app = appFor(home);
+    const first = await app.searchBundles({query: 'review quality pull request', limit: 1});
+    const second = await app.searchBundles({query: 'review quality pull request', limit: 1});
+
+    expect(await listTree(home.homeDir)).toEqual(before);
+    expect(first.ok && second.ok).toBe(true);
+    expect(second).toEqual(first);
+    if (!first.ok) return;
+
+    expect(first.data.totalMatches).toBe(1);
+    expect(first.data.results).toHaveLength(1);
+    expect(first.data.results[0]).toMatchObject({
+      id: 'default',
+      ref: 'corvus-skillpack:default',
+      matchedFields: expect.arrayContaining(['keywords', 'tags']),
+      matchedTerms: expect.arrayContaining(['quality', 'review'])
+    });
+  });
+
+  it('inspects constraints, actual versions, and explainable all-agent compatibility', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const before = await listTree(home.homeDir);
+    const result = await appFor(home).inspectBundles({bundleIds: ['default']});
+
+    expect(await listTree(home.homeDir)).toEqual(before);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const bundle = result.data.bundles[0];
+    expect(bundle).toMatchObject({
+      id: 'default',
+      version: '1.2.0',
+      supportedAgents: ['codex'],
+      members: [
+        {
+          id: 'review-helper',
+          ref: 'corvus-skillpack:review-helper',
+          versionRange: '~2.1.0',
+          actualVersion: '2.1.0'
+        },
+        {
+          id: 'test-helper',
+          ref: 'corvus-skillpack:test-helper',
+          versionRange: '>=3.0.0-beta.1 <4.0.0',
+          actualVersion: '3.0.0-beta.1'
+        }
+      ]
+    });
+    expect(bundle?.compatibility.find((entry) => entry.agentId === 'claude')).toMatchObject({
+      compatible: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'bundle-dependency-unsupported',
+          memberId: 'corvus-skillpack:review-helper',
+          skillId: 'corvus-skillpack:git-basics'
+        }),
+        expect.objectContaining({
+          code: 'bundle-member-unsupported',
+          memberId: 'corvus-skillpack:test-helper'
+        })
+      ])
+    });
+  });
+
+  it('rejects unknown bundles, invalid agents, empty queries, and unreasonable limits', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const missing = await app.inspectBundles({bundleIds: ['ghost']});
+    const agent = await app.listBundles({agentIds: ['ghost']});
+    const empty = await app.searchBundles({query: '   '});
+    const limit = await app.searchBundles({query: 'review', limit: 101});
+
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.errors[0]?.code).toBe('BUNDLE_NOT_FOUND');
+    expect(agent.ok).toBe(false);
+    if (!agent.ok) expect(agent.errors[0]?.code).toBe('UNKNOWN_AGENT');
+    expect(empty.ok).toBe(false);
+    if (!empty.ok) expect(empty.errors[0]?.code).toBe('INVALID_REQUEST');
+    expect(limit.ok).toBe(false);
+    if (!limit.ok) expect(limit.errors[0]?.code).toBe('INVALID_REQUEST');
   });
 });
 

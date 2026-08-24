@@ -1,7 +1,7 @@
 import {promises as fs} from 'node:fs';
 import type {AgentId} from '../../agents/AgentAdapter.js';
 import {resolveSkillReference} from '../../config/configSchema.js';
-import {getAgentAdapter} from '../../agents/adapters.js';
+import {getAgentAdapter, getAgentAdapters} from '../../agents/adapters.js';
 import {
   type SemanticMetadataField,
   currentRegistryVersion,
@@ -9,9 +9,19 @@ import {
   semanticMetadataFields
 } from '../../registry/registrySchema.js';
 import type {DiscoveredSkill, SkillDiscoveryIssue} from '../../skills/skillDiscovery.js';
+import {deriveBundleAgentCompatibility} from '../../skills/bundleCompatibility.js';
 import {findRequiredDependencyCycles} from '../../skills/skillRelationships.js';
 import {isPrecondition, loadContext, requireReadySkillpack} from '../context.js';
 import type {ApplicationEnvironment} from '../ports.js';
+import {
+  type BundleCatalogEntry,
+  type BundleSearchResult,
+  type BundleSummary,
+  bundleCatalogLimits,
+  searchBundles,
+  toBundleCatalogEntry,
+  toBundleSummary
+} from '../skills/bundleCatalog.js';
 import {
   type MachineError,
   type MachineWarning,
@@ -29,6 +39,46 @@ import {
   toCatalogEntry,
   toSkillSummary
 } from '../skills/skillCatalog.js';
+
+export interface BundlesListOptions {
+  agentIds?: string[];
+  limit?: number;
+}
+
+export interface BundlesListData {
+  skillpackCheckoutPaths: string[];
+  source: string;
+  limit: number;
+  totalBundles: number;
+  bundleCount: number;
+  bundles: BundleCatalogEntry[];
+}
+
+export interface BundlesSearchOptions {
+  query: string;
+  agentIds?: string[];
+  limit?: number;
+}
+
+export interface BundlesSearchData {
+  query: string;
+  terms: string[];
+  limit: number;
+  totalMatches: number;
+  results: BundleSearchResult[];
+}
+
+export interface BundlesInspectOptions {
+  bundleIds: string[];
+}
+
+export interface InspectedBundle extends BundleSummary {
+  compatibility: ReturnType<typeof deriveBundleAgentCompatibility>[];
+}
+
+export interface BundlesInspectData {
+  bundles: InspectedBundle[];
+}
 
 export interface SkillsListOptions {
   agentIds?: string[];
@@ -308,6 +358,155 @@ export async function skillsInspectUseCase(
   return succeed({skills});
 }
 
+export async function bundlesListUseCase(
+  environment: ApplicationEnvironment,
+  options: BundlesListOptions = {}
+): Promise<UseCaseResult<BundlesListData>> {
+  const limit = parseCatalogLimit(options.limit, bundleCatalogLimits.defaultLimit);
+  if (!limit.ok) return fail([limit.error]);
+
+  const ready = await loadReadyDiscovery(environment);
+  if (!ready.ok) return ready.failure;
+
+  const agentIds = parseAgentIds(options.agentIds ?? []);
+  if (!agentIds.ok) return fail(agentIds.errors);
+
+  const compatibleBundles = [...ready.discovery.bundles]
+    .filter((bundle) =>
+      agentIds.value.every((agentId) =>
+        deriveBundleAgentCompatibility(bundle, ready.discovery.skills, agentId).compatible
+      )
+    )
+    .sort((left, right) =>
+      (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
+    );
+  const bundles = compatibleBundles
+    .slice(0, limit.value)
+    .map((bundle) => toBundleCatalogEntry(bundle, ready.discovery.skills, agentIds.value));
+
+  return succeed(
+    {
+      skillpackCheckoutPaths: ready.checkoutPaths,
+      source: ready.discovery.source,
+      limit: limit.value,
+      totalBundles: compatibleBundles.length,
+      bundleCount: bundles.length,
+      bundles
+    },
+    {warnings: discoveryWarnings([...ready.discovery.warnings, ...ready.discovery.errors])}
+  );
+}
+
+export async function bundlesSearchUseCase(
+  environment: ApplicationEnvironment,
+  options: BundlesSearchOptions
+): Promise<UseCaseResult<BundlesSearchData>> {
+  const query = options.query.trim();
+  if (query === '') {
+    return failWith(createMachineError('INVALID_REQUEST', 'A non-empty query is required.', {field: 'query'}));
+  }
+
+  if (query.length > bundleCatalogLimits.maxQueryLength) {
+    return failWith(
+      createMachineError(
+        'INVALID_REQUEST',
+        `Query must be at most ${bundleCatalogLimits.maxQueryLength} characters.`,
+        {field: 'query'}
+      )
+    );
+  }
+
+  const limit = parseCatalogLimit(options.limit, bundleCatalogLimits.defaultLimit);
+  if (!limit.ok) return fail([limit.error]);
+
+  const ready = await loadReadyDiscovery(environment);
+  if (!ready.ok) return ready.failure;
+
+  const agentIds = parseAgentIds(options.agentIds ?? []);
+  if (!agentIds.ok) return fail(agentIds.errors);
+
+  const allResults = searchBundles({
+    bundles: ready.discovery.bundles,
+    skills: ready.discovery.skills,
+    query,
+    agentIds: agentIds.value,
+    filterAgentIds: agentIds.value,
+    limit: ready.discovery.bundles.length
+  });
+
+  return succeed(
+    {
+      query,
+      terms: [...new Set(allResults.flatMap((result) => result.matchedTerms))].sort(),
+      limit: limit.value,
+      totalMatches: allResults.length,
+      results: allResults.slice(0, limit.value)
+    },
+    {warnings: discoveryWarnings([...ready.discovery.warnings, ...ready.discovery.errors])}
+  );
+}
+
+export async function bundlesInspectUseCase(
+  environment: ApplicationEnvironment,
+  options: BundlesInspectOptions
+): Promise<UseCaseResult<BundlesInspectData>> {
+  if (
+    options.bundleIds.length === 0 ||
+    options.bundleIds.length > bundleCatalogLimits.maxInspectIds
+  ) {
+    return failWith(
+      createMachineError(
+        'INVALID_REQUEST',
+        `Between 1 and ${bundleCatalogLimits.maxInspectIds} bundle ids are required.`,
+        {field: 'bundleIds'}
+      )
+    );
+  }
+
+  const ready = await loadReadyDiscovery(environment);
+  if (!ready.ok) return ready.failure;
+
+  const bundlesById = new Map(
+    ready.discovery.bundles.map((bundle) => [bundle.ref ?? bundle.id, bundle])
+  );
+  const requestedBundleIds = [
+    ...new Set(options.bundleIds.map((id) => resolveSkillReference(id)))
+  ].sort((left, right) => left.localeCompare(right));
+  const missingBundleIds = requestedBundleIds.filter((bundleId) => !bundlesById.has(bundleId));
+
+  if (missingBundleIds.length > 0) {
+    return fail(
+      missingBundleIds.map((bundleId) =>
+        createMachineError(
+          'BUNDLE_NOT_FOUND',
+          `No bundle named "${bundleId}" in a readable skillpack.`,
+          {field: 'bundleIds', details: {bundleId}}
+        )
+      )
+    );
+  }
+
+  const agentIds = getAgentAdapters().map((adapter) => adapter.id);
+  const bundles: InspectedBundle[] = requestedBundleIds.flatMap((bundleId) => {
+    const bundle = bundlesById.get(bundleId);
+    if (bundle === undefined) return [];
+
+    return [
+      {
+        ...toBundleSummary(bundle, ready.discovery.skills),
+        compatibility: agentIds.map((agentId) =>
+          deriveBundleAgentCompatibility(bundle, ready.discovery.skills, agentId)
+        )
+      }
+    ];
+  });
+
+  return succeed(
+    {bundles},
+    {warnings: discoveryWarnings([...ready.discovery.warnings, ...ready.discovery.errors])}
+  );
+}
+
 /**
  * Read-only registry validation, suitable for skillpack CI. It reports what is wrong and what
  * is missing; it never writes to the registry or to skill files.
@@ -442,6 +641,30 @@ function parseAgentIds(
   }
 
   return errors.length > 0 ? {ok: false, errors} : {ok: true, value: parsed};
+}
+
+function parseCatalogLimit(
+  input: number | undefined,
+  fallback: number
+): {ok: true; value: number} | {ok: false; error: MachineError} {
+  const value = input ?? fallback;
+
+  if (
+    !Number.isInteger(value) ||
+    value < bundleCatalogLimits.minLimit ||
+    value > bundleCatalogLimits.maxLimit
+  ) {
+    return {
+      ok: false,
+      error: createMachineError(
+        'INVALID_REQUEST',
+        `Limit must be an integer between ${bundleCatalogLimits.minLimit} and ${bundleCatalogLimits.maxLimit}.`,
+        {field: 'limit'}
+      )
+    };
+  }
+
+  return {ok: true, value};
 }
 
 function discoveryWarnings(errors: readonly SkillDiscoveryIssue[]): MachineWarning[] {

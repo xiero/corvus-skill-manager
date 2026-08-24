@@ -73,6 +73,7 @@ meaning and never changes category. `details` carries structured extras — for 
 | `INVALID_REQUEST` | invalid-request | 2 | Malformed flags, request document, or option value. |
 | `CONFIG_INVALID` | invalid-request | 2 | `config.json` does not match its schema. |
 | `SKILL_NOT_FOUND` | invalid-request | 2 | No such qualified or default-pack skill id in the readable configured catalogs. |
+| `BUNDLE_NOT_FOUND` | invalid-request | 2 | No such qualified or default-pack bundle id in the readable configured catalogs. |
 | `UNKNOWN_AGENT` | invalid-request | 2 | Not a known agent adapter. |
 | `CONFIG_NOT_FOUND` | conflict | 3 | Manager config does not exist yet. |
 | `SKILLPACK_NOT_CONFIGURED` | conflict | 3 | No skillpack is configured. |

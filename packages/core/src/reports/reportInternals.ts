@@ -275,6 +275,15 @@ function qualifyDiscovery(skillpackId: string, discovery: SkillDiscoveryResult):
       requires: skill.requires.map((id) => qualifySkillId(skillpackId, id)),
       recommends: skill.recommends.map((id) => qualifySkillId(skillpackId, id)),
       conflictsWith: skill.conflictsWith.map((id) => qualifySkillId(skillpackId, id))
+    })),
+    bundles: discovery.bundles.map((bundle) => ({
+      ...bundle,
+      skillpackId,
+      ref: qualifySkillId(skillpackId, bundle.id),
+      members: bundle.members.map((member) => ({
+        ...member,
+        ref: qualifySkillId(skillpackId, member.id)
+      }))
     }))
   };
 }
@@ -313,6 +322,9 @@ function aggregateDiscoveries(skillpacks: readonly SkillpackReportContext[]): Sk
     skills: ready.flatMap((item) => item.discovery?.skills ?? []).sort((left, right) =>
       (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
     ),
+    bundles: ready.flatMap((item) => item.discovery?.bundles ?? []).sort((left, right) =>
+      (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
+    ),
     warnings: [
       ...ready.flatMap((item) => item.discovery?.warnings ?? []),
       ...skillpacks
@@ -331,6 +343,7 @@ function aggregateDiscoveries(skillpacks: readonly SkillpackReportContext[]): Sk
       ready: item.checkout.readable && item.discovery !== undefined,
       ...(item.discovery?.registryPath === undefined ? {} : {registryPath: item.discovery.registryPath}),
       skillCount: item.discovery?.skills.length ?? 0,
+      bundleCount: item.discovery?.bundles.length ?? 0,
       warningCount: item.discovery?.warnings.length ?? 0,
       errorCount: item.discovery?.errors.length ?? 0,
       ...(!item.checkout.readable ? {message: item.checkout.message} : {})

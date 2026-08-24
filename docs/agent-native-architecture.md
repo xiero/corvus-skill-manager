@@ -43,6 +43,8 @@ High-level use cases that compose domain primitives into complete workflows:
 - `skillpack.status`, `skillpack.setupPlan`, `skillpack.setupApply`,
   `skillpack.updateCheck`, `skillpack.updatePreview`, `skillpack.updateApply`;
 - `skills.list`, `skills.search`, `skills.inspect`, `skills.validateRegistry`;
+- read-only `listBundles`, `searchBundles`, and `inspectBundles` methods for future adapter
+  presentation (machine commands and TUI screens are added in their dedicated phases);
 - `install.plan`, `install.apply`, `install.verify`.
 
 Rules:

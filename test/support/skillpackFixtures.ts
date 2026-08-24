@@ -216,6 +216,82 @@ export const v2SkillpackFixture: SkillpackFixture = {
   ]
 };
 
+/** Registry v3 fixture used by bundle discovery/catalog tests while legacy v2 coverage remains. */
+export const v3BundleSkillpackFixture: SkillpackFixture = {
+  registry: {
+    version: 3,
+    skills: [
+      {
+        id: 'review-helper',
+        version: '2.1.0',
+        path: 'skills/review-helper',
+        title: 'Review Helper',
+        description: 'Helps review code changes.',
+        supportedAgents: ['codex', 'claude'],
+        tags: ['review'],
+        domains: ['code-quality'],
+        requires: [{id: 'git-basics', version: '^1.4.0'}]
+      },
+      {
+        id: 'git-basics',
+        version: '1.5.0',
+        path: 'skills/git-basics',
+        title: 'Git Basics',
+        description: 'Provides Git fundamentals.',
+        supportedAgents: ['codex'],
+        tags: ['git']
+      },
+      {
+        id: 'test-helper',
+        version: '3.0.0-beta.1',
+        path: 'skills/test-helper',
+        title: 'Test Helper',
+        description: 'Helps design focused tests.',
+        supportedAgents: ['codex'],
+        tags: ['testing']
+      },
+      {
+        id: 'docs-helper',
+        version: '1.0.0',
+        path: 'skills/docs-helper',
+        title: 'Docs Helper',
+        description: 'Helps write technical documentation.',
+        supportedAgents: ['codex', 'claude'],
+        tags: ['documentation']
+      }
+    ],
+    bundles: [
+      {
+        id: 'default',
+        version: '1.2.0',
+        title: 'Review Workflow',
+        description: 'A maintained code review composition.',
+        skills: [
+          {id: 'review-helper', version: '~2.1.0'},
+          {id: 'test-helper', version: '>=3.0.0-beta.1 <4.0.0'}
+        ],
+        tags: ['Review', 'review'],
+        keywords: ['quality gate', 'pull request']
+      },
+      {
+        id: 'documentation',
+        version: '1.0.0',
+        title: 'Documentation Set',
+        description: 'A documentation-focused composition.',
+        skills: [{id: 'docs-helper', version: '^1.0.0'}],
+        tags: ['docs'],
+        keywords: ['technical writing']
+      }
+    ]
+  },
+  skills: [
+    skillFile('skills/review-helper', 'review-helper', 'Review code changes.'),
+    skillFile('skills/git-basics', 'git-basics', 'Use Git fundamentals.'),
+    skillFile('skills/test-helper', 'test-helper', 'Design focused tests.'),
+    skillFile('skills/docs-helper', 'docs-helper', 'Write technical documentation.')
+  ]
+};
+
 function skillFile(relativePath: string, name: string, description: string): SkillFixture {
   return {
     relativePath,

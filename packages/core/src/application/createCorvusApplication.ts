@@ -16,6 +16,9 @@ import {
   skillpackUpdatePreviewUseCase
 } from './useCases/skillpackUseCases.js';
 import {
+  bundlesInspectUseCase,
+  bundlesListUseCase,
+  bundlesSearchUseCase,
   discoverSkillsUseCase,
   skillsInspectUseCase,
   skillsListUseCase,
@@ -55,6 +58,9 @@ export function createCorvusApplication(options: CorvusApplicationOptions = {}):
     searchSkills: (searchOptions) => skillsSearchUseCase(environment, searchOptions),
     inspectSkills: (inspectOptions) => skillsInspectUseCase(environment, inspectOptions),
     validateRegistry: () => validateRegistryUseCase(environment),
+    listBundles: (listOptions) => bundlesListUseCase(environment, listOptions),
+    searchBundles: (searchOptions) => bundlesSearchUseCase(environment, searchOptions),
+    inspectBundles: (inspectOptions) => bundlesInspectUseCase(environment, inspectOptions),
     installPlan: (request) => installPlanUseCase(environment, request),
     installApply: (applyOptions) => installApplyUseCase(environment, applyOptions),
     installVerify: (verifyOptions) => installVerifyUseCase(environment, verifyOptions)

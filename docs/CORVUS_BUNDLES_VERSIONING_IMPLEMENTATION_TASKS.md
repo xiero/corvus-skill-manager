@@ -349,9 +349,9 @@ For every task:
 - Do not infer versions from Git tags, package.json or SKILL.md.
 
 **Acceptance criteria:**
-- [ ] v3 discovered skills expose exact registry versions.
-- [ ] v1/v2 discovery remains functional.
-- [ ] Existing callers compile without duplicate parsing logic.
+- [x] v3 discovered skills expose exact registry versions.
+- [x] v1/v2 discovery remains functional.
+- [x] Existing callers compile without duplicate parsing logic.
 
 **Required tests / verification:**
 - Discovery tests for v1/v2/v3 and multi-skillpack qualification.
@@ -380,9 +380,9 @@ For every task:
 - Registryless fallback discovers skills only and returns no bundles.
 
 **Acceptance criteria:**
-- [ ] Two skillpacks may both contain a local bundle named `default` without collision because refs are qualified.
-- [ ] Bundle discovery is deterministic.
-- [ ] No bundle produces a source path for agent linking.
+- [x] Two skillpacks may both contain a local bundle named `default` without collision because refs are qualified.
+- [x] Bundle discovery is deterministic.
+- [x] No bundle produces a source path for agent linking.
 
 **Required tests / verification:**
 - Fixture and discovery tests including same local bundle ID in two skillpacks.
@@ -409,9 +409,9 @@ For every task:
 - Do not silently drop incompatible members.
 
 **Acceptance criteria:**
-- [ ] Compatibility is deterministic and explainable.
-- [ ] A partially compatible bundle is reported incompatible, not partially installed.
-- [ ] Legacy unversioned skills can still participate in compatibility when referenced only by legacy flows; v3 bundle members always resolve to v3 skills.
+- [x] Compatibility is deterministic and explainable.
+- [x] A partially compatible bundle is reported incompatible, not partially installed.
+- [x] Legacy unversioned skills can still participate in compatibility when referenced only by legacy flows; v3 bundle members always resolve to v3 skills.
 
 **Required tests / verification:**
 - Unit tests for fully compatible, direct-member incompatible and transitive-dependency incompatible bundles.
@@ -439,9 +439,9 @@ For every task:
 - Keep skill search unchanged unless a consciously versioned response contract is updated.
 
 **Acceptance criteria:**
-- [ ] Calling adapters can inspect a bundle before selecting it.
-- [ ] Read-only operations perform zero state writes.
-- [ ] Results are stable-sorted and token-bounded.
+- [x] Calling adapters can inspect a bundle before selecting it.
+- [x] Read-only operations perform zero state writes.
+- [x] Results are stable-sorted and token-bounded.
 
 **Required tests / verification:**
 - Application/use-case tests plus read-only directory-tree diff assertions.

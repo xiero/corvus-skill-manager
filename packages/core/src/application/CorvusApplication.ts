@@ -18,6 +18,12 @@ import type {
   SkillpackUpdatePreviewData
 } from './useCases/skillpackUseCases.js';
 import type {
+  BundlesInspectData,
+  BundlesInspectOptions,
+  BundlesListData,
+  BundlesListOptions,
+  BundlesSearchData,
+  BundlesSearchOptions,
   DiscoverSkillsData,
   SkillsInspectData,
   SkillsInspectOptions,
@@ -75,6 +81,9 @@ export interface CorvusApplication {
   searchSkills(options: SkillsSearchOptions): Promise<UseCaseResult<SkillsSearchData>>;
   inspectSkills(options: SkillsInspectOptions): Promise<UseCaseResult<SkillsInspectData>>;
   validateRegistry(): Promise<UseCaseResult<ValidateRegistryData>>;
+  listBundles(options?: BundlesListOptions): Promise<UseCaseResult<BundlesListData>>;
+  searchBundles(options: BundlesSearchOptions): Promise<UseCaseResult<BundlesSearchData>>;
+  inspectBundles(options: BundlesInspectOptions): Promise<UseCaseResult<BundlesInspectData>>;
 
   /** `request` is an unvalidated request document; it is parsed against the public schema. */
   installPlan(request: unknown): Promise<UseCaseResult<InstallPlanData>>;

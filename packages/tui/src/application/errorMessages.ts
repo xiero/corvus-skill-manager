@@ -13,6 +13,7 @@ const messagesByCode: Record<MachineErrorCode, string> = {
   SKILLPACK_NOT_CONFIGURED: 'No skillpack is configured yet. Use Manage Skillpacks.',
   SKILLPACK_NOT_READY: 'The active skillpack snapshot is missing or unreadable.',
   SKILL_NOT_FOUND: 'That skill is not in a readable configured skillpack.',
+  BUNDLE_NOT_FOUND: 'That bundle is not in a readable configured skillpack.',
   SKILL_NOT_SUPPORTED_BY_AGENT: 'That skill does not support the selected agent.',
   SKILL_CONFLICT: 'Those skills declare a conflict and cannot both be installed.',
   SKILL_TARGET_NAME_CONFLICT: 'Two selected skills would use the same agent target directory.',

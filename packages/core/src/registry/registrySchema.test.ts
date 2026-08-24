@@ -214,6 +214,21 @@ describe('registry v3', () => {
       }).success
     ).toBe(false);
   });
+
+  it('bounds bundle catalog text and member counts', () => {
+    const tooManyMembers = Array.from(
+      {length: registryLimits.relationshipArrayLength + 1},
+      (_, index) => ({id: `skill-${index}`, version: '^1.0.0'})
+    );
+
+    expect(
+      registryBundleV3Schema.safeParse({...v3Bundle, title: 'x'.repeat(registryLimits.tokenLength + 1)}).success
+    ).toBe(false);
+    expect(
+      registryBundleV3Schema.safeParse({...v3Bundle, description: 'x'.repeat(registryLimits.proseLength + 1)}).success
+    ).toBe(false);
+    expect(registryBundleV3Schema.safeParse({...v3Bundle, skills: tooManyMembers}).success).toBe(false);
+  });
 });
 
 describe('normalization rules', () => {

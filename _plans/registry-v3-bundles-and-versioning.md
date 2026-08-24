@@ -1,111 +1,132 @@
-Timestamp: 2026-08-24T19:11:54Z
-Version: v1.1.0
+Timestamp: 2026-08-24T19:18:04Z
+Version: v1.2.0
 
-# Implementation Plan: Registry v3 Bundles and Versioning — Phase 1
+# Implementation Plan: Registry v3 Bundles and Versioning — Phase 2
 
 ## Context
 
-Phase 0 froze the contract and added strict shared SemVer helpers. Phase 1 implements
-`CSM-BND-003` through `CSM-BND-008`: Registry v3 parsing, versioned hard dependencies,
-first-class bundle metadata, same-snapshot constraint validation, explicit MVP boundaries, and
-read-only maintainer diagnostics.
+Registry v3 now parses and validates versioned skills, dependencies, and bundles. Phase 2
+implements `CSM-BND-009` through `CSM-BND-012`: carry versions into discovery, expose bundles as
+separate qualified catalog objects, derive explainable whole-bundle agent compatibility, and add
+read-only bundle list/search/inspect methods to the shared application service.
 
 Source spec: `_specs/registry-v3-bundles-and-versioning.md`
 
 ## Open Question Status
 
-- Answered: Registry v3 requires an explicit `bundles` array; `[]` represents zero bundles.
-- Answered: v3 `requires` and bundle members use strict `{id, version}` objects; v1/v2 continue to
-  use local ID strings.
-- Answered: Phase 1 normalizes v3 hard dependencies to the existing runtime ID representation.
-  Carrying skill versions and defining qualified `DiscoveredBundle` objects remain Phase 2 tasks.
-- Answered: cross-reference validation checks only the one version in the active immutable
-  snapshot and never resolves, downloads, or selects another version.
+- Answered: `DiscoveredSkill.version` is optional; presence means an exact validated Registry v3
+  version, and absence is the explicit legacy/registryless unversioned state.
+- Answered: `SkillDiscoveryResult.bundles` is a separate always-present array. Bundles never enter
+  the linkable `skills` array and carry no filesystem path.
+- Answered: checkout-local bundle/member refs remain local until report aggregation assigns the
+  owning skillpack and qualified `<skillpack-id>:<id>` refs, matching existing skill behavior.
+- Answered: compatibility checks direct members and each transitive hard dependency, returns
+  structured blocking reasons, and never drops an incompatible skill.
+- Answered: application methods are added now, but machine CLI commands/capabilities remain Phase
+  6 (`CSM-BND-029`/`030`) and TUI presentation remains Phase 7.
 - Still blocked: none.
+
+## Assumptions
+
+- Registry v3 schema validation remains the authority for member existence and version ranges;
+  discovery carries normalized constraints and actual versions without choosing alternatives.
+- Bundle search is a separate deterministic lexical scorer over id/title/description/tags/
+  keywords, so existing skill search response semantics do not change.
+- Bundle list/search output uses the existing bounded query/limit contract and v3 bundle/member
+  schema bounds to remain token-efficient.
+- All supported agent adapters are evaluated for inspection; list/search agent filters retain the
+  existing "compatible with every requested agent" meaning.
 
 ## Critical Files
 
-- `packages/core/src/registry/registrySchema.ts` — version/range schemas, Registry v3 skills,
-  bundles, strict version dispatch, and legacy compatibility.
-- `packages/core/src/skills/skillDiscovery.ts` — version-aware entry parsing, structured v3
-  diagnostics, registry counts, and dependency normalization.
-- `packages/core/src/skills/skillRelationships.ts` — deterministic same-snapshot dependency and
-  bundle-member validation.
-- `packages/core/src/application/useCases/skillsUseCases.ts` — read-only validation report counts.
-- `packages/core/src/reports/reportInternals.ts` — aggregate count preservation.
-- `packages/core/src/index.ts` — curated public v3 schema exports.
-- `docs/skillpack-contract.md` — public v3 authoring and boundary contract.
+- `packages/core/src/skills/skillDiscovery.ts` — discovered skill versions, bundle/member domain
+  models, local discovery, and registryless empty bundles.
+- `packages/core/src/reports/reportInternals.ts` — skillpack ownership and qualified bundle/member
+  refs plus deterministic aggregation.
+- `packages/core/src/skills/bundleCompatibility.ts` — pure transitive compatibility derivation.
+- `packages/core/src/application/skills/bundleCatalog.ts` — bounded bundle summaries and lexical
+  search.
+- `packages/core/src/application/useCases/skillsUseCases.ts` — read-only bundle list/search/
+  inspect orchestration.
+- `packages/core/src/application/CorvusApplication.ts` and `createCorvusApplication.ts` — shared
+  adapter-facing application methods.
+- `test/support/skillpackFixtures.ts` — representative v3 bundle fixture without replacing legacy
+  v2 coverage.
+- `packages/core/src/index.ts` — curated discovery, compatibility, catalog, and use-case exports.
 
 ## Implementation Sequence
 
-1. Add strict Zod primitives backed by the Phase 0 SemVer helpers.
-2. Add Registry v3 skill entries with mandatory versions and versioned `requires` references.
-3. Add strict bundle/member schemas with canonical versions, bounded catalog metadata, duplicate
-   member rejection, and no filesystem fields.
-4. Dispatch discovery parsing by registry version while preserving v1/v2 behavior and normalize
-   hard dependencies to local runtime IDs.
-5. Validate hard-dependency and bundle-member existence/ranges against the same v3 snapshot;
-   reject duplicate bundle IDs and nested bundle references deterministically.
-6. Extend `validate-registry` output with stable issue codes/details and counts for versioned
-   skills, bundles, and valid bundle memberships.
-7. Document the v3 contract and mark verified Phase 1 acceptance criteria complete.
-8. Run focused tests, repository typecheck, and the full test suite before committing.
+1. Add optional exact versions to discovered skills and expose them through skill summaries.
+2. Define bundle/member discovery types and populate a separate deterministic `bundles` array for
+   Registry v3; legacy and registryless discovery return `[]`.
+3. Qualify bundle and member refs during per-skillpack report composition and stable-sort bundles
+   across skillpacks so identical local bundle IDs cannot collide.
+4. Implement pure breadth-first compatibility traversal over direct members and transitive hard
+   dependencies with stable, deduplicated blocking reasons.
+5. Add compact bundle catalog summaries, requested-agent compatibility, and independent lexical
+   search over the approved metadata fields.
+6. Add bundle list/search/inspect application methods with validation, stable limits, missing-id
+   errors, actual member versions, all-agent compatibility, and no-write tests.
+7. Add focused discovery, multi-skillpack, compatibility, catalog/application, legacy, and
+   determinism tests; update relevant contract documentation and task checkboxes.
+8. Run targeted tests, `pnpm typecheck`, `pnpm test`, diff review, and the approved commit.
 
 ## Data, API, or Contract Changes
 
-- Supported registry versions become `[1, 2, 3]`; the current registry version becomes `3`.
-- Registry v3 skills require canonical `version` and object-valued hard dependencies.
-- Registry v3 requires a top-level `bundles` array containing strict, versioned bundle metadata.
-- Discovery issues may include `bundleId`, `memberId`, `versionRange`, and `actualVersion`.
-- Discovery carries declared-skill and registry validation counts but does not yet expose versioned skill or qualified
-  bundle catalog objects; those remain `CSM-BND-009` and `CSM-BND-010`.
-- `validate-registry` adds `versionedSkillCount`, `bundleCount`, and
-  `validBundleMembershipCount`; existing v1/v2 fields and behavior remain intact.
+- `DiscoveredSkill` and `SkillSummary` gain optional exact `version` fields for Registry v3.
+- `SkillDiscoveryResult` gains a separate `bundles: DiscoveredBundle[]` collection.
+- `DiscoveredBundle` carries local/qualified identity, exact version, normalized metadata, and
+  members with requested ranges plus actual snapshot versions; it has no source/link path.
+- `CorvusApplication` gains `listBundles`, `searchBundles`, and `inspectBundles` read-only methods.
+- A stable `BUNDLE_NOT_FOUND` application error is added for inspection misses.
+- No machine command, config schema, persisted plan, install request, TUI, or manifest contract
+  changes in this phase.
 
 ## Testing Strategy
 
-- Schema tests: v1/v2 compatibility; canonical/missing skill versions; exact/caret/tilde/bounded
-  dependency ranges; strict bundle fields; empty/duplicate/malformed members; invalid IDs,
-  versions, qualified IDs, and unknown fields.
-- Domain tests: satisfying/mismatching ranges, unknown members, nested members, duplicate bundle
-  IDs, deterministic ordering, and downstream hard-dependency normalization.
-- Application tests: exact v3 error codes and mismatch detail fields, count reporting, legacy zero
-  counts, and before/after filesystem equality for read-only validation.
-- Regression tests: full monorepo typecheck and Vitest suite, including machine golden fixtures.
+- Discovery tests: Registry v1/v2/registryless unversioned behavior, exact v3 skill versions,
+  normalized bundle metadata/member versions, empty bundles, and no bundle path fields.
+- Multi-skillpack tests: identical local bundle IDs receive distinct qualified refs and members
+  remain within their owning pack.
+- Compatibility unit tests: fully compatible, direct-member incompatible, transitive-dependency
+  incompatible, missing targets, deterministic ordering, and no partial-success behavior.
+- Catalog/application tests: stable list/search/inspect output, metadata ranking, requested-agent
+  filtering, actual versions, incompatibility reasons, bounded limits, missing IDs, repeated-call
+  determinism, and before/after directory-tree equality.
+- Regression tests: existing skill search remains unchanged; full monorepo typecheck and Vitest.
 
 ## Verification Commands
 
 ```sh
-pnpm vitest run packages/core/src/registry/registrySchema.test.ts
-pnpm vitest run packages/core/src/skills/skillRelationships.test.ts packages/core/src/skills/skillDiscovery.test.ts
-pnpm vitest run packages/core/src/application/application.test.ts
+pnpm vitest run packages/core/src/skills/skillDiscovery.test.ts packages/core/src/skills/skillRelationships.test.ts
+pnpm vitest run packages/core/src/skills/bundleCompatibility.test.ts
+pnpm vitest run packages/core/src/application/application.test.ts packages/core/src/application/multiSkillpack.test.ts
 pnpm typecheck
 pnpm test
 ```
 
 ## Documentation Updates
 
-- `docs/skillpack-contract.md` documents Registry v3 versions, dependency/member ranges, bundle
-  fields, read-only validation, and the same-pack/non-nested MVP boundary.
-- `docs/CORVUS_BUNDLES_VERSIONING_IMPLEMENTATION_TASKS.md` records verified completion of
-  `CSM-BND-003` through `CSM-BND-008`.
+- Update `docs/semantic-registry.md` with the distinct bundle discovery/search/compatibility model.
+- Mark `CSM-BND-009` through `CSM-BND-012` complete in the ordered task document after verification.
+- Refresh this plan with any safe implementation deviation and final verification state.
 
 ## Risks and Stop Conditions
 
-- Stop if v1/v2 fixtures stop parsing or their relationship behavior changes.
-- Stop if bundle validation requires writing to a skillpack or resolving another revision.
-- Do not introduce Phase 2 discovery catalog objects, selection expansion, config migration,
-  install-planning, TUI, or machine bundle commands in this phase.
-- Do not add multi-version resolution, network fetching, nested bundles, or cross-skillpack
-  bundle members.
+- Stop if bundle read models require persisting config roots or changing install semantics; those
+  belong to later phases.
+- Stop if compatibility would need version selection, network access, or cross-skillpack members.
+- Do not expose machine CLI commands or TUI UI in this phase.
+- Do not mutate a skillpack checkout, registry, skill file, manager state, or link target from any
+  new read-only method.
 
 ## Rollback Notes
 
-Revert the Phase 1 implementation commit. Registry v1/v2 remain independently represented by
-their explicit schemas, and no persisted manager-state format changes in this phase.
+Revert the Phase 2 commit. Registry v3 structural validation remains intact, and no persisted
+state or machine protocol version is changed by this phase.
 
 ## Commit Message Draft
 
 ```text
-✨ feat(core): add registry v3 bundle validation
+✨ feat(core): add bundle discovery and catalog
 ```

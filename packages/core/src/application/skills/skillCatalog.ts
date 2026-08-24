@@ -6,6 +6,7 @@ export interface SkillSummary {
   id: string;
   skillpackId?: string;
   ref?: string;
+  version?: string;
   title: string;
   description: string;
   supportedAgents: string[];
@@ -86,6 +87,7 @@ export function toSkillSummary(skill: DiscoveredSkill): SkillSummary {
     id: skill.id,
     ...(skill.skillpackId === undefined ? {} : {skillpackId: skill.skillpackId}),
     ...(skill.ref === undefined ? {} : {ref: skill.ref}),
+    ...(skill.version === undefined ? {} : {version: skill.version}),
     title: skill.title,
     description: skill.description,
     supportedAgents: [...skill.supportedAgents],

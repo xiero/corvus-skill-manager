@@ -154,9 +154,12 @@ export const registryBundleV3Schema = z
   .object({
     id: skillIdSchema,
     version: semanticVersionSchema,
-    title: z.string().min(1),
-    description: z.string().min(1),
-    skills: z.array(registryBundleMemberV3Schema).min(1),
+    title: tokenSchema,
+    description: proseSchema,
+    skills: z
+      .array(registryBundleMemberV3Schema)
+      .min(1)
+      .max(registryLimits.relationshipArrayLength),
     tags: tokenArraySchema.optional(),
     keywords: tokenArraySchema.optional()
   })

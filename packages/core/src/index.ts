@@ -120,6 +120,8 @@ export {
   semanticVersionValidationErrorCodes
 } from './versioning/semver.js';
 export {
+  type DiscoveredBundle,
+  type DiscoveredBundleMember,
   type DiscoveredSkill,
   type SkillDiscoveryIssue,
   type SkillDiscoveryResult,
@@ -128,6 +130,26 @@ export {
   type SkillRiskWarning,
   discoverSkillsFromCheckout
 } from './skills/skillDiscovery.js';
+export {
+  type BundleAgentCompatibility,
+  type BundleCompatibilityIssue,
+  type BundleCompatibilityIssueCode,
+  bundleCompatibilityIssueCodes,
+  deriveBundleAgentCompatibility,
+  deriveBundleSupportedAgents
+} from './skills/bundleCompatibility.js';
+export {
+  type BundleCatalogEntry,
+  type BundleMemberSummary,
+  type BundleSearchResult,
+  type BundleSummary,
+  type SearchBundlesOptions,
+  bundleCatalogLimits,
+  bundleSearchFieldWeights,
+  searchBundles as searchBundleCatalog,
+  toBundleCatalogEntry,
+  toBundleSummary
+} from './application/skills/bundleCatalog.js';
 export {
   type AgentLinkSelection,
   type GenerateLinkPlanInput,
@@ -357,7 +379,14 @@ export {
   type SkillpackUpdatePreviewData
 } from './application/useCases/skillpackUseCases.js';
 export {
+  type BundlesInspectData,
+  type BundlesInspectOptions,
+  type BundlesListData,
+  type BundlesListOptions,
+  type BundlesSearchData,
+  type BundlesSearchOptions,
   type DiscoverSkillsData,
+  type InspectedBundle,
   type InspectedSkill,
   type RegistryFieldCoverage,
   type SkillsInspectData,

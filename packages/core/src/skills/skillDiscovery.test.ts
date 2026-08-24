@@ -2,6 +2,7 @@ import {promises as fs} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {v3BundleSkillpackFixture, writeSkillpack} from '../../../../test/support/skillpackFixtures.js';
 import {discoverSkillsFromCheckout} from './skillDiscovery.js';
 
 let tempRoot: string;
@@ -40,6 +41,7 @@ describe('skill discovery', () => {
     const result = await discoverSkillsFromCheckout(tempRoot);
 
     expect(result.errors).toEqual([]);
+    expect(result.bundles).toEqual([]);
     expect(result.skills).toHaveLength(1);
     expect(result.skills[0]).toMatchObject({
       id: 'review-helper',
@@ -53,6 +55,7 @@ describe('skill discovery', () => {
         description: 'Review pull requests.'
       }
     });
+    expect(result.skills[0]?.version).toBeUndefined();
   });
 
   it('discovers SKILL.md files in read-only fallback mode when registry.json is missing', async () => {
@@ -74,6 +77,7 @@ describe('skill discovery', () => {
     const result = await discoverSkillsFromCheckout(tempRoot);
 
     expect(result.errors).toEqual([]);
+    expect(result.bundles).toEqual([]);
     expect(result.warnings).toEqual([
       expect.objectContaining({
         code: 'missing-registry',
@@ -88,6 +92,43 @@ describe('skill discovery', () => {
       tags: ['registryless'],
       relativePath: path.join('commit-message-skill', 'commit-message')
     });
+  });
+
+  it('carries exact v3 skill versions and discovers normalized bundles separately', async () => {
+    await writeSkillpack(tempRoot, v3BundleSkillpackFixture);
+
+    const result = await discoverSkillsFromCheckout(tempRoot);
+
+    expect(result.errors).toEqual([]);
+    expect(result.skills.map((skill) => [skill.id, skill.version])).toEqual([
+      ['review-helper', '2.1.0'],
+      ['git-basics', '1.5.0'],
+      ['test-helper', '3.0.0-beta.1'],
+      ['docs-helper', '1.0.0']
+    ]);
+    expect(result.bundles.map((bundle) => bundle.id)).toEqual(['default', 'documentation']);
+    expect(result.bundles[0]).toEqual({
+      id: 'default',
+      version: '1.2.0',
+      title: 'Review Workflow',
+      description: 'A maintained code review composition.',
+      tags: ['review'],
+      keywords: ['quality gate', 'pull request'],
+      members: [
+        {
+          id: 'review-helper',
+          versionRange: '~2.1.0',
+          actualVersion: '2.1.0'
+        },
+        {
+          id: 'test-helper',
+          versionRange: '>=3.0.0-beta.1 <4.0.0',
+          actualVersion: '3.0.0-beta.1'
+        }
+      ]
+    });
+    expect(result.bundles[0]).not.toHaveProperty('path');
+    expect(result.bundles[0]).not.toHaveProperty('absolutePath');
   });
 
   it('reports an actionable error when registry.json and SKILL.md files are both missing', async () => {

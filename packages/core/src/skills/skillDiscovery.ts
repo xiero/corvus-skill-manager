@@ -47,6 +47,8 @@ export interface DiscoveredSkill {
   /** Stable `<skillpack-id>:<skill-id>` identity used for selection and persistence. */
   ref?: string;
   id: string;
+  /** Exact validated Registry v3 version; absent for v1/v2 and registryless discovery. */
+  version?: string;
   title: string;
   description: string;
   supportedAgents: RegistrySkillEntry['supportedAgents'];
@@ -74,6 +76,30 @@ export interface DiscoveredSkill {
   riskWarnings: SkillRiskWarning[];
 }
 
+export interface DiscoveredBundleMember {
+  /** Local skill ID as authored in the owning Registry v3 snapshot. */
+  id: string;
+  /** Qualified by aggregate discovery; absent during checkout-local discovery. */
+  ref?: string;
+  versionRange: string;
+  /** Exact version in the snapshot; absent only when registry validation reports a missing target. */
+  actualVersion?: string;
+}
+
+export interface DiscoveredBundle {
+  /** Set by aggregate discovery. The local registry id remains in `id`. */
+  skillpackId?: string;
+  /** Stable `<skillpack-id>:<bundle-id>` identity used for manager-level selection. */
+  ref?: string;
+  id: string;
+  version: string;
+  title: string;
+  description: string;
+  tags: string[];
+  keywords: string[];
+  members: DiscoveredBundleMember[];
+}
+
 export type SkillDiscoverySource = 'registry' | 'registryless';
 
 export interface SkillDiscoveryResult {
@@ -91,6 +117,8 @@ export interface SkillDiscoveryResult {
     validBundleMembershipCount: number;
   };
   skills: DiscoveredSkill[];
+  /** Registry v3 catalog compositions, kept separate from linkable skills. */
+  bundles: DiscoveredBundle[];
   warnings: SkillRiskWarning[];
   errors: SkillDiscoveryIssue[];
   /** Per-pack provenance when this is an aggregate discovery result. */
@@ -100,6 +128,7 @@ export interface SkillDiscoveryResult {
     ready: boolean;
     registryPath?: string;
     skillCount: number;
+    bundleCount: number;
     warningCount: number;
     errorCount: number;
     message?: string;
@@ -167,6 +196,7 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
     registryPath,
     source: 'registry',
     skills: [],
+    bundles: [],
     warnings: [],
     errors: []
   };
@@ -318,6 +348,9 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
     const v3Validation = validateRegistryV3Relationships(registryV3Skills, registryV3Bundles);
     result.errors.push(...v3Validation.errors);
     result.registryCounts.validBundleMembershipCount = v3Validation.validBundleMembershipCount;
+    result.bundles = registryV3Bundles
+      .map((bundle) => toDiscoveredBundle(bundle, registryV3Skills))
+      .sort((left, right) => left.id.localeCompare(right.id));
   }
 
   applyRelationshipValidation(result);
@@ -341,6 +374,7 @@ function toDiscoveredSkill(options: {
 
   return {
     id: entry.id,
+    ...('version' in entry ? {version: entry.version} : {}),
     title: entry.title,
     description: entry.description,
     supportedAgents: entry.supportedAgents,
@@ -361,6 +395,30 @@ function toDiscoveredSkill(options: {
     skillFilePath: options.skillFilePath,
     frontmatter: options.frontmatter,
     riskWarnings: options.riskWarnings
+  };
+}
+
+function toDiscoveredBundle(
+  bundle: RegistryBundleV3,
+  registrySkills: readonly RegistrySkillEntryV3[]
+): DiscoveredBundle {
+  const versionsBySkillId = new Map(registrySkills.map((skill) => [skill.id, skill.version]));
+
+  return {
+    id: bundle.id,
+    version: bundle.version,
+    title: bundle.title,
+    description: bundle.description,
+    tags: normalizeTokenList(bundle.tags),
+    keywords: normalizeTokenList(bundle.keywords),
+    members: bundle.skills.map((member) => {
+      const actualVersion = versionsBySkillId.get(member.id);
+      return {
+        id: member.id,
+        versionRange: member.version,
+        ...(actualVersion === undefined ? {} : {actualVersion})
+      };
+    })
   };
 }
 
