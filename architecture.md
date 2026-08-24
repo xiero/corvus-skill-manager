@@ -92,6 +92,33 @@ declaring pack, and cross-pack target-name collisions are explicit plan conflict
 
 Remote change detection is read-only and compares the active commit with `git ls-remote`. Approved updates create or reuse an immutable revision snapshot under `revisions/<commit>/repo`, then switch the manager-owned `current` link only after a preview and an explicit approval — `a` in the TUI, or a matching `--confirm` plan token in the machine CLI.
 
+## Registry v3 Bundles And Selection Semantics
+
+The implementation-facing contract for Registry v3, bundles, semantic versions, selection,
+migration, and normative Registry/Config examples is
+[`_specs/registry-v3-bundles-and-versioning.md`](_specs/registry-v3-bundles-and-versioning.md).
+Later implementation work must follow that contract instead of redefining these terms or
+boundaries.
+
+- A **skill** is a linkable capability; a **bundle** is a named composition of skills with no
+  filesystem target or runtime of its own; a **skillpack** is the immutable repository snapshot
+  that distributes both.
+- Registry v3 requires canonical SemVer on every skill and bundle. Version ranges express
+  compatibility against the single version in the active snapshot; the skillpack Git commit
+  remains the exact physical reproducibility lock. Corvus is not a multi-version resolver.
+- Bundles contain only skills from their declaring skillpack. Nested bundles, cross-skillpack
+  members, and bundle-owned workflow execution are outside Registry v3.
+- Manager Config v3 persists **root selections** (explicit skills and bundles) separately. The
+  **effective selection** is derived from those roots, bundle members, and transitive hard
+  dependencies; it is not persisted in config or manifest. Existing Config v1/v2 skill
+  selections migrate conservatively as explicit skill roots.
+- Registry v1/v2 remain readable without inferred versions or manager-authored migration.
+  `allCompatible` continues to mean compatible individual skills and never selects bundles.
+- Bundle-aware writes use the same shared application/core plan-then-apply path as individual
+  skills. Read-only operations stay side-effect free, adapters do not duplicate resolution
+  logic, the manifest remains a link-ownership ledger, and active skillpack snapshots remain
+  immutable.
+
 ## Link Planning And Apply
 
 In the TUI, agent and skill selections are draft state until saved. In the machine CLI there is no draft state: a selection arrives as one request and is planned in a single step. Either way, link creation/removal is always planned first with `generateLinkPlan`.
