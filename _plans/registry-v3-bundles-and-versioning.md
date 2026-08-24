@@ -1,132 +1,152 @@
-Timestamp: 2026-08-24T19:18:04Z
-Version: v1.2.0
+Timestamp: 2026-08-24T20:05:00Z
+Version: v1.3.0
 
-# Implementation Plan: Registry v3 Bundles and Versioning — Phase 2
+# Implementation Plan: Registry v3 Bundles and Versioning — Phase 3
 
 ## Context
 
-Registry v3 now parses and validates versioned skills, dependencies, and bundles. Phase 2
-implements `CSM-BND-009` through `CSM-BND-012`: carry versions into discovery, expose bundles as
-separate qualified catalog objects, derive explainable whole-bundle agent compatibility, and add
-read-only bundle list/search/inspect methods to the shared application service.
+Registry v3 discovery is complete. Phase 3 implements `CSM-BND-013` through `CSM-BND-016`:
+persist explicit skill and bundle roots independently in Manager Config v3, normalize legacy
+configs to that model without read-side writes, make persisted install plans describe root changes
+separately from derived link operations, and introduce the adapter-neutral root/effective selection
+read model used by later resolver, status, verification, and TUI phases.
 
 Source spec: `_specs/registry-v3-bundles-and-versioning.md`
 
 ## Open Question Status
 
-- Answered: `DiscoveredSkill.version` is optional; presence means an exact validated Registry v3
-  version, and absence is the explicit legacy/registryless unversioned state.
-- Answered: `SkillDiscoveryResult.bundles` is a separate always-present array. Bundles never enter
-  the linkable `skills` array and carry no filesystem path.
-- Answered: checkout-local bundle/member refs remain local until report aggregation assigns the
-  owning skillpack and qualified `<skillpack-id>:<id>` refs, matching existing skill behavior.
-- Answered: compatibility checks direct members and each transitive hard dependency, returns
-  structured blocking reasons, and never drops an incompatible skill.
-- Answered: application methods are added now, but machine CLI commands/capabilities remain Phase
-  6 (`CSM-BND-029`/`030`) and TUI presentation remains Phase 7.
+- Answered: normalized in-memory manager config is always v3; v1/v2 are persisted input formats
+  only and every legacy selected skill becomes a qualified explicit skill root.
+- Answered: `selectedSkillIds` and `selectedBundleIds` are canonical qualified-ref arrays,
+  deduplicated and sorted during normalization; invalid v3 local or multi-colon refs are rejected.
+- Answered: read-only config loading normalizes only in memory. `saveConfig`, which is reachable
+  only from confirmed write workflows, persists the normalized v3 shape.
+- Answered: install plan artifacts advance to schema v2 and carry before/after root-skill and
+  root-bundle arrays. Old plan artifacts are rejected and must be regenerated rather than being
+  assigned new semantics after a config contract change.
+- Answered: the existing v1 install request has no bundle field, so Phase 3 preserves existing
+  bundle roots. Bundle mutation enters through the versioned install contract in Phase 5.
+- Answered: effective selection entries are unique by qualified skill ref and retain a canonical,
+  deduplicated collection of provenance records.
 - Still blocked: none.
 
 ## Assumptions
 
-- Registry v3 schema validation remains the authority for member existence and version ranges;
-  discovery carries normalized constraints and actual versions without choosing alternatives.
-- Bundle search is a separate deterministic lexical scorer over id/title/description/tags/
-  keywords, so existing skill search response semantics do not change.
-- Bundle list/search output uses the existing bounded query/limit contract and v3 bundle/member
-  schema bounds to remain token-efficient.
-- All supported agent adapters are evaluated for inspection; list/search agent filters retain the
-  existing "compatible with every requested agent" meaning.
+- Persisted plan artifacts are short-lived review artifacts. Rejecting plan-schema v1 after the
+  schema bump is safer than applying a pre-v3 plan under root-only selection semantics.
+- The manifest remains unchanged and continues to record only owned filesystem links.
+- TUI screens do not expose bundle selection in this phase, but any config write they perform
+  must preserve existing bundle roots until Phase 7 adds the bundle UI.
+- Status and verification integration with fully derived effective selections remains in the
+  later resolver/install phases; this phase establishes the shared pure read model.
 
 ## Critical Files
 
-- `packages/core/src/skills/skillDiscovery.ts` — discovered skill versions, bundle/member domain
-  models, local discovery, and registryless empty bundles.
-- `packages/core/src/reports/reportInternals.ts` — skillpack ownership and qualified bundle/member
-  refs plus deterministic aggregation.
-- `packages/core/src/skills/bundleCompatibility.ts` — pure transitive compatibility derivation.
-- `packages/core/src/application/skills/bundleCatalog.ts` — bounded bundle summaries and lexical
-  search.
-- `packages/core/src/application/useCases/skillsUseCases.ts` — read-only bundle list/search/
-  inspect orchestration.
-- `packages/core/src/application/CorvusApplication.ts` and `createCorvusApplication.ts` — shared
-  adapter-facing application methods.
-- `test/support/skillpackFixtures.ts` — representative v3 bundle fixture without replacing legacy
-  v2 coverage.
-- `packages/core/src/index.ts` — curated discovery, compatibility, catalog, and use-case exports.
+- `packages/core/src/config/configSchema.ts` — persisted v1/v2/v3 schemas, strict v3 qualified
+  roots, canonical in-memory migration, and v3 defaults.
+- `packages/core/src/config/configStore.ts` — v3-only persistence after explicit writes.
+- `packages/core/src/config/configSchema.test.ts` and `configStore.test.ts` — strict schema,
+  migration, idempotence, persistence, and no-write coverage.
+- `packages/core/src/application/plans/planSchema.ts` — plan schema v2 and root skill/bundle
+  config-change fields.
+- `packages/core/src/application/install/installPlanner.ts` and
+  `application/useCases/installUseCases.ts` — canonical root-change construction, preservation,
+  stale checks, apply persistence, and verification.
+- `packages/core/src/skills/selectionModel.ts` — pure root/effective/provenance read model.
+- `packages/core/src/skills/selectionModel.test.ts` — deduplication and multi-provenance tests.
+- `packages/core/src/application/useCases/skillpackUseCases.ts` and affected TUI config writers —
+  v3 writes that preserve bundle roots.
+- `packages/core/src/index.ts` — curated config and selection-model exports.
 
 ## Implementation Sequence
 
-1. Add optional exact versions to discovered skills and expose them through skill summaries.
-2. Define bundle/member discovery types and populate a separate deterministic `bundles` array for
-   Registry v3; legacy and registryless discovery return `[]`.
-3. Qualify bundle and member refs during per-skillpack report composition and stable-sort bundles
-   across skillpacks so identical local bundle IDs cannot collide.
-4. Implement pure breadth-first compatibility traversal over direct members and transitive hard
-   dependencies with stable, deduplicated blocking reasons.
-5. Add compact bundle catalog summaries, requested-agent compatibility, and independent lexical
-   search over the approved metadata fields.
-6. Add bundle list/search/inspect application methods with validation, stable limits, missing-id
-   errors, actual member versions, all-agent compatibility, and no-write tests.
-7. Add focused discovery, multi-skillpack, compatibility, catalog/application, legacy, and
-   determinism tests; update relevant contract documentation and task checkboxes.
-8. Run targeted tests, `pnpm typecheck`, `pnpm test`, diff review, and the approved commit.
+1. Split persisted config validation by version and add strict Manager Config v3 agent roots.
+2. Normalize v1/v2/v3 into one canonical v3 in-memory shape, qualifying legacy skill roots and
+   initializing legacy bundle roots to empty without filesystem effects.
+3. Persist only Config v3 from write-capable paths; update config writers to preserve bundle
+   roots even before bundle selection UI exists.
+4. Advance persisted plans to schema v2 and add canonical root skill/bundle before/after fields
+   to each agent config change, while keeping link operations separate.
+5. Thread bundle-root preservation through current individual-skill planning, apply,
+   idempotence, stale-state, and verification code.
+6. Add the pure selection read model with canonical roots, unique effective skills, and
+   multi-provenance retention.
+7. Add focused schema/store/plan/selection tests plus read-only status/doctor byte-equality
+   coverage for legacy configs.
+8. Update architecture/task documentation, run targeted tests, `pnpm typecheck`, `pnpm test`,
+   review the diff, and create the approved local commit.
 
 ## Data, API, or Contract Changes
 
-- `DiscoveredSkill` and `SkillSummary` gain optional exact `version` fields for Registry v3.
-- `SkillDiscoveryResult` gains a separate `bundles: DiscoveredBundle[]` collection.
-- `DiscoveredBundle` carries local/qualified identity, exact version, normalized metadata, and
-  members with requested ranges plus actual snapshot versions; it has no source/link path.
-- `CorvusApplication` gains `listBundles`, `searchBundles`, and `inspectBundles` read-only methods.
-- A stable `BUNDLE_NOT_FOUND` application error is added for inspection misses.
-- No machine command, config schema, persisted plan, install request, TUI, or manifest contract
-  changes in this phase.
+- Manager Config v3 is the only normalized/output config version.
+- Every normalized agent config has root-only `selectedSkillIds` plus `selectedBundleIds`.
+- Config v1/v2 remain readable and normalize to v3 in memory without persistence.
+- Persisted plan artifacts advance from schema v1 to schema v2.
+- `AgentConfigChange` gains `selectedBundleIdsFrom` and `selectedBundleIdsTo`; skill fields now
+  explicitly mean root skills.
+- Core exports a shared `SelectionReadModel` and canonical constructor for root/effective state.
+- Manifest, lock, machine protocol, install request, and registry contracts do not change here.
 
 ## Testing Strategy
 
-- Discovery tests: Registry v1/v2/registryless unversioned behavior, exact v3 skill versions,
-  normalized bundle metadata/member versions, empty bundles, and no bundle path fields.
-- Multi-skillpack tests: identical local bundle IDs receive distinct qualified refs and members
-  remain within their owning pack.
-- Compatibility unit tests: fully compatible, direct-member incompatible, transitive-dependency
-  incompatible, missing targets, deterministic ordering, and no partial-success behavior.
-- Catalog/application tests: stable list/search/inspect output, metadata ranking, requested-agent
-  filtering, actual versions, incompatibility reasons, bounded limits, missing IDs, repeated-call
-  determinism, and before/after directory-tree equality.
-- Regression tests: existing skill search remains unchanged; full monorepo typecheck and Vitest.
+- Config schema: valid mixed roots, strict unknown fields, qualified ref enforcement, invalid
+  bundle refs, duplicate normalization, and deterministic ordering.
+- Migration: v1 local roots qualify to their legacy pack, v2 roots keep current qualification
+  rules, v3 is idempotent, and legacy bundle roots initialize empty.
+- Read-only safety: loading/status/doctor over v1/v2 changes no filesystem bytes.
+- Plan schema/digest: root skill and bundle changes are separate, ordering-independent inputs
+  produce identical plans, and plan-schema v1 artifacts are rejected.
+- Install regression: individual-skill requests preserve bundle roots through plan/apply and
+  include canonical bundle before/after fields.
+- Selection model: duplicate roots/effective inputs collapse while distinct provenance paths
+  remain stable and deterministic.
 
 ## Verification Commands
 
 ```sh
-pnpm vitest run packages/core/src/skills/skillDiscovery.test.ts packages/core/src/skills/skillRelationships.test.ts
-pnpm vitest run packages/core/src/skills/bundleCompatibility.test.ts
-pnpm vitest run packages/core/src/application/application.test.ts packages/core/src/application/multiSkillpack.test.ts
+pnpm vitest run packages/core/src/config/configSchema.test.ts packages/core/src/config/configStore.test.ts
+pnpm vitest run packages/core/src/skills/selectionModel.test.ts
+pnpm vitest run packages/core/src/application/install.test.ts packages/core/src/application/protocol/protocol.test.ts
+pnpm vitest run packages/core/src/reports/statusDoctor.test.ts
 pnpm typecheck
 pnpm test
 ```
 
 ## Documentation Updates
 
-- Update `docs/semantic-registry.md` with the distinct bundle discovery/search/compatibility model.
-- Mark `CSM-BND-009` through `CSM-BND-012` complete in the ordered task document after verification.
-- Refresh this plan with any safe implementation deviation and final verification state.
+- Update `architecture.md` and `docs/agent-native-architecture.md` with Config v3 root storage
+  and the root/effective read-model boundary.
+- Mark `CSM-BND-013` through `CSM-BND-016` complete after verification.
+- Record any safe implementation deviation and final verification state in this plan.
 
 ## Risks and Stop Conditions
 
-- Stop if bundle read models require persisting config roots or changing install semantics; those
-  belong to later phases.
-- Stop if compatibility would need version selection, network access, or cross-skillpack members.
-- Do not expose machine CLI commands or TUI UI in this phase.
-- Do not mutate a skillpack checkout, registry, skill file, manager state, or link target from any
-  new read-only method.
+- Stop if Config v3 migration would require writing from a read-only command.
+- Stop if existing bundle roots cannot be preserved through a current TUI/config write without
+  adding Phase 7 selection behavior.
+- Do not implement bundle expansion, bundle install requests, machine commands, or TUI bundle
+  selection in this phase.
+- Do not mutate any skillpack checkout, registry, skill file, manifest contract, or link target
+  outside an explicitly confirmed existing plan/apply workflow.
 
 ## Rollback Notes
 
-Revert the Phase 2 commit. Registry v3 structural validation remains intact, and no persisted
-state or machine protocol version is changed by this phase.
+Revert the Phase 3 commit. Config files already persisted as v3 would then require a newer binary
+to read, so rollback is code-only before exercising a write workflow against user state. No
+automatic downgrade or manager-authored config rewrite is allowed.
+
+## Verification Result
+
+- Focused Config v3, plan schema, selection model, install, report, application, protocol, and
+  TUI suites passed.
+- `pnpm typecheck` passed.
+- `pnpm test` passed: 41 files, 394 tests.
+- `pnpm build` passed.
+- `git diff --check` passed.
+- Deviation: none. Bundle expansion and bundle mutation remain deferred to their roadmap phases.
 
 ## Commit Message Draft
 
 ```text
-✨ feat(core): add bundle discovery and catalog
+✨ feat(core): add config v3 root selections
 ```

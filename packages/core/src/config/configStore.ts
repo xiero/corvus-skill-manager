@@ -70,14 +70,15 @@ export async function saveConfig(
   const explicitLegacySkillpack = Object.prototype.propertyIsEnumerable.call(config, 'skillpack')
     ? config.skillpack
     : undefined;
+  const configWithoutAlias = {...config};
+  delete configWithoutAlias.skillpack;
   const parsedConfig = parseManagerConfig(
     explicitLegacySkillpack === undefined
-      ? config
+      ? configWithoutAlias
       : {
-          ...config,
-          version: 2,
-          skillpack: undefined,
-          skillpacks: {...(config.skillpacks ?? {}), [explicitLegacySkillpack.id]: explicitLegacySkillpack}
+          ...configWithoutAlias,
+          version: 3,
+          skillpacks: {...config.skillpacks, [explicitLegacySkillpack.id]: explicitLegacySkillpack}
         }
   );
   const configPath = resolveUserPath(
@@ -87,11 +88,11 @@ export async function saveConfig(
   assertPathInside(parsedConfig.managerStateDir, configPath);
   await fs.mkdir(path.dirname(configPath), {recursive: true});
   const persisted = {
-    version: 2 as const,
+    version: 3 as const,
     managerStateDir: parsedConfig.managerStateDir,
     createdAt: parsedConfig.createdAt,
     updatedAt: parsedConfig.updatedAt,
-    skillpacks: parsedConfig.skillpacks ?? {},
+    skillpacks: parsedConfig.skillpacks,
     ...(parsedConfig.agents === undefined ? {} : {agents: parsedConfig.agents})
   };
   await fs.writeFile(configPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8');
@@ -162,7 +163,7 @@ export function migrateLoadedConfig(
     ...config,
     updatedAt: (options.now ?? new Date()).toISOString(),
     skillpacks: {
-      ...(config.skillpacks ?? (config.skillpack === undefined ? {} : {[config.skillpack.id]: config.skillpack})),
+      ...config.skillpacks,
       [defaultSkillpackId]: {
         ...defaultSkillpack,
         checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpack.id, options.homeDir)

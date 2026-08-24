@@ -694,7 +694,7 @@ export function WizardScreen({
       const skillpackConfig = parseSkillpackForm(form);
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
-        version: 2,
+        version: 3,
         skillpack: skillpackConfig,
         skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
@@ -730,7 +730,7 @@ export function WizardScreen({
     try {
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
-        version: 2,
+        version: 3,
         skillpack: skillpackConfig,
         skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
@@ -813,7 +813,7 @@ export function WizardScreen({
     try {
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
-        version: 2,
+        version: 3,
         skillpack: skillpackConfig,
         skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
@@ -1481,7 +1481,8 @@ function createDraftAgents(config: ManagerConfig, adapters: AgentAdapter[]): Rec
           targetPath,
           selectedSkillIds: (configuredAgent?.selectedSkillIds ?? []).map((id) =>
             resolveSkillReference(id, config.skillpack?.id ?? defaultSkillpackId)
-          )
+          ),
+          selectedBundleIds: configuredAgent?.selectedBundleIds ?? []
         }
       ];
     })
@@ -1492,7 +1493,8 @@ function serializeAgentConfig(draft: WizardDraftAgent): AgentConfig {
   const targetPath = draft.targetPath.trim();
   const config: AgentConfig = {
     enabled: draft.enabled,
-    selectedSkillIds: draft.selectedSkillIds
+    selectedSkillIds: draft.selectedSkillIds,
+    selectedBundleIds: draft.selectedBundleIds ?? []
   };
 
   if (targetPath !== '') {

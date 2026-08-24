@@ -84,8 +84,9 @@ The required local layout is:
 
 Initial clone is allowed only when the active `current` path does not exist. Existing active checkouts and existing revisions are inspected and reported; they are not repaired, updated, formatted, reset, re-cloned over, committed, pulled, or pushed.
 
-Config v2 stores an ID-keyed collection of skillpacks. `corvus-skillpack` remains the protected
-default and additional packs use the same independent revision layout. Skills retain their
+Manager Config v3 retains the ID-keyed collection of skillpacks introduced in v2.
+`corvus-skillpack` remains the protected default and additional packs use the same independent
+revision layout. Skills retain their
 repository-local ID for the target directory and gain a qualified
 `<skillpack-id>:<skill-id>` selection identity. Registry relationships are scoped to their
 declaring pack, and cross-pack target-name collisions are explicit plan conflicts.
@@ -112,6 +113,11 @@ boundaries.
   **effective selection** is derived from those roots, bundle members, and transitive hard
   dependencies; it is not persisted in config or manifest. Existing Config v1/v2 skill
   selections migrate conservatively as explicit skill roots.
+- Config v1/v2/v3 are accepted as persisted input, but core normalizes every successful read to
+  the canonical v3 in-memory model. This normalization is side-effect free; only an already
+  authorized write workflow may persist v3. The shared pure selection read model in
+  `packages/core/src/skills/selectionModel.ts` keeps canonical skill/bundle roots separate from
+  deduplicated effective skills and retains every provenance path.
 - Registry v1/v2 remain readable without inferred versions or manager-authored migration.
   `allCompatible` continues to mean compatible individual skills and never selects bundles.
 - Bundle-aware writes use the same shared application/core plan-then-apply path as individual

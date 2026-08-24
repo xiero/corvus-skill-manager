@@ -89,6 +89,28 @@ describe('status and doctor reports', () => {
     expect(afterSnapshot).toEqual(beforeSnapshot);
   });
 
+  it('normalizes a v2 config for status and doctor without persisting migration', async () => {
+    await writeHealthyFixture();
+    const persisted = JSON.parse(await fs.readFile(configPath, 'utf8')) as {
+      version: number;
+      agents?: Record<string, {selectedBundleIds?: string[]}>;
+    };
+    persisted.version = 2;
+    for (const agent of Object.values(persisted.agents ?? {})) {
+      delete agent.selectedBundleIds;
+    }
+    await fs.writeFile(configPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8');
+    const beforeSnapshot = await snapshotTree(tempHome);
+
+    const status = await buildStatusReport({configPath, git: cleanGit()});
+    const doctor = await buildDoctorReport({configPath, git: cleanGit()});
+
+    expect(status.configValid).toBe(true);
+    expect(doctor.healthy).toBe(true);
+    expect(await snapshotTree(tempHome)).toEqual(beforeSnapshot);
+    expect(JSON.parse(await fs.readFile(configPath, 'utf8')).version).toBe(2);
+  });
+
   it('detects missing and invalid config files', async () => {
     const missingReport = await buildDoctorReport({configPath});
 
@@ -118,7 +140,7 @@ describe('status and doctor reports', () => {
         codex: {
           enabled: true,
           targetPath: path.join(tempHome, 'agent-skills'),
-          selectedSkillIds: ['review']
+          selectedSkillIds: ['corvus-skillpack:review']
         }
       }
     });
@@ -169,11 +191,11 @@ describe('status and doctor reports', () => {
         codex: {
           enabled: true,
           targetPath: targetRoot,
-          selectedSkillIds: ['review']
+          selectedSkillIds: ['corvus-skillpack:review']
         },
         gemini: {
           enabled: true,
-          selectedSkillIds: ['review']
+          selectedSkillIds: ['corvus-skillpack:review']
         }
       }
     }), {configPath});
@@ -251,7 +273,7 @@ async function writeHealthyFixture(): Promise<ManagerConfig> {
       codex: {
         enabled: true,
         targetPath: path.join(tempHome, 'agent-skills'),
-        selectedSkillIds: ['review']
+        selectedSkillIds: ['corvus-skillpack:review']
       }
     }
   });

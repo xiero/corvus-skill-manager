@@ -780,7 +780,7 @@ function configWithSkillpack(config: ManagerConfig, candidate: SkillpackConfig):
   const primary = skillpacks[defaultSkillpackId] ?? protectedDefaultSkillpack();
   return {
     ...config,
-    version: 2,
+    version: 3,
     skillpack: primary,
     skillpacks,
     updatedAt: new Date().toISOString()
@@ -793,7 +793,7 @@ function configWithoutSkillpack(config: ManagerConfig, skillpackId: string): Man
   const primary = skillpacks[defaultSkillpackId] ?? protectedDefaultSkillpack();
   return {
     ...config,
-    version: 2,
+    version: 3,
     skillpack: primary,
     skillpacks,
     updatedAt: new Date().toISOString()

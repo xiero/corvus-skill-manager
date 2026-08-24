@@ -471,9 +471,9 @@ For every task:
 - Do not persist dependency-expanded/effective skill sets.
 
 **Acceptance criteria:**
-- [ ] Config v3 can represent explicit skills + bundles independently.
-- [ ] The schema remains strict.
-- [ ] No manifest changes are introduced.
+- [x] Config v3 can represent explicit skills + bundles independently.
+- [x] The schema remains strict.
+- [x] No manifest changes are introduced.
 
 **Required tests / verification:**
 - Schema tests for v3, qualified refs, duplicates/normalization and invalid bundle refs.
@@ -502,9 +502,9 @@ For every task:
 - Only a later confirmed write may persist v3.
 
 **Acceptance criteria:**
-- [ ] Opening an old config changes no filesystem bytes.
-- [ ] Old selections remain installed after the first v3 plan/apply.
-- [ ] Migration is deterministic and idempotent.
+- [x] Opening an old config changes no filesystem bytes.
+- [x] Old selections remain installed after the first v3 plan/apply.
+- [x] Migration is deterministic and idempotent.
 
 **Required tests / verification:**
 - Migration fixtures for v1 and v2; assert no writes during parse/status/doctor.
@@ -531,8 +531,8 @@ For every task:
 - Maintain canonical sorting for plan digest stability.
 
 **Acceptance criteria:**
-- [ ] A plan can explain `bundle added`, `bundle removed`, `explicit skill added/removed` separately from created/removed links.
-- [ ] Equivalent normalized requests produce identical plan digests.
+- [x] A plan can explain `bundle added`, `bundle removed`, `explicit skill added/removed` separately from created/removed links.
+- [x] Equivalent normalized requests produce identical plan digests.
 
 **Required tests / verification:**
 - Plan schema/digest tests including ordering independence.
@@ -559,8 +559,8 @@ For every task:
 - Do not perform filesystem writes.
 
 **Acceptance criteria:**
-- [ ] The same model can serve install planner, status/verify and TUI preview.
-- [ ] A skill may have multiple provenance paths without being duplicated in effective output.
+- [x] The same model can serve install planner, status/verify and TUI preview.
+- [x] A skill may have multiple provenance paths without being duplicated in effective output.
 
 **Required tests / verification:**
 - Unit tests for deduplication and multi-provenance representation.

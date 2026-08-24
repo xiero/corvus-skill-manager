@@ -28,6 +28,11 @@ flowchart TD
 Config/lock/manifest schemas and stores, git inspection and skillpack setup, skill discovery,
 link planning, link apply, status/doctor reports, path safety, self-update check.
 
+Manager Config v3 stores explicit qualified skill roots and bundle roots independently. Persisted
+v1/v2 configs normalize to that v3 shape in memory without a read-side write. Effective linkable
+skills are derived and represented through the pure adapter-neutral selection model; they are not
+persisted in config or in the ownership-only manifest.
+
 Rules:
 
 - pure and independently testable, with no knowledge of Ink, Commander, argv, or JSON envelopes;

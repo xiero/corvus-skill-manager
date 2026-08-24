@@ -17,6 +17,8 @@ export interface WizardDraftAgent {
   enabled: boolean;
   targetPath: string;
   selectedSkillIds: string[];
+  /** Preserved until bundle selection is exposed in the Phase 7 TUI. */
+  selectedBundleIds?: string[];
 }
 
 export interface WizardStepState {

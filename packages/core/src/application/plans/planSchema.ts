@@ -1,10 +1,10 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
-import {agentIdSchema} from '../../config/configSchema.js';
+import {agentIdSchema, skillReferencePattern} from '../../config/configSchema.js';
 import {canonicalJsonStringify} from '../protocol/canonicalJson.js';
 
 /** Version of the persisted plan artifact format. */
-export const planSchemaVersion = 1;
+export const planSchemaVersion = 2;
 
 export const planKinds = ['skillpack-setup', 'skillpack-update', 'skillpack-remove', 'install'] as const;
 
@@ -91,6 +91,10 @@ export const planIssueSchema = z
 
 export type PlanIssue = z.infer<typeof planIssueSchema>;
 
+const rootReferenceListSchema = z
+  .array(z.string().regex(skillReferencePattern, 'Use a qualified <skillpack-id>:<local-id> reference.'))
+  .transform(uniqueSorted);
+
 export const agentConfigChangeSchema = z
   .object({
     agentId: agentIdSchema,
@@ -98,8 +102,12 @@ export const agentConfigChangeSchema = z
     enabledTo: z.boolean(),
     targetPathFrom: z.string().min(1).optional(),
     targetPathTo: z.string().min(1).optional(),
-    selectedSkillIdsFrom: z.array(z.string().min(1)),
-    selectedSkillIdsTo: z.array(z.string().min(1))
+    /** Explicit/root skill selections only; effective link operations remain separate. */
+    selectedSkillIdsFrom: rootReferenceListSchema,
+    selectedSkillIdsTo: rootReferenceListSchema,
+    /** Explicit/root bundle selections only. */
+    selectedBundleIdsFrom: rootReferenceListSchema,
+    selectedBundleIdsTo: rootReferenceListSchema
   })
   .strict();
 
@@ -308,4 +316,8 @@ export function parsePersistedPlan(value: unknown): PersistedPlan {
 
 function sha256Hex(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }

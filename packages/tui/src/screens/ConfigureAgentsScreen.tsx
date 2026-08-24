@@ -31,6 +31,7 @@ interface DraftAgentConfig {
   enabled: boolean;
   targetPath: string;
   selectedSkillIds: string[];
+  selectedBundleIds: string[];
 }
 
 interface TargetEditSession {
@@ -440,7 +441,8 @@ function createDraftAgents(config: ManagerConfig): Record<AgentId, DraftAgentCon
         {
           enabled: configuredAgent?.enabled ?? false,
           targetPath,
-          selectedSkillIds: configuredAgent?.selectedSkillIds ?? []
+          selectedSkillIds: configuredAgent?.selectedSkillIds ?? [],
+          selectedBundleIds: configuredAgent?.selectedBundleIds ?? []
         }
       ];
     })
@@ -451,7 +453,8 @@ function serializeAgentConfig(draft: DraftAgentConfig): AgentConfig {
   const targetPath = draft.targetPath.trim();
   const config: AgentConfig = {
     enabled: draft.enabled,
-    selectedSkillIds: draft.selectedSkillIds
+    selectedSkillIds: draft.selectedSkillIds,
+    selectedBundleIds: draft.selectedBundleIds
   };
 
   if (targetPath !== '') {

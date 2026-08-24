@@ -30,10 +30,16 @@ export interface AgentPlanInput {
   adapter: AgentAdapter;
   targetPath: string;
   previousSelectedSkillIds: string[];
+  previousSelectedBundleIds: string[];
+  previousEffectiveSkillIds: string[];
   previousEnabled: boolean;
   previousTargetPath?: string;
-  /** The final selection for this agent, after dependency expansion and additive merging. */
+  /** The final explicit/root skill selection persisted in Manager Config v3. */
   nextSelectedSkillIds: string[];
+  /** Preserved until the bundle-aware install request is introduced in Phase 5. */
+  nextSelectedBundleIds: string[];
+  /** The derived linkable set after hard-dependency expansion. */
+  effectiveSelectedSkillIds: string[];
   selections: ResolvedSkillSelection[];
 }
 
@@ -112,7 +118,25 @@ export function resolveSelections(options: {
       continue;
     }
 
-    const expanded = expandRequiredDependencies(options.skills, requested);
+    const legacyPackId = options.config?.skillpack?.id ?? defaultSkillpackId;
+    const previousSelectedSkillIds = uniqueSorted(
+      (agentConfig?.selectedSkillIds ?? []).map((id) => resolveSkillReference(id, legacyPackId))
+    );
+    const previousSelectedBundleIds = uniqueSorted(agentConfig?.selectedBundleIds ?? []);
+    const requestedById = new Map(requested.map((selection) => [selection.skillId, selection]));
+    const requestedRootIds = requested.map((selection) => selection.skillId);
+    const nextSelectedSkillIds = options.request.replaceSelection
+      ? uniqueSorted(requestedRootIds)
+      : uniqueSorted([...previousSelectedSkillIds, ...requestedRootIds]);
+    const roots = nextSelectedSkillIds.map(
+      (skillId): ResolvedSkillSelection =>
+        requestedById.get(skillId) ?? {skillId, reason: 'explicit', reasonKind: 'explicit'}
+    );
+    const previousExpanded = expandRequiredDependencies(
+      options.skills,
+      previousSelectedSkillIds.map((skillId) => ({skillId, reason: 'explicit', reasonKind: 'explicit'}))
+    );
+    const expanded = expandRequiredDependencies(options.skills, roots);
 
     for (const missing of expanded.missing) {
       errors.push(
@@ -154,18 +178,11 @@ export function resolveSelections(options: {
       }
     }
 
-    const resolvedSkillIds = expanded.selections
+    const effectiveSelectedSkillIds = expanded.selections
       .filter((selection) => skillsById.has(selection.skillId))
       .map((selection) => selection.skillId);
-    const legacyPackId = options.config?.skillpack?.id ?? defaultSkillpackId;
-    const previousSelectedSkillIds = (agentConfig?.selectedSkillIds ?? []).map((id) =>
-      resolveSkillReference(id, legacyPackId)
-    );
-    const nextSelectedSkillIds = options.request.replaceSelection
-      ? uniqueSorted(resolvedSkillIds)
-      : uniqueSorted([...previousSelectedSkillIds, ...resolvedSkillIds]);
 
-    for (const conflict of findSkillConflicts(options.skills, nextSelectedSkillIds)) {
+    for (const conflict of findSkillConflicts(options.skills, effectiveSelectedSkillIds)) {
       errors.push(
         createMachineError(
           'SKILL_CONFLICT',
@@ -178,15 +195,23 @@ export function resolveSelections(options: {
     agents.push({
       adapter,
       targetPath,
-      previousSelectedSkillIds: uniqueSorted(previousSelectedSkillIds),
+      previousSelectedSkillIds,
+      previousSelectedBundleIds,
+      previousEffectiveSkillIds: uniqueSorted(
+        previousExpanded.selections
+          .filter((selection) => skillsById.has(selection.skillId))
+          .map((selection) => selection.skillId)
+      ),
       previousEnabled: agentConfig?.enabled ?? false,
       ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
       nextSelectedSkillIds,
+      nextSelectedBundleIds: previousSelectedBundleIds,
+      effectiveSelectedSkillIds: uniqueSorted(effectiveSelectedSkillIds),
       selections: expanded.selections
     });
   }
 
-  const selectedEverywhere = new Set(agents.flatMap((agent) => agent.nextSelectedSkillIds));
+  const selectedEverywhere = new Set(agents.flatMap((agent) => agent.effectiveSelectedSkillIds));
 
   return {
     agents,
@@ -262,8 +287,8 @@ export async function buildInstallLinkPlan(options: {
     agentId: agent.adapter.id,
     enabled: true,
     targetPath: agent.targetPath,
-    selectedSkillIds: agent.nextSelectedSkillIds,
-    previousSelectedSkillIds: agent.previousSelectedSkillIds
+    selectedSkillIds: agent.effectiveSelectedSkillIds,
+    previousSelectedSkillIds: agent.previousEffectiveSkillIds
   }));
   const linkPlan = generateLinkPlan({
     adapters: [...options.adapters],
@@ -289,7 +314,9 @@ export async function buildInstallLinkPlan(options: {
         ...(agent.previousTargetPath === undefined ? {} : {targetPathFrom: agent.previousTargetPath}),
         targetPathTo: agent.targetPath,
         selectedSkillIdsFrom: agent.previousSelectedSkillIds,
-        selectedSkillIdsTo: agent.nextSelectedSkillIds
+        selectedSkillIdsTo: agent.nextSelectedSkillIds,
+        selectedBundleIdsFrom: agent.previousSelectedBundleIds,
+        selectedBundleIdsTo: agent.nextSelectedBundleIds
       })),
     selections: options.agents
       .flatMap((agent) =>
@@ -310,7 +337,8 @@ function hasConfigChange(agent: AgentPlanInput): boolean {
   return (
     !agent.previousEnabled ||
     agent.previousTargetPath !== agent.targetPath ||
-    !sameStringList(agent.previousSelectedSkillIds, agent.nextSelectedSkillIds)
+    !sameStringList(agent.previousSelectedSkillIds, agent.nextSelectedSkillIds) ||
+    !sameStringList(agent.previousSelectedBundleIds, agent.nextSelectedBundleIds)
   );
 }
 
@@ -325,7 +353,7 @@ async function inspectTargetStates(
 
   for (const agent of agents) {
     const resolvedTargetRoot = resolveUserPath(agent.targetPath, homeDir);
-    const skillIds = uniqueSorted([...agent.nextSelectedSkillIds, ...agent.previousSelectedSkillIds]);
+    const skillIds = uniqueSorted([...agent.effectiveSelectedSkillIds, ...agent.previousEffectiveSkillIds]);
 
     for (const skillId of skillIds) {
       const targetPath = path.join(

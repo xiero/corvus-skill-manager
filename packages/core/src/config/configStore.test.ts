@@ -30,7 +30,7 @@ describe('config store', () => {
     expect(result.managerStateDir).toBe(defaultManagerStateDir(tempHome));
     expect(result.configPath).toBe(defaultConfigPath(tempHome));
     expect(result.config).toEqual({
-      version: 2,
+      version: 3,
       managerStateDir: defaultManagerStateDir(tempHome),
       createdAt: '2026-01-02T03:04:05.000Z',
       updatedAt: '2026-01-02T03:04:05.000Z',
@@ -58,6 +58,7 @@ describe('config store', () => {
     const loadedConfig = await loadConfig(configPath);
 
     expect(loadedConfig).toEqual(config);
+    expect(JSON.parse(await fs.readFile(configPath, 'utf8')).version).toBe(3);
   });
 
   it('normalizes v2 configs so the protected default remains beside secondary skillpacks', () => {
@@ -84,6 +85,7 @@ describe('config store', () => {
       branch: defaultSkillpackBranch,
       checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome)
     });
+    expect(parsed.version).toBe(3);
   });
 
   it('migrates the legacy default skillpack checkout out of manager state', async () => {
@@ -207,11 +209,13 @@ describe('config store', () => {
       agents: {
         custom: {
           enabled: false,
-          selectedSkillIds: []
+          selectedSkillIds: [],
+          selectedBundleIds: []
         },
         gemini: {
           enabled: false,
-          selectedSkillIds: []
+          selectedSkillIds: [],
+          selectedBundleIds: []
         }
       }
     });
@@ -236,5 +240,38 @@ describe('config store', () => {
         }
       })
     ).toThrow(ZodError);
+  });
+
+  it('loads a legacy config through in-memory v3 migration without changing its bytes', async () => {
+    const managerStateDir = defaultManagerStateDir(tempHome);
+    const configPath = defaultConfigPath(tempHome);
+    const persisted = `${JSON.stringify({
+      version: 1,
+      managerStateDir,
+      createdAt: '2026-02-03T04:05:06.000Z',
+      updatedAt: '2026-02-03T04:05:06.000Z',
+      skillpack: {
+        id: defaultSkillpackId,
+        repositoryUrl: defaultSkillpackRepositoryUrl,
+        branch: defaultSkillpackBranch,
+        checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome)
+      },
+      agents: {codex: {enabled: true, selectedSkillIds: ['review']}}
+    }, null, 2)}\n`;
+    await fs.mkdir(managerStateDir, {recursive: true});
+    await fs.writeFile(configPath, persisted, 'utf8');
+
+    const config = await loadConfig(configPath);
+
+    expect(config).toMatchObject({
+      version: 3,
+      agents: {
+        codex: {
+          selectedSkillIds: [`${defaultSkillpackId}:review`],
+          selectedBundleIds: []
+        }
+      }
+    });
+    expect(await fs.readFile(configPath, 'utf8')).toBe(persisted);
   });
 });

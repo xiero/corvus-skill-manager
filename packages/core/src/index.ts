@@ -17,10 +17,13 @@ export {
   getSkillpack,
   getSkillpacks,
   managerConfigSchema,
+  parseBundleReference,
   parseManagerConfig,
   parseSkillpackConfig,
   parseSkillReference,
+  qualifyBundleId,
   qualifySkillId,
+  resolveBundleReference,
   resolveSkillReference,
   skillReferencePattern,
   skillpackIdPattern,
@@ -130,6 +133,16 @@ export {
   type SkillRiskWarning,
   discoverSkillsFromCheckout
 } from './skills/skillDiscovery.js';
+export {
+  type CreateSelectionReadModelInput,
+  type EffectiveSkillSelection,
+  type RootSelection,
+  type SelectionProvenance,
+  type SelectionProvenanceKind,
+  type SelectionReadModel,
+  createSelectionReadModel,
+  selectionProvenanceKinds
+} from './skills/selectionModel.js';
 export {
   type BundleAgentCompatibility,
   type BundleCompatibilityIssue,

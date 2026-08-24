@@ -3,6 +3,7 @@ import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {type TestHome, createStubGit, createTestHome, listTree} from '../../../../test/support/appHarness.js';
 import {v2SkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
+import {loadConfig, saveConfig} from '../config/configStore.js';
 import type {CorvusApplication} from './CorvusApplication.js';
 import {createCorvusApplication} from './createCorvusApplication.js';
 import {installRequestFromFlags, normalizeInstallRequest, parseInstallRequest} from './install/installRequest.js';
@@ -263,7 +264,87 @@ describe('install plan', () => {
         'corvus-skillpack:test-driven-development'
       ]);
       expect(result.data.plan.operations.filter((operation) => operation.type === 'remove-link')).toEqual([]);
+      expect(result.data.planId).toBeDefined();
+      if (result.data.planId === undefined) return;
+
+      const apply = await appFor(home).installApply({
+        planId: result.data.planId,
+        confirm: result.data.planId
+      });
+      expect(apply.ok).toBe(true);
+      expect((await fs.lstat(path.join(codexTargetDir(home), 'git-commit'))).isSymbolicLink()).toBe(true);
+      expect((await loadConfig(home.configPath)).agents?.codex?.selectedSkillIds).toEqual([
+        'corvus-skillpack:git-commit',
+        'corvus-skillpack:test-driven-development'
+      ]);
     }
+  });
+
+  it('keeps dependency-expanded links separate from persisted root skills', async () => {
+    const home = await newHome();
+    const app = appFor(home);
+    const plan = await app.installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'embedded-driver-development'}]
+    });
+
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || plan.data.planId === undefined) return;
+
+    expect(plan.data.plan.configChanges[0]?.selectedSkillIdsTo).toEqual([
+      'corvus-skillpack:embedded-driver-development'
+    ]);
+    expect(plan.data.plan.operations.map((operation) => operation.skillId).sort()).toEqual([
+      'corvus-skillpack:embedded-driver-development',
+      'corvus-skillpack:embedded-toolchain'
+    ]);
+
+    const apply = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
+    expect(apply.ok).toBe(true);
+    expect((await loadConfig(home.configPath)).agents?.codex?.selectedSkillIds).toEqual([
+      'corvus-skillpack:embedded-driver-development'
+    ]);
+  });
+
+  it('preserves existing bundle roots through the v1 skill-only install workflow', async () => {
+    const home = await newHome();
+    const config = await loadConfig(home.configPath);
+    await saveConfig(
+      {
+        ...config,
+        agents: {
+          ...config.agents,
+          codex: {
+            enabled: true,
+            selectedSkillIds: [],
+            selectedBundleIds: ['corvus-skillpack:review-flow']
+          }
+        }
+      },
+      {configPath: home.configPath}
+    );
+    const app = appFor(home);
+    const plan = await app.installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'git-commit'}],
+      replaceSelection: true
+    });
+
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || plan.data.planId === undefined) return;
+
+    expect(plan.data.plan.configChanges[0]).toMatchObject({
+      selectedBundleIdsFrom: ['corvus-skillpack:review-flow'],
+      selectedBundleIdsTo: ['corvus-skillpack:review-flow']
+    });
+
+    const apply = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
+    expect(apply.ok).toBe(true);
+    expect((await loadConfig(home.configPath)).agents?.codex?.selectedBundleIds).toEqual([
+      'corvus-skillpack:review-flow'
+    ]);
   });
 
   it('lists every removal in replacement mode', async () => {
@@ -399,10 +480,16 @@ describe('install apply', () => {
     expect(await fs.readFile(path.join(targetPath, 'SKILL.md'), 'utf8')).toContain('git-commit');
 
     const config = JSON.parse(await fs.readFile(home.configPath, 'utf8')) as {
-      agents?: Record<string, {enabled: boolean; selectedSkillIds: string[]}>;
+      version: number;
+      agents?: Record<string, {enabled: boolean; selectedSkillIds: string[]; selectedBundleIds: string[]}>;
     };
 
-    expect(config.agents?.codex).toMatchObject({enabled: true, selectedSkillIds: ['corvus-skillpack:git-commit']});
+    expect(config.version).toBe(3);
+    expect(config.agents?.codex).toMatchObject({
+      enabled: true,
+      selectedSkillIds: ['corvus-skillpack:git-commit'],
+      selectedBundleIds: []
+    });
 
     const verify = await app.installVerify({planId});
 

@@ -586,9 +586,14 @@ export async function installVerifyUseCase(
 
   for (const configChange of payload.configChanges) {
     const agentConfig: AgentConfig | undefined = context.config?.agents?.[configChange.agentId];
-    const actual = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
-    const expected = uniqueSorted(configChange.selectedSkillIdsTo);
-    const satisfied = agentConfig?.enabled === true && expected.every((skillId) => actual.includes(skillId));
+    const actualSkills = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
+    const expectedSkills = uniqueSorted(configChange.selectedSkillIdsTo);
+    const actualBundles = uniqueSorted(agentConfig?.selectedBundleIds ?? []);
+    const expectedBundles = uniqueSorted(configChange.selectedBundleIdsTo);
+    const satisfied =
+      agentConfig?.enabled === true &&
+      sameIds(actualSkills, expectedSkills) &&
+      sameIds(actualBundles, expectedBundles);
 
     if (!satisfied) {
       drift = true;
@@ -600,14 +605,21 @@ export async function installVerifyUseCase(
       satisfied,
       code: satisfied ? 'config-selection-matches' : 'config-selection-mismatch',
       message: satisfied
-        ? 'Config records the expected selection for this agent.'
-        : `Config selection for ${configChange.agentId} does not include every expected skill.`
+        ? 'Config records the expected root selection for this agent.'
+        : `Config root selection for ${configChange.agentId} does not match the plan.`
     });
   }
 
   for (const selection of payload.selections.filter((entry) => entry.reasonKind === 'dependency-of')) {
-    const agentConfig: AgentConfig | undefined = context.config?.agents?.[selection.agentId];
-    const satisfied = (agentConfig?.selectedSkillIds ?? []).includes(selection.skillId);
+    const manifestEntry = Object.values(context.manifest.links).find(
+      (entry) => entry.agentId === selection.agentId && entry.skillId === selection.skillId
+    );
+    const inspection = manifestEntry === undefined ? undefined : await inspectLinkTarget(manifestEntry.targetPath);
+    const satisfied =
+      manifestEntry !== undefined &&
+      inspection?.kind === 'link' &&
+      !inspection.broken &&
+      inspection.resolvedSourcePath === manifestEntry.sourcePath;
 
     if (!satisfied) {
       drift = true;
@@ -620,8 +632,8 @@ export async function installVerifyUseCase(
       satisfied,
       code: satisfied ? 'dependency-installed' : 'dependency-missing',
       message: satisfied
-        ? `Required dependency ${selection.skillId} is installed (${selection.reason}).`
-        : `Required dependency ${selection.skillId} is not installed (${selection.reason}).`
+        ? `Required dependency ${selection.skillId} is linked (${selection.reason}).`
+        : `Required dependency ${selection.skillId} is not linked (${selection.reason}).`
     });
   }
 
@@ -772,14 +784,16 @@ async function evaluatePlanSatisfaction(
 
   for (const configChange of payload.configChanges) {
     const agentConfig: AgentConfig | undefined = context.config?.agents?.[configChange.agentId];
-    const actual = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
-    const expected = uniqueSorted(configChange.selectedSkillIdsTo);
+    const actualSkills = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
+    const expectedSkills = uniqueSorted(configChange.selectedSkillIdsTo);
+    const actualBundles = uniqueSorted(agentConfig?.selectedBundleIds ?? []);
+    const expectedBundles = uniqueSorted(configChange.selectedBundleIdsTo);
 
     fullySatisfied &&=
       agentConfig?.enabled === configChange.enabledTo &&
       (agentConfig?.targetPath ?? configChange.targetPathTo) === configChange.targetPathTo &&
-      actual.length === expected.length &&
-      expected.every((skillId, index) => actual[index] === skillId);
+      sameIds(actualSkills, expectedSkills) &&
+      sameIds(actualBundles, expectedBundles);
   }
 
   return {fullySatisfied, operations};
@@ -879,14 +893,16 @@ async function persistSelections(options: {
     const nextAgentConfig: AgentConfig = {
       enabled: configChange.enabledTo,
       ...(configChange.targetPathTo === undefined ? {} : {targetPath: configChange.targetPathTo}),
-      selectedSkillIds
+      selectedSkillIds,
+      selectedBundleIds: uniqueSorted(configChange.selectedBundleIdsTo)
     };
 
     if (
       existing?.enabled === nextAgentConfig.enabled &&
       existing.targetPath === nextAgentConfig.targetPath &&
       existing.selectedSkillIds.length === selectedSkillIds.length &&
-      existing.selectedSkillIds.every((skillId, index) => selectedSkillIds[index] === skillId)
+      existing.selectedSkillIds.every((skillId, index) => selectedSkillIds[index] === skillId) &&
+      sameIds(existing.selectedBundleIds, nextAgentConfig.selectedBundleIds)
     ) {
       continue;
     }
@@ -924,9 +940,21 @@ function agentInputsFromPayload(payload: InstallPlanPayload, context: ReportCont
         adapter,
         targetPath: configChange.targetPathTo ?? adapter.defaultTargetPath ?? '',
         previousSelectedSkillIds: uniqueSorted(agentConfig?.selectedSkillIds ?? []),
+        previousSelectedBundleIds: uniqueSorted(agentConfig?.selectedBundleIds ?? []),
+        previousEffectiveSkillIds: uniqueSorted(
+          payload.operations
+            .filter((operation) => operation.agentId === configChange.agentId)
+            .map((operation) => operation.skillId)
+        ),
         previousEnabled: agentConfig?.enabled ?? false,
         ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
         nextSelectedSkillIds: uniqueSorted(configChange.selectedSkillIdsTo),
+        nextSelectedBundleIds: uniqueSorted(configChange.selectedBundleIdsTo),
+        effectiveSelectedSkillIds: uniqueSorted(
+          payload.selections
+            .filter((selection) => selection.agentId === configChange.agentId)
+            .map((selection) => selection.skillId)
+        ),
         selections: []
       }
     ];
@@ -998,9 +1026,14 @@ function reconcileAgentSelections(payload: InstallPlanPayload, context: ReportCo
 
   for (const configChange of payload.configChanges) {
     const agentConfig: AgentConfig | undefined = context.config?.agents?.[configChange.agentId];
-    const actual = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
-    const matchesBefore = sameIds(actual, uniqueSorted(configChange.selectedSkillIdsFrom));
-    const matchesAfter = sameIds(actual, uniqueSorted(configChange.selectedSkillIdsTo));
+    const actualSkills = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
+    const actualBundles = uniqueSorted(agentConfig?.selectedBundleIds ?? []);
+    const matchesBefore =
+      sameIds(actualSkills, uniqueSorted(configChange.selectedSkillIdsFrom)) &&
+      sameIds(actualBundles, uniqueSorted(configChange.selectedBundleIdsFrom));
+    const matchesAfter =
+      sameIds(actualSkills, uniqueSorted(configChange.selectedSkillIdsTo)) &&
+      sameIds(actualBundles, uniqueSorted(configChange.selectedBundleIdsTo));
 
     if (!matchesBefore && !matchesAfter) {
       drifted.push(configChange.agentId);
@@ -1022,7 +1055,7 @@ function summarize(options: {
   skills: readonly DiscoveredSkill[];
   agents: readonly AgentPlanInput[];
 }): InstallPlanSummary {
-  const selectedSkillIds = new Set(options.agents.flatMap((agent) => agent.nextSelectedSkillIds));
+  const selectedSkillIds = new Set(options.agents.flatMap((agent) => agent.effectiveSelectedSkillIds));
 
   return {
     creates: options.linkPlan.operations.filter((operation) => operation.type === 'create-link').length,
@@ -1044,7 +1077,7 @@ function riskWarningsFor(
   skills: readonly DiscoveredSkill[],
   agents: readonly AgentPlanInput[]
 ): MachineWarning[] {
-  const selectedSkillIds = new Set(agents.flatMap((agent) => agent.nextSelectedSkillIds));
+  const selectedSkillIds = new Set(agents.flatMap((agent) => agent.effectiveSelectedSkillIds));
 
   return skills
     .filter((skill) => selectedSkillIds.has(skill.id))

@@ -614,10 +614,10 @@ export async function skillpackRemoveApplyUseCase(
   });
   if (staleness !== undefined) return fail([staleness.error], {nextActions: staleness.nextActions});
 
-  const skillpacks = {...(context.config.skillpacks ?? {})};
+  const skillpacks = {...context.config.skillpacks};
   delete skillpacks[payload.skillpackId];
   await saveConfig(
-    {...context.config, version: 2, skillpacks, updatedAt: environment.now().toISOString()},
+    {...context.config, version: 3, skillpacks, updatedAt: environment.now().toISOString()},
     {configPath: environment.configPath}
   );
 
@@ -636,7 +636,9 @@ function skillpackUsage(
   const prefix = `${skillpackId}:`;
   return {
     selectedByAgents: Object.entries(config?.agents ?? {})
-      .filter(([, agent]) => agent.selectedSkillIds.some((ref) => ref.startsWith(prefix)))
+      .filter(([, agent]) =>
+        [...agent.selectedSkillIds, ...agent.selectedBundleIds].some((ref) => ref.startsWith(prefix))
+      )
       .map(([agentId]) => agentId)
       .sort(),
     managedTargets: Object.entries(links)
@@ -730,7 +732,7 @@ async function persistSkillpackConfig(
     await saveConfig(
       {
         ...base,
-        skillpacks: {...(base.skillpacks ?? {}), [skillpack.id]: skillpack}
+        skillpacks: {...base.skillpacks, [skillpack.id]: skillpack}
       },
       {configPath: environment.configPath}
     );
@@ -749,9 +751,9 @@ async function persistSkillpackConfig(
   await saveConfig(
     {
       ...existingConfig,
-      version: 2,
+      version: 3,
       updatedAt: timestamp,
-      skillpacks: {...(existingConfig.skillpacks ?? {}), [skillpack.id]: skillpack}
+      skillpacks: {...existingConfig.skillpacks, [skillpack.id]: skillpack}
     },
     {configPath: environment.configPath}
   );
