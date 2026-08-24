@@ -262,7 +262,7 @@ export const commandCapabilities: readonly CommandCapability[] = [
     summary: 'Produce a persisted, digest-identified installation plan from an exact selection.',
     mode: 'write',
     requiresConfirmation: true,
-    inputSchema: 'corvus.install-request.v1',
+    inputSchema: 'corvus.install-request.v2',
     options: [
       {flag: '--agent <id>', description: 'Target agent id.', required: true, repeatable: true},
       {flag: '--skill <id>', description: 'Exact skill id to install.', required: false, repeatable: true},

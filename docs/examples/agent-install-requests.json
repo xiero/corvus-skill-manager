@@ -1,12 +1,12 @@
 {
-  "$comment": "Validated examples of install request documents. Every entry under `examples` is checked against the public install-request schema by packages/core/src/application/documentation.test.ts. Pass one with: corvus-skills install plan --request <file> --json, or pipe it to --request -.",
-  "schemaIdentifier": "corvus.install-request.v1",
+  "$comment": "Validated examples of install request documents. Request v2 supports explicit skill and bundle roots; request v1 skill-only documents remain readable. Pass one with: corvus-skills install plan --request <file> --json, or pipe it to --request -.",
+  "schemaIdentifier": "corvus.install-request.v2",
   "examples": [
     {
       "name": "named-skills-one-agent",
       "description": "Install spec-unleashed and git-commit for Codex.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "intent": "Install spec-unleashed and git-commit for Codex",
         "targetAgents": ["codex"],
         "selectedSkills": [
@@ -19,7 +19,7 @@
       "name": "named-skills-multiple-agents",
       "description": "Install the same two skills for Codex and Claude Code.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "intent": "Install spec-unleashed and git-commit for Codex and Claude Code",
         "targetAgents": ["codex", "claude"],
         "selectedSkills": [
@@ -29,10 +29,30 @@
       }
     },
     {
-      "name": "all-compatible",
-      "description": "Install every skill in the skillpack that supports the target agent.",
+      "name": "bundle-only",
+      "description": "Install one maintained bundle as the only explicit root.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
+        "intent": "Install the maintained review workflow for Codex",
+        "targetAgents": ["codex"],
+        "selectedBundles": [{"id": "corvus-skillpack:review-workflow"}]
+      }
+    },
+    {
+      "name": "mixed-skill-and-bundle-roots",
+      "description": "Add one explicit skill and one bundle; members and dependencies are derived.",
+      "request": {
+        "schemaVersion": 2,
+        "targetAgents": ["codex"],
+        "selectedSkills": [{"id": "technical-documentation", "reason": "Named by the user."}],
+        "selectedBundles": [{"id": "corvus-skillpack:review-workflow"}]
+      }
+    },
+    {
+      "name": "all-compatible",
+      "description": "Install every individual skill that supports the target agent; bundles are never selected implicitly.",
+      "request": {
+        "schemaVersion": 2,
         "intent": "Use Corvus Skill Manager to install the whole compatible skillpack for yourself",
         "selectionPolicy": "complete",
         "targetAgents": ["claude"],
@@ -41,21 +61,15 @@
     },
     {
       "name": "embedded-development-intent",
-      "description": "Broad intent resolved to exact ids after skills search and skills inspect. embedded-driver-development requires embedded-toolchain, which the plan adds with reason dependency-of:embedded-driver-development.",
+      "description": "Broad intent resolved to exact ids after skills search and skills inspect.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "intent": "Install a balanced set of skills useful for embedded development",
         "selectionPolicy": "balanced",
         "targetAgents": ["codex"],
         "selectedSkills": [
-          {
-            "id": "embedded-driver-development",
-            "reason": "Relevant to embedded C/C++ driver implementation and review."
-          },
-          {
-            "id": "embedded-testing",
-            "reason": "Adds unit-testing and hardware abstraction guidance."
-          }
+          {"id": "embedded-driver-development", "reason": "Relevant to embedded C/C++ driver implementation and review."},
+          {"id": "embedded-testing", "reason": "Adds unit-testing and hardware abstraction guidance."}
         ]
       }
     },
@@ -63,7 +77,7 @@
       "name": "react-node-web-development-intent",
       "description": "Narrow interpretation of 'only the essential', recorded as selectionPolicy minimal.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "intent": "Install only the essential skills for React and Node web development",
         "selectionPolicy": "minimal",
         "targetAgents": ["codex"],
@@ -75,78 +89,74 @@
     },
     {
       "name": "replacement-selection",
-      "description": "Deliberate replacement. The plan lists every removal before apply; ask the user first.",
+      "description": "Deliberately replace both skill and bundle roots; review every planned removal first.",
       "request": {
-        "schemaVersion": 1,
-        "intent": "Replace my Codex skills with just the documentation set",
+        "schemaVersion": 2,
+        "intent": "Replace my Codex selection with just the documentation set",
         "selectionPolicy": "minimal",
         "targetAgents": ["codex"],
         "replaceSelection": true,
-        "selectedSkills": [
-          {"id": "technical-documentation", "reason": "The only set the user wants to keep."}
-        ]
+        "selectedSkills": [{"id": "technical-documentation", "reason": "The only skill root to keep."}],
+        "selectedBundles": []
       }
     },
     {
       "name": "custom-agent-target-path",
       "description": "The custom adapter has no default target directory, so agentTargetPaths is required.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "intent": "Install the commit skill for my in-house agent",
         "targetAgents": ["custom"],
         "agentTargetPaths": {"custom": "~/.my-agent/skills"},
-        "selectedSkills": [
-          {"id": "git-commit", "reason": "Commit message hygiene for the in-house agent."}
-        ]
+        "selectedSkills": [{"id": "git-commit", "reason": "Commit message hygiene for the in-house agent."}]
       }
     },
     {
       "name": "deliberate-no-op",
-      "description": "An explicitly empty selection is a valid no-op plan. An accidentally missing selection is rejected instead.",
+      "description": "An explicitly empty selection is a valid no-op plan.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "intent": "Check what installing nothing would do",
         "targetAgents": ["codex"],
-        "selectedSkills": []
+        "selectedSkills": [],
+        "selectedBundles": []
+      }
+    },
+    {
+      "name": "legacy-v1-skills",
+      "description": "Legacy v1 remains readable and preserves existing bundle roots it could not express.",
+      "request": {
+        "schemaVersion": 1,
+        "targetAgents": ["codex"],
+        "selectedSkills": [{"id": "git-commit"}]
       }
     }
   ],
   "invalidExamples": [
     {
       "name": "both-selection-modes",
-      "description": "selectedSkills and allCompatible are mutually exclusive.",
+      "description": "Explicit roots and allCompatible are mutually exclusive.",
       "request": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "targetAgents": ["codex"],
-        "selectedSkills": [{"id": "git-commit"}],
+        "selectedBundles": [{"id": "review-workflow"}],
         "allCompatible": true
       }
     },
     {
       "name": "missing-selection",
-      "description": "Neither selectedSkills nor allCompatible was supplied.",
-      "request": {
-        "schemaVersion": 1,
-        "targetAgents": ["codex"]
-      }
+      "description": "No explicit root field or allCompatible was supplied.",
+      "request": {"schemaVersion": 2, "targetAgents": ["codex"]}
     },
     {
       "name": "unknown-agent",
       "description": "targetAgents must contain known adapter ids.",
-      "request": {
-        "schemaVersion": 1,
-        "targetAgents": ["not-an-agent"],
-        "selectedSkills": []
-      }
+      "request": {"schemaVersion": 2, "targetAgents": ["not-an-agent"], "selectedBundles": []}
     },
     {
       "name": "no-target-agents",
       "description": "At least one target agent is required.",
-      "request": {
-        "schemaVersion": 1,
-        "targetAgents": [],
-        "selectedSkills": []
-      }
+      "request": {"schemaVersion": 2, "targetAgents": [], "selectedSkills": []}
     }
   ]
 }

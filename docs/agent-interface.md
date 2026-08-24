@@ -52,9 +52,10 @@ learn the workflow.
      --intent 'Install a balanced set for embedded development' \
      --selection-policy balanced --json
    ```
-8. **Inspect conflicts and warnings.** Read `data.plan.summary`, `data.plan.conflicts`, and the
-   envelope's `warnings`. Pay attention to `dependenciesAdded` (skills pulled in by `requires`)
-   and `recommendationsNotSelected` (skills you may want to offer the user).
+8. **Inspect conflicts and warnings.** Read `data.plan.rootSelections`,
+   `data.plan.selections`, `data.plan.summary`, `data.plan.conflicts`, and the envelope's
+   `warnings`. Pay attention to `bundleMembersAdded`, `dependenciesAdded`, and
+   `recommendationsNotSelected`.
 9. **Apply with exact confirmation.**
    ```bash
    corvus-skills install apply --plan-id <id> --confirm <id> --json
@@ -79,7 +80,7 @@ directories.
 |---|---|
 | The user did not clearly name which agent(s) to install for | Installing into the wrong agent's directory is user-visible and confusing. |
 | `install plan` fails with `UNMANAGED_TARGET_EXISTS` | Something the manager does not own is in the way. Only the user can decide to move it. |
-| You are considering `--replace-selection` | Replacement removes skills the user previously chose. Show the removals first. |
+| You are considering `--replace-selection` | Replacement removes skill and bundle roots the user previously chose. Show the removals first. |
 | `skillpack update-preview` / `update-apply` was not clearly requested | Activating a new skillpack revision changes what every linked skill resolves to. |
 | `install apply` reports `partially-applied`, or verify reports `blocked` / `drift-detected` | The user needs to know, and the resolution is theirs. |
 | A plan's warnings include skill risk findings (`scripts-directory`, `suspicious-*`) | The user should decide whether to install a skill that ships scripts. |
@@ -149,7 +150,7 @@ Then hand your exact choice back with provenance:
 ```bash
 corvus-skills install plan --request - --json <<'JSON'
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "intent": "Install a balanced skill set for embedded development",
   "selectionPolicy": "balanced",
   "targetAgents": ["codex"],
@@ -165,7 +166,25 @@ JSON
 dependency with reason `dependency-of:embedded-driver-development`. Report added dependencies to
 the user.
 
-### 4. Broad intent: React and Node web development
+### 4. Install a known bundle through request v2
+
+Bundle discovery commands and dedicated flags arrive in the bundle machine-interface phase.
+When the exact qualified bundle ref is already known, request v2 can plan it now:
+
+```bash
+corvus-skills install plan --request - --json <<'JSON'
+{
+  "schemaVersion": 2,
+  "targetAgents": ["codex"],
+  "selectedBundles": [{"id": "corvus-skillpack:review-workflow"}]
+}
+JSON
+```
+
+The plan persists the bundle as a root, lists its members and dependencies as effective skills,
+and links only skills. `allCompatible` never chooses bundles.
+
+### 5. Broad intent: React and Node web development
 
 > "Install only the essential skills for React and Node web development."
 
@@ -176,7 +195,7 @@ corvus-skills skills search --query "react node typescript web frontend api" --a
 `selectionPolicy: "minimal"` records that you interpreted "only the essential" narrowly. It is
 audit provenance — Corvus does not second-guess your judgement with it.
 
-### 5. Multiple target agents
+### 6. Multiple target agents
 
 > "Install `spec-unleashed` and `git-commit` for Codex and Claude Code."
 
@@ -187,7 +206,7 @@ corvus-skills install plan --agent codex --agent claude --skill spec-unleashed -
 One plan covers both agents. If a skill supports one agent but not the other, planning fails
 with `SKILL_NOT_SUPPORTED_BY_AGENT` — tell the user rather than quietly installing a subset.
 
-### 6. Conflict recovery
+### 7. Conflict recovery
 
 ```bash
 corvus-skills install plan --agent codex --skill git-commit --json
@@ -197,7 +216,7 @@ corvus-skills install plan --agent codex --skill git-commit --json
 Report the path to the user. After they move it, plan again — the old plan id is not reusable,
 and Corvus will not overwrite the file for them.
 
-### 7. First-run skillpack setup
+### 8. First-run skillpack setup
 
 ```bash
 corvus-skills status --json                 # skillpack absent

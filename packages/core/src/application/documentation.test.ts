@@ -147,6 +147,8 @@ describe('documented install request examples', () => {
       expect.arrayContaining([
         'named-skills-one-agent',
         'named-skills-multiple-agents',
+        'bundle-only',
+        'mixed-skill-and-bundle-roots',
         'all-compatible',
         'embedded-development-intent',
         'react-node-web-development-intent'

@@ -40,6 +40,12 @@ retaining all origins and transitive bundle provenance. The application planner 
 support and conflicts only after this full expansion, so bundles are atomic at planning time;
 recommendations from any effective skill are reported but never selected automatically.
 
+Install request v2 transports explicit skill and bundle roots and keeps request v1 readable with
+legacy bundle-preservation semantics. Persisted plan schema v3 records final roots separately
+from effective provenance and link operations. Apply writes Config v3 roots only after exact
+confirmation; the unchanged manifest records link ownership only. Verification reconstructs an
+explainable root/effective/managed view and never repairs drift.
+
 Rules:
 
 - pure and independently testable, with no knowledge of Ink, Commander, argv, or JSON envelopes;

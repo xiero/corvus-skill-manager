@@ -1,8 +1,8 @@
 # Machine Protocol v1
 
 Every JSON command shares one versioned envelope. `schemaVersion` is the protocol version and is
-independent of the install-request version and the persisted-plan version, both of which are
-also currently `1`.
+independent of the install-request and persisted-plan versions. The envelope remains v1; the
+current install request is v2 and the current persisted plan is v3.
 
 ## Envelope
 
@@ -113,10 +113,10 @@ Every write is two-phase.
 
 **Plan.** A plan command persists an artifact under
 `~/.agents/corvus-skill-manager/plans/<plan-id>.json` containing the plan schema version, its
-kind, its digest, the normalized request and intent provenance, the intended config mutation,
-the ordered link operations, warnings and conflicts, and a fingerprint of the state it was
-computed against. `createdAt` is recorded for audit and is deliberately excluded from the
-digest, so an identical request against identical state always yields an identical plan id.
+kind, its digest, normalized request provenance, final root skill/bundle selections, effective
+skills with origins, the intended Config v3 mutation, ordered link operations, warnings and
+conflicts, and a state fingerprint. `createdAt` is recorded for audit and deliberately excluded
+from the digest, so identical input and state yield the same plan id.
 
 The plan id is `<kind>-<first 32 hex of the sha256 digest>`. It is filesystem-safe by
 construction, and any id not matching that shape is rejected before it is used as a path.
@@ -133,12 +133,11 @@ Only operations contained in the plan are executed. `--json` is never implicit p
 
 ### What the fingerprint covers
 
-The fingerprint digests state the plan *depends on but does not itself change*: the skillpack
-config and active revision, the metadata of the skills it touches, the manifest entries it does
-not own, and the set of target paths. State the plan does change — the targeted agents'
-selections and its own manifest entries — is validated separately, so a successful apply does
-not invalidate its own plan. That is what makes re-running `install apply` an idempotent no-op
-instead of a `STALE_PLAN` error.
+The fingerprint has independently diffable components for configured/active skillpacks,
+decision-relevant Registry v3 skill and selected bundle definitions, recognized before/after
+root selections, unmanaged manifest state, and target paths. Volatile config timestamps and
+unrelated catalog entries are excluded. Recognizing either reviewed root state keeps successful
+and partial re-apply idempotent; a third root state is stale.
 
 ### Operation results
 
@@ -168,6 +167,12 @@ corvus-skills install plan --request - --json    # read one document from stdin
 Empty input, invalid JSON, and multiple concatenated documents are all rejected with
 `INVALID_REQUEST`. Repeated CLI flags and a request document normalize to exactly the same
 request, so the two entry points cannot produce different plans.
+
+The current request schema is `corvus.install-request.v2`. It accepts `selectedSkills`,
+`selectedBundles`, or both; each bundle entry is `{ "id": "<qualified-or-default-pack-id>" }`.
+`replaceSelection: true` replaces both root collections. `allCompatible` remains mutually
+exclusive with explicit roots and selects individual skills only. Legacy request v1 documents
+remain readable and preserve existing bundle roots because v1 could not express them.
 
 See `docs/examples/agent-install-requests.json` for validated examples.
 

@@ -1,93 +1,115 @@
-Timestamp: 2026-08-24T21:10:00Z
-Version: v1.4.0
+Timestamp: 2026-08-24T22:55:00Z
+Version: v1.5.0
 
-# Implementation Plan: Registry v3 Bundles and Versioning — Phase 4
+# Implementation Plan: Registry v3 Bundles and Versioning — Phase 5
 
 ## Context
 
-Phases 1–3 established versioned Registry v3 discovery, bundle catalog/compatibility data, and
-Config v3 root selection storage. Phase 4 implements `CSM-BND-017` through `CSM-BND-021`: pure
-bundle expansion, multi-origin provenance, composed effective selection resolution, post-expansion
-agent compatibility, and conflict/recommendation handling over the final effective set.
+Phases 1–4 established Registry v3 discovery, Config v3 roots, and deterministic effective
+resolution. Phase 5 implements `CSM-BND-022` through `CSM-BND-028`: a backward-readable install
+request v2 with bundle roots, bundle-aware additive/replacement planning, rich persisted plans,
+registry/root stale-state protection, confirmed Config v3 persistence, recomputation-based bundle
+removal, and read-only verification of roots, effective skills, and managed links.
 
 Source spec: `_specs/registry-v3-bundles-and-versioning.md`
 
 ## Open Question Status
 
-- Answered: bundle roots are qualified references and resolve only against the discovered bundle
-  with that exact identity.
-- Answered: bundle members remain local to their owning skillpack; cross-skillpack or missing
-  members are blocking structured resolution errors.
-- Answered: effective skills are canonical and unique, while every distinct root/dependency
-  origin is retained in deterministic order.
-- Answered: dependencies retain immediate `dependency-of:<qualified-skill-ref>` provenance and
-  separately carry their originating bundle roots through traversal for actionable diagnostics.
-- Answered: compatibility and conflicts are evaluated only after complete expansion; a failure
-  blocks the entire agent plan and never installs a compatible subset.
-- Answered: recommendations are collected from effective skills and are never selected.
-- Answered: Phase 4 makes existing Config v3 bundle roots effective. Adding/removing bundle roots
-  through the request, CLI, or TUI remains Phase 5/7 work.
+- Answered: request v1 remains readable and normalizes into the current v2 form with no bundle
+  roots; request v2 is the only newly emitted form.
+- Answered: `selectedBundles` mirrors selected skill identity as strict `{id}` entries. Bundle
+  provenance remains the stable resolver-owned `bundle:<qualified-ref>` string.
+- Answered: replacement replaces both root collections. Additive requests add the supplied skill
+  and bundle roots; `allCompatible` adds only skills and clears bundles only in replacement mode.
+- Answered: persisted plans advance to schema v3. Plan schema v2 artifacts are rejected and must
+  be regenerated because root/effective and fingerprint semantics change.
+- Answered: plan payloads expose final root selections separately from effective selections and
+  link operations; summaries use canonical unique reference arrays.
+- Answered: root fingerprints recognize either the plan's before or after root state so confirmed
+  apply remains idempotent and partial re-apply remains possible, while any third state is stale.
+- Answered: the manifest remains unchanged and link-only. Verification derives explanations from
+  the plan and reports actual manager-owned links without repairing.
 - Still blocked: none.
+
+## Assumptions
+
+- Dedicated `--bundle` flags, bundle discovery commands, and complete capability advertising are
+  Phase 6; Phase 5 makes request-document/application callers bundle-capable.
+- A bundle-only explicit request is valid. A deliberately empty explicit v2 request may provide
+  either empty `selectedSkills`, empty `selectedBundles`, or both.
+- Registry fingerprints include selected bundle definitions and all previous/next effective skill
+  metadata, not volatile timestamps or unrelated catalog entries.
+- Apply persists root intent only after exact confirmation and link application using existing
+  ownership safeguards; unexpected partial filesystem failure remains visible to verification.
 
 ## Critical Files
 
-- `packages/core/src/skills/bundleResolver.ts` — qualified bundle lookup, authored-order direct
-  expansion, multi-bundle provenance, and structured errors.
-- `packages/core/src/skills/effectiveSelectionResolver.ts` — root skills plus bundle members,
-  transitive hard dependencies, bundle-origin propagation, and canonical effective results.
-- `packages/core/src/skills/selectionModel.ts` and `skillRelationships.ts` — shared provenance
-  kinds and existing relationship primitives.
-- `packages/core/src/application/install/installPlanner.ts` — use the composed resolver for
-  previous/next state; validate support, conflicts, and recommendations on the effective set.
-- `packages/core/src/application/plans/planSchema.ts` — permit `bundle-member` primary reasons
-  and a deterministic origins collection without changing install request semantics.
-- Focused tests beside the resolver modules and in `packages/core/src/application/install.test.ts`.
+- `packages/core/src/application/install/installRequest.ts` — v1/v2 parsing and canonical v2
+  normalization.
+- `packages/core/src/application/install/installPlanner.ts` — requested bundle validation,
+  additive/replacement root recomputation, and derived summaries.
+- `packages/core/src/application/plans/planSchema.ts` — plan schema v3, normalized request v2,
+  root selections, rich summary, and required provenance.
+- `packages/core/src/application/useCases/installUseCases.ts` — registry/root fingerprints,
+  confirmed Config v3 persistence, idempotence, and root/effective verification output.
+- `packages/core/src/application/install.test.ts` and plan/request/golden tests — end-to-end
+  request, plan, stale state, removal, apply, verification, and no-write coverage.
+- Agent protocol/interface examples and architecture/task documentation.
 
 ## Implementation Sequence
 
-1. Add a pure bundle resolver with exact qualified lookup, local-member validation, authored-order
-   expansion, overlap deduplication, and retained `bundle-member` origins.
-2. Align resolved-selection provenance types and plan validation with the shared provenance model,
-   retaining a deterministic primary reason plus all origins.
-3. Add the composed effective resolver for explicit/all-compatible roots, bundle members, and
-   breadth-first hard dependencies; propagate bundle roots across transitive paths.
-4. Replace planner-local dependency-only expansion with the composed resolver for both previous
-   and next Config v3 selections.
-5. Validate every effective skill for the target agent and include bundle refs and blocking skills
-   in failures; keep bundle selection atomic.
-6. Run symmetric conflicts and recommendations over the final effective set and include available
-   provenance in conflict details.
-7. Export the new pure APIs, update architecture/task documentation, verify, self-review, and
-   create the approved local commit.
+1. Add strict install request v1/v2 schemas and normalize both to canonical v2 with sorted,
+   deduplicated skill/bundle roots.
+2. Extend planner selection resolution to validate qualified bundle requests and compute next
+   skill and bundle root collections under additive and replacement semantics.
+3. Feed those final roots through the Phase 4 resolver for previous/next effective sets, exposing
+   bundle members and dependencies separately while preserving existing link safety.
+4. Advance persisted plans to schema v3; add per-agent final roots, required effective origins,
+   and summary arrays for bundles, bundle members, dependencies, and effective skills.
+5. Fingerprint selected bundle definitions, relevant versioned skill metadata, and recognized
+   before/after root state under named `registry` and `rootSelections` components.
+6. Persist Config v3 roots only during confirmed apply, leave manifest schema unchanged, and prove
+   plan-only/request parsing does not write user state beyond the authorized plan artifact.
+7. Cover bundle removal by replacing roots and recomputing effective links, including overlaps,
+   shared dependencies, and explicit roots that retain former bundle members.
+8. Extend read-only install verification with per-agent root/effective/managed state and stale
+   manager-owned link reporting.
+9. Update authoritative documentation and golden artifacts, run focused/full verification,
+   self-review, and create the approved local commit.
 
 ## Data, API, or Contract Changes
 
-- Core gains pure `expandBundleSelection` and `resolveEffectiveSelection` APIs.
-- `SkillSelectionReasonKind` includes `bundle-member`.
-- Resolved plan selections retain the deterministic primary `reason`/`reasonKind` fields and add
-  an optional canonical `origins` collection; old schema-v2 plan documents remain parseable.
-- The install request remains schema v1 and has no bundle mutation field in this phase.
-- Manager Config stays v3; existing `selectedBundleIds` now contribute effective links.
-- Registry, manifest, lock, and machine envelope versions do not change.
+- Install request schema advances from v1 to v2; v1 remains accepted and normalizes to v2.
+- Request v2 adds `selectedBundles`; `allCompatible` remains bundle-free.
+- Persisted plan schema advances from v2 to v3 and rejects older artifacts.
+- Install plan payload adds `rootSelections`; effective selections require canonical `origins`.
+- Install summary adds `bundlesSelected`, `bundleMembersAdded`, and `effectiveSkills` arrays.
+- Fingerprints add `registry` and `rootSelections` components and cover semantic versions,
+  relationships, bundle definitions, and selected roots.
+- Install verification adds per-agent selection state; manifest and machine envelope versions do
+  not change.
 
 ## Testing Strategy
 
-- Bundle resolver: exact members/authored order, duplicate roots, overlapping bundles with multiple
-  origins, unknown bundle, missing member, and skillpack-boundary rejection.
-- Effective resolver: mixed roots, shared dependencies, cycles, deterministic output, missing
-  dependencies, separate bundle-member/dependency summaries, and bundle-origin propagation.
-- Planner: preserved Config v3 bundle roots produce links; unsupported direct/transitive bundle
-  skills block atomically with bundle details; bundle-vs-bundle and bundle-vs-explicit conflicts
-  block; effective recommendations remain unselected.
-- Plan schema: `bundle-member` and multi-origin selections parse deterministically while existing
-  explicit/dependency selections remain valid.
+- Request contract: v1 compatibility, v2 skill-only/bundle-only/mixed forms, explicit/all conflict,
+  duplicates, reordered roots, and byte-identical normalization.
+- Planning/apply: additive and replacement bundle roots, bundle-only/mixed links, root-only config,
+  legacy Config v1/v2 upgrade only after apply, and plan-time no-write assertions.
+- Plan contracts: schema v3 rejection of v2, roots/effective separation, summary fields,
+  digest sensitivity, tamper detection, and deterministic ordering.
+- Fingerprints: bundle version/membership changes and third-state root changes report exact named
+  stale components; timestamp-only config changes do not.
+- Removal: overlapping bundles retain shared members/dependencies; explicit roots retain former
+  members; final-root removal removes only manifest-owned links.
+- Verification: bundle-derived missing links, root/effective explanations, stale managed links,
+  and byte-for-byte no-write behavior.
 
 ## Verification Commands
 
 ```sh
-pnpm vitest run packages/core/src/skills/bundleResolver.test.ts packages/core/src/skills/effectiveSelectionResolver.test.ts
-pnpm vitest run packages/core/src/skills/skillRelationships.test.ts packages/core/src/application/plans/planSchema.test.ts
-pnpm vitest run packages/core/src/application/install.test.ts
+pnpm vitest run packages/core/src/application/install.test.ts packages/core/src/application/plans/planSchema.test.ts
+pnpm vitest run packages/core/src/application/protocol/protocol.test.ts packages/cli/src/cli/golden.test.ts
+pnpm vitest run packages/tui/src/application/equivalence.test.ts
 pnpm typecheck
 pnpm test
 pnpm build
@@ -96,39 +118,38 @@ git diff --check
 
 ## Documentation Updates
 
-- Update `architecture.md` and `docs/agent-native-architecture.md` with the composed effective
-  resolver and the post-expansion validation boundary.
-- Mark `CSM-BND-017` through `CSM-BND-021` complete only after full verification.
-- Record verification results and any deviation here before commit.
+- Update `architecture.md`, `docs/agent-native-architecture.md`, `docs/agent-protocol-v1.md`,
+  `docs/agent-interface.md`, and request examples for request v2/plan v3/root-effective semantics.
+- Mark `CSM-BND-022` through `CSM-BND-028` complete only after verification.
+- Record verification results and any safe deviation here before commit.
 
 ## Risks and Stop Conditions
 
-- Stop if bundle resolution would require mutating or repairing an active skillpack checkout.
-- Stop if preserving old plan artifacts requires assigning them new mutation semantics; schema-v2
-  compatibility is limited to an additive optional provenance field.
-- Do not add install request bundle fields, CLI commands, or TUI selection in this phase.
-- Do not mutate manager state or agent targets while developing or testing outside isolated test
-  homes and existing confirmed plan/apply tests.
+- Stop if compatibility would assign new bundle meaning to a request v1 or plan v2 artifact.
+- Stop if stale-state protection breaks idempotent apply or partial re-apply.
+- Stop if bundle removal could remove an unmanaged link or a link still implied by another root.
+- Do not add Phase 6 bundle discovery commands/dedicated CLI flags or Phase 7 TUI selection UI.
+- Do not mutate any active skillpack checkout, existing revision snapshot, or non-test manager state.
 
 ## Rollback Notes
 
-Revert the Phase 4 commit. Config v3 bundle roots remain stored but again become inert in the
-Phase 3 planner. No manager state, user links, or skillpack checkout is migrated by this code-only
-change.
+Revert the Phase 5 commit. Request v2 and plan v3 artifacts then require regeneration with a newer
+binary; already persisted Config v3 roots and manifest-owned links remain valid data. No automatic
+downgrade or manager-authored skillpack rewrite is allowed.
 
 ## Verification Result
 
-- Focused bundle resolver, effective resolver, selection, relationship, plan-schema, planner, and
-  golden protocol suites passed.
-- `pnpm typecheck` passed.
-- `pnpm test` passed: 43 files, 405 tests.
-- `pnpm build` passed.
-- `git diff --check` passed.
-- Deviation: install request schema v1 remains intentionally bundle-read-only; Phase 4 activates
-  bundle roots already persisted in Config v3, while bundle mutation stays in Phase 5.
+- `pnpm typecheck` — passed.
+- `pnpm test` — passed: 44 test files, 418 tests.
+- `pnpm build` — passed.
+- `git diff --check` — passed.
+- Safe compatibility deviation: normalized request v1 carries an internal `preserve` bundle mode
+  so replacement requests created before bundles existed cannot silently erase Config v3 bundle
+  roots. Newly emitted request v2 uses explicit bundle-root semantics.
+- Phase 6 bundle discovery commands and dedicated CLI flags remain intentionally out of scope.
 
 ## Commit Message Draft
 
 ```text
-✨ feat(core): resolve bundle selections
+✨ feat(core): add bundle-aware install plans
 ```

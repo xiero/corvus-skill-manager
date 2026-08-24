@@ -5,7 +5,7 @@ import {selectionProvenanceKinds} from '../../skills/selectionModel.js';
 import {canonicalJsonStringify} from '../protocol/canonicalJson.js';
 
 /** Version of the persisted plan artifact format. */
-export const planSchemaVersion = 2;
+export const planSchemaVersion = 3;
 
 export const planKinds = ['skillpack-setup', 'skillpack-update', 'skillpack-remove', 'install'] as const;
 
@@ -114,6 +114,16 @@ export const agentConfigChangeSchema = z
 
 export type AgentConfigChange = z.infer<typeof agentConfigChangeSchema>;
 
+export const agentRootSelectionSchema = z
+  .object({
+    agentId: agentIdSchema,
+    selectedSkillIds: rootReferenceListSchema,
+    selectedBundleIds: rootReferenceListSchema
+  })
+  .strict();
+
+export type AgentRootSelection = z.infer<typeof agentRootSelectionSchema>;
+
 export const selectionProvenanceSchema = z
   .object({
     kind: z.enum(selectionProvenanceKinds),
@@ -127,8 +137,7 @@ export const resolvedSkillSelectionSchema = z
     skillId: z.string().min(1),
     reason: z.string().min(1),
     reasonKind: z.enum(selectionProvenanceKinds),
-    /** Additive in plan schema v2 so existing persisted plan documents remain parseable. */
-    origins: z.array(selectionProvenanceSchema).min(1).optional()
+    origins: z.array(selectionProvenanceSchema).min(1)
   })
   .strict();
 
@@ -139,7 +148,10 @@ export const installPlanSummarySchema = z
     creates: z.number().int().nonnegative(),
     removals: z.number().int().nonnegative(),
     alreadySatisfied: z.number().int().nonnegative(),
+    bundlesSelected: z.array(z.string().min(1)),
+    bundleMembersAdded: z.array(z.string().min(1)),
     dependenciesAdded: z.array(z.string().min(1)),
+    effectiveSkills: z.array(z.string().min(1)),
     recommendationsNotSelected: z.array(z.string().min(1)),
     conflicts: z.number().int().nonnegative(),
     riskWarnings: z.number().int().nonnegative(),
@@ -156,13 +168,17 @@ const normalizedSelectedSkillSchema = z
   })
   .strict();
 
+const normalizedSelectedBundleSchema = z.object({id: z.string().min(1)}).strict();
+
 export const normalizedInstallRequestSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     intent: z.string().min(1).optional(),
     selectionPolicy: z.enum(['minimal', 'balanced', 'complete']).optional(),
     targetAgents: z.array(z.string().min(1)),
     selectedSkills: z.array(normalizedSelectedSkillSchema).optional(),
+    selectedBundles: z.array(normalizedSelectedBundleSchema).optional(),
+    bundleSelectionMode: z.enum(['preserve', 'explicit']),
     allCompatible: z.boolean(),
     replaceSelection: z.boolean(),
     agentTargetPaths: z.record(z.string().min(1)).optional()
@@ -173,6 +189,7 @@ export const installPlanPayloadSchema = z
   .object({
     request: normalizedInstallRequestSchema,
     targetAgents: z.array(agentIdSchema),
+    rootSelections: z.array(agentRootSelectionSchema),
     selections: z.array(resolvedSkillSelectionSchema),
     configChanges: z.array(agentConfigChangeSchema),
     operations: z.array(linkPlanOperationSchema),

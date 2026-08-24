@@ -137,8 +137,10 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
       "operations": [],
       "request": {
         "allCompatible": false,
+        "bundleSelectionMode": "explicit",
         "replaceSelection": false,
-        "schemaVersion": 1,
+        "schemaVersion": 2,
+        "selectedBundles": [],
         "selectedSkills": [
           {
             "id": "git-commit",
@@ -148,6 +150,15 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
           "codex",
         ],
       },
+      "rootSelections": [
+        {
+          "agentId": "codex",
+          "selectedBundleIds": [],
+          "selectedSkillIds": [
+            "corvus-skillpack:git-commit",
+          ],
+        },
+      ],
       "selections": [
         {
           "agentId": "codex",
@@ -175,10 +186,15 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
       },
       "summary": {
         "alreadySatisfied": 0,
+        "bundleMembersAdded": [],
+        "bundlesSelected": [],
         "configChanges": 1,
         "conflicts": 1,
         "creates": 0,
         "dependenciesAdded": [],
+        "effectiveSkills": [
+          "corvus-skillpack:git-commit",
+        ],
         "recommendationsNotSelected": [],
         "removals": 0,
         "riskWarnings": 0,
@@ -254,8 +270,10 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
       ],
       "request": {
         "allCompatible": false,
+        "bundleSelectionMode": "explicit",
         "replaceSelection": false,
-        "schemaVersion": 1,
+        "schemaVersion": 2,
+        "selectedBundles": [],
         "selectedSkills": [
           {
             "id": "embedded-driver-development",
@@ -265,6 +283,15 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
           "codex",
         ],
       },
+      "rootSelections": [
+        {
+          "agentId": "codex",
+          "selectedBundleIds": [],
+          "selectedSkillIds": [
+            "corvus-skillpack:embedded-driver-development",
+          ],
+        },
+      ],
       "selections": [
         {
           "agentId": "codex",
@@ -304,10 +331,16 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
       },
       "summary": {
         "alreadySatisfied": 0,
+        "bundleMembersAdded": [],
+        "bundlesSelected": [],
         "configChanges": 1,
         "conflicts": 0,
         "creates": 2,
         "dependenciesAdded": [
+          "corvus-skillpack:embedded-toolchain",
+        ],
+        "effectiveSkills": [
+          "corvus-skillpack:embedded-driver-development",
           "corvus-skillpack:embedded-toolchain",
         ],
         "recommendationsNotSelected": [

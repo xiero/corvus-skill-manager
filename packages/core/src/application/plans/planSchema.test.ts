@@ -9,7 +9,7 @@ import {
   resolvedSkillSelectionSchema
 } from './planSchema.js';
 
-describe('plan schema v2 root config changes', () => {
+describe('plan schema v3 root and effective selections', () => {
   it('keeps skill and bundle roots separate and canonical', () => {
     const change = agentConfigChangeSchema.parse({
       agentId: 'codex',
@@ -50,7 +50,7 @@ describe('plan schema v2 root config changes', () => {
     );
   });
 
-  it('creates schema v2 artifacts and rejects schema v1 artifacts', () => {
+  it('creates schema v3 artifacts and rejects schema v2 artifacts', () => {
     const artifact = createPlanArtifact({
       kind: 'skillpack-remove',
       now: new Date('2026-08-24T20:00:00.000Z'),
@@ -64,9 +64,9 @@ describe('plan schema v2 root config changes', () => {
       }
     });
 
-    expect(planSchemaVersion).toBe(2);
-    expect(parsePersistedPlan(artifact).planSchemaVersion).toBe(2);
-    expect(() => parsePersistedPlan({...artifact, planSchemaVersion: 1})).toThrow();
+    expect(planSchemaVersion).toBe(3);
+    expect(parsePersistedPlan(artifact).planSchemaVersion).toBe(3);
+    expect(() => parsePersistedPlan({...artifact, planSchemaVersion: 2})).toThrow();
   });
 
   it('accepts bundle-member provenance and retains multiple canonical origins', () => {

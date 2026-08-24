@@ -121,14 +121,15 @@ describe('install request contract', () => {
     );
     const fromDocument = normalizeInstallRequest(
       parseInstallRequest({
-        schemaVersion: 1,
+        schemaVersion: 2,
         intent: 'Set up embedded work',
         targetAgents: ['codex', 'claude'],
         selectedSkills: [
           {id: 'embedded-testing'},
           {id: 'git-commit', reason: 'Commit hygiene.'},
           {id: 'git-commit', reason: 'Ignored duplicate.'}
-        ]
+        ],
+        selectedBundles: []
       })
     );
 
@@ -429,6 +430,202 @@ describe('install plan', () => {
     expect((await loadConfig(home.configPath)).agents?.codex?.selectedBundleIds).toEqual([
       'corvus-skillpack:default'
     ]);
+  });
+
+  it('plans and applies a bundle-only request with roots separate from effective links', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const beforeConfig = await fs.readFile(home.configPath, 'utf8');
+    const plan = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'default'}]
+    });
+
+    expect(plan.ok).toBe(true);
+    expect(await fs.readFile(home.configPath, 'utf8')).toBe(beforeConfig);
+    if (!plan.ok || plan.data.planId === undefined) return;
+
+    expect(plan.data.plan.request).toMatchObject({
+      schemaVersion: 2,
+      selectedSkills: [],
+      selectedBundles: [{id: 'default'}],
+      bundleSelectionMode: 'explicit'
+    });
+    expect(plan.data.plan.rootSelections).toEqual([
+      {
+        agentId: 'codex',
+        selectedSkillIds: [],
+        selectedBundleIds: ['corvus-skillpack:default']
+      }
+    ]);
+    expect(plan.data.plan.summary).toMatchObject({
+      bundlesSelected: ['corvus-skillpack:default'],
+      bundleMembersAdded: [
+        'corvus-skillpack:review-helper',
+        'corvus-skillpack:test-helper'
+      ],
+      dependenciesAdded: ['corvus-skillpack:git-basics'],
+      effectiveSkills: [
+        'corvus-skillpack:git-basics',
+        'corvus-skillpack:review-helper',
+        'corvus-skillpack:test-helper'
+      ]
+    });
+
+    const apply = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
+    expect(apply.ok).toBe(true);
+    const config = await loadConfig(home.configPath);
+    expect(config.version).toBe(3);
+    expect(config.agents?.codex).toMatchObject({
+      selectedSkillIds: [],
+      selectedBundleIds: ['corvus-skillpack:default']
+    });
+
+    const verify = await app.installVerify({planId: plan.data.planId});
+    expect(verify.ok).toBe(true);
+    if (!verify.ok) return;
+    expect(verify.data.selectionState).toEqual([
+      expect.objectContaining({
+        roots: {skillIds: [], bundleIds: ['corvus-skillpack:default']},
+        managedSkillIds: [
+          'corvus-skillpack:git-basics',
+          'corvus-skillpack:review-helper',
+          'corvus-skillpack:test-helper'
+        ],
+        staleManagedSkillIds: []
+      })
+    ]);
+    expect(
+      verify.data.checks.find(
+        (check) => check.kind === 'effective' && check.skillId === 'corvus-skillpack:review-helper'
+      )
+    ).toMatchObject({satisfied: true, origins: [{kind: 'bundle-member'}]});
+  });
+
+  it('adds mixed skill and bundle roots without persisting derived skills as roots', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const first = await planAndApply(app, {
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'docs-helper'}]
+    });
+    expect(first.apply.ok).toBe(true);
+
+    const plan = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'default'}]
+    });
+
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || plan.data.planId === undefined) return;
+    expect(plan.data.plan.rootSelections[0]).toEqual({
+      agentId: 'codex',
+      selectedSkillIds: ['corvus-skillpack:docs-helper'],
+      selectedBundleIds: ['corvus-skillpack:default']
+    });
+
+    const apply = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
+    expect(apply.ok).toBe(true);
+    expect((await loadConfig(home.configPath)).agents?.codex).toMatchObject({
+      selectedSkillIds: ['corvus-skillpack:docs-helper'],
+      selectedBundleIds: ['corvus-skillpack:default']
+    });
+  });
+
+  it('rejects an unknown requested bundle deterministically', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const result = await appFor(home).installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'ghost'}]
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0]).toMatchObject({
+        code: 'BUNDLE_NOT_FOUND',
+        field: 'selectedBundles',
+        details: {bundleRef: 'corvus-skillpack:ghost'}
+      });
+    }
+  });
+
+  it('recomputes removals while retaining skills implied by remaining roots', async () => {
+    const home = await newHome({
+      skillpack: v3RelationshipFixture({
+        skills: [
+          {id: 'alpha', requires: ['foundation']},
+          {id: 'beta', requires: ['foundation']},
+          {id: 'shared'},
+          {id: 'foundation'}
+        ],
+        bundles: [
+          {id: 'alpha-flow', skills: ['alpha', 'shared']},
+          {id: 'beta-flow', skills: ['beta', 'shared']}
+        ]
+      })
+    });
+    const app = appFor(home);
+    const initial = await planAndApply(app, {
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'alpha-flow'}, {id: 'beta-flow'}]
+    });
+    expect(initial.apply.ok).toBe(true);
+
+    const removeAlpha = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [],
+      selectedBundles: [{id: 'beta-flow'}],
+      replaceSelection: true
+    });
+    expect(removeAlpha.ok).toBe(true);
+    if (!removeAlpha.ok || removeAlpha.data.planId === undefined) return;
+    expect(removeAlpha.data.plan.operations.filter((operation) => operation.type === 'remove-link')).toEqual([
+      expect.objectContaining({skillId: 'corvus-skillpack:alpha'})
+    ]);
+    const removeAlphaApply = await app.installApply({
+      planId: removeAlpha.data.planId,
+      confirm: removeAlpha.data.planId
+    });
+    expect(removeAlphaApply.ok).toBe(true);
+    expect((await fs.lstat(path.join(codexTargetDir(home), 'shared'))).isSymbolicLink()).toBe(true);
+    expect((await fs.lstat(path.join(codexTargetDir(home), 'foundation'))).isSymbolicLink()).toBe(true);
+
+    const explicitRetainsShared = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'shared'}],
+      selectedBundles: [],
+      replaceSelection: true
+    });
+    expect(explicitRetainsShared.ok).toBe(true);
+    if (!explicitRetainsShared.ok || explicitRetainsShared.data.planId === undefined) return;
+    expect(
+      explicitRetainsShared.data.plan.operations
+        .filter((operation) => operation.type === 'remove-link')
+        .map((operation) => operation.skillId)
+        .sort()
+    ).toEqual(['corvus-skillpack:beta', 'corvus-skillpack:foundation']);
+    expect(
+      explicitRetainsShared.data.plan.operations.some(
+        (operation) => operation.type === 'remove-link' && operation.skillId === 'corvus-skillpack:shared'
+      )
+    ).toBe(false);
+
+    const retainApply = await app.installApply({
+      planId: explicitRetainsShared.data.planId,
+      confirm: explicitRetainsShared.data.planId
+    });
+    expect(retainApply.ok).toBe(true);
+    expect((await loadConfig(home.configPath)).agents?.codex).toMatchObject({
+      selectedSkillIds: ['corvus-skillpack:shared'],
+      selectedBundleIds: []
+    });
   });
 
   it('blocks a bundle atomically when a direct member does not support the target agent', async () => {
@@ -877,9 +1074,57 @@ describe('install apply', () => {
 
     if (!result.ok) {
       expect(result.errors[0]?.code).toBe('STALE_PLAN');
-      expect(result.errors[0]?.details?.changedComponents).toContain('config');
+      expect(result.errors[0]?.details?.changedComponents).toContain('rootSelections');
       expect(result.nextActions.map((action) => action.code)).toContain('regenerate-plan');
     }
+  });
+
+  it('rejects a bundle plan when selected registry semantics change', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const plan = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'default'}]
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || plan.data.planId === undefined) return;
+
+    const registryPath = path.join(home.revisionRepoPath, 'registry.json');
+    const registry = JSON.parse(await fs.readFile(registryPath, 'utf8')) as {
+      bundles: Array<{id: string; version: string}>;
+    };
+    const selectedBundle = registry.bundles.find((bundle) => bundle.id === 'default');
+    if (selectedBundle === undefined) throw new Error('expected default bundle fixture');
+    selectedBundle.version = '1.2.1';
+    await fs.writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
+
+    const result = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0]).toMatchObject({
+        code: 'STALE_PLAN',
+        details: {changedComponents: ['registry']}
+      });
+    }
+  });
+
+  it('does not stale an install plan for a config timestamp-only change', async () => {
+    const home = await newHome();
+    const app = appFor(home);
+    const plan = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'git-commit'}]
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || plan.data.planId === undefined) return;
+
+    const config = await loadConfig(home.configPath);
+    await saveConfig({...config, updatedAt: '2026-08-24T23:00:00.000Z'}, {configPath: home.configPath});
+
+    const result = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
+    expect(result.ok).toBe(true);
   });
 
   it('refuses to overwrite an unmanaged target that appears after planning', async () => {
@@ -1081,5 +1326,66 @@ describe('install verify', () => {
         verify.data.checks.find((check) => check.kind === 'dependency' && check.skillId === 'corvus-skillpack:embedded-toolchain')
       ).toMatchObject({satisfied: true});
     }
+  });
+
+  it('explains a missing bundle-derived effective link without repairing it', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const {planId} = await planAndApply(app, {
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'default'}]
+    });
+    const targetPath = path.join(codexTargetDir(home), 'review-helper');
+    await fs.unlink(targetPath);
+    const before = await listTree(home.homeDir);
+
+    const verify = await app.installVerify({planId});
+
+    expect(verify.ok).toBe(true);
+    expect(await listTree(home.homeDir)).toEqual(before);
+    if (!verify.ok) return;
+    expect(verify.data.status).toBe('partially-applied');
+    expect(
+      verify.data.checks.find(
+        (check) => check.kind === 'effective' && check.skillId === 'corvus-skillpack:review-helper'
+      )
+    ).toMatchObject({
+      satisfied: false,
+      code: 'effective-skill-missing',
+      origins: [{kind: 'bundle-member', reason: 'bundle:corvus-skillpack:default'}]
+    });
+  });
+
+  it('reports stale manager-owned links no longer implied by replacement roots without removing them', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    await planAndApply(app, {
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'docs-helper'}]
+    });
+    const replacement = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'default'}],
+      replaceSelection: true
+    });
+    expect(replacement.ok).toBe(true);
+    if (!replacement.ok || replacement.data.planId === undefined) return;
+    const before = await listTree(home.homeDir);
+
+    const verify = await app.installVerify({planId: replacement.data.planId});
+
+    expect(verify.ok).toBe(true);
+    expect(await listTree(home.homeDir)).toEqual(before);
+    if (!verify.ok) return;
+    expect(verify.data.selectionState[0]).toMatchObject({
+      staleManagedSkillIds: ['corvus-skillpack:docs-helper']
+    });
+    expect(
+      verify.data.checks.find((check) => check.code === 'stale-managed-link')
+    ).toMatchObject({skillId: 'corvus-skillpack:docs-helper', satisfied: false});
+    expect((await fs.lstat(path.join(codexTargetDir(home), 'docs-helper'))).isSymbolicLink()).toBe(true);
   });
 });

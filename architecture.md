@@ -131,6 +131,13 @@ boundaries.
   skills. Read-only operations stay side-effect free, adapters do not duplicate resolution
   logic, the manifest remains a link-ownership ledger, and active skillpack snapshots remain
   immutable.
+- Install request v2 accepts explicit skill and bundle roots while preserving v1 skill-only
+  reads. Persisted plan schema v3 shows final roots, effective provenance, and link operations
+  independently; replacement recomputes the effective set instead of maintaining refcounts.
+- Stale-plan fingerprints cover selected bundle definitions, relevant versioned skill metadata,
+  and recognized before/after root state. Confirmed apply persists Config v3 roots while the
+  manifest remains link-only, and verify reports roots, effective skills, actual managed links,
+  missing derived links, and stale owned links without repair.
 
 ## Link Planning And Apply
 

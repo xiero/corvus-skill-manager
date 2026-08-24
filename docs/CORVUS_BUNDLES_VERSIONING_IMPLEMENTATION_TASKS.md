@@ -737,9 +737,9 @@ For every task:
 - Preserve request v1 parsing if the machine protocol promises it, otherwise provide an explicit migration/error contract.
 
 **Acceptance criteria:**
-- [ ] Equivalent ordering of skill/bundle roots yields byte-identical normalized requests.
-- [ ] Request v2 can represent skills-only, bundles-only or both.
-- [ ] `allCompatible` never auto-selects bundles.
+- [x] Equivalent ordering of skill/bundle roots yields byte-identical normalized requests.
+- [x] Request v2 can represent skills-only, bundles-only or both.
+- [x] `allCompatible` never auto-selects bundles.
 
 **Required tests / verification:**
 - Schema/normalization tests including duplicate and reordered roots.
@@ -767,9 +767,9 @@ For every task:
 - Keep replace/additive semantics explicit for both root skill and root bundle selections.
 
 **Acceptance criteria:**
-- [ ] Dependencies and bundle members create links but are not persisted as explicit roots.
-- [ ] Existing manager-owned link safety logic remains authoritative.
-- [ ] Current explicit-skill install behavior remains functionally compatible.
+- [x] Dependencies and bundle members create links but are not persisted as explicit roots.
+- [x] Existing manager-owned link safety logic remains authoritative.
+- [x] Current explicit-skill install behavior remains functionally compatible.
 
 **Required tests / verification:**
 - End-to-end application tests for additive, replace, bundle-only and mixed selection.
@@ -796,9 +796,9 @@ For every task:
 - Version persisted plan schema rather than making old plan artifacts ambiguously parse.
 
 **Acceptance criteria:**
-- [ ] Plan shows explicit roots separately from derived members/dependencies.
-- [ ] Plan digest includes every decision-relevant bundle/version/root field.
-- [ ] Old persisted plan handling follows an explicit compatibility policy.
+- [x] Plan shows explicit roots separately from derived members/dependencies.
+- [x] Plan digest includes every decision-relevant bundle/version/root field.
+- [x] Old persisted plan handling follows an explicit compatibility policy.
 
 **Required tests / verification:**
 - Plan artifact tests, digest tests and tamper-detection tests.
@@ -826,9 +826,9 @@ For every task:
 - Do not over-fingerprint irrelevant volatile data.
 
 **Acceptance criteria:**
-- [ ] Changing bundle membership/version after plan creation makes apply stale.
-- [ ] Changing root config after plan creation makes apply stale.
-- [ ] Unrelated non-semantic timestamps do not unnecessarily invalidate plans.
+- [x] Changing bundle membership/version after plan creation makes apply stale.
+- [x] Changing root config after plan creation makes apply stale.
+- [x] Unrelated non-semantic timestamps do not unnecessarily invalidate plans.
 
 **Required tests / verification:**
 - Stale-plan tests that assert exact differing fingerprint components.
@@ -856,9 +856,9 @@ For every task:
 - Do not write config when planning.
 
 **Acceptance criteria:**
-- [ ] A successful apply upgrades old config to v3 only as part of the approved mutation.
-- [ ] Manifest schema can remain unchanged unless an unrelated technical need is proven.
-- [ ] Read-only and plan operations write nothing except persisted plan artifacts where already contractually intended.
+- [x] A successful apply upgrades old config to v3 only as part of the approved mutation.
+- [x] Manifest schema can remain unchanged unless an unrelated technical need is proven.
+- [x] Read-only and plan operations write nothing except persisted plan artifacts where already contractually intended.
 
 **Required tests / verification:**
 - Apply tests plus directory-tree mutation assertions.
@@ -886,9 +886,9 @@ For every task:
 - Never remove unmanaged links.
 
 **Acceptance criteria:**
-- [ ] Removing bundle A retains a shared skill still required by bundle B.
-- [ ] Removing the final root that needs a dependency plans its managed link removal.
-- [ ] No persisted refcount database is required.
+- [x] Removing bundle A retains a shared skill still required by bundle B.
+- [x] Removing the final root that needs a dependency plans its managed link removal.
+- [x] No persisted refcount database is required.
 
 **Required tests / verification:**
 - End-to-end tests for overlapping bundles and explicit skill retaining a former bundle member.
@@ -916,8 +916,8 @@ For every task:
 - Remain read-only.
 
 **Acceptance criteria:**
-- [ ] Verify can explain both 'why should this skill exist?' and 'does the link exist?'.
-- [ ] No repair occurs automatically.
+- [x] Verify can explain both 'why should this skill exist?' and 'does the link exist?'.
+- [x] No repair occurs automatically.
 
 **Required tests / verification:**
 - Verification tests including bundle-derived missing link and no-write assertions.

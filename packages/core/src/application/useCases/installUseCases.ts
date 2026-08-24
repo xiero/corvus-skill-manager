@@ -9,9 +9,10 @@ import type {ManagerManifest} from '../../manifest/manifestSchema.js';
 import {loadManifestOrDefault} from '../../manifest/manifestStore.js';
 import {isPathInside, resolveUserPath} from '../../paths.js';
 import {inspectLinkTarget, type ReportContext} from '../../reports/reportInternals.js';
-import type {DiscoveredSkill} from '../../skills/skillDiscovery.js';
+import type {DiscoveredBundle, DiscoveredSkill} from '../../skills/skillDiscovery.js';
 import {isPrecondition, loadContext, requireReadySkillpack} from '../context.js';
 import {
+  type ResolvedPlanSelection,
   type InstallPlanPayload,
   type InstallPlanSummary,
   computeStateFingerprint,
@@ -81,19 +82,29 @@ export type InstallVerifyStatus =
   | 'blocked';
 
 export interface InstallVerifyCheck {
-  kind: 'link' | 'removal' | 'config' | 'dependency';
+  kind: 'link' | 'removal' | 'config' | 'dependency' | 'effective';
   agentId?: AgentId;
   skillId?: string;
   targetPath?: string;
   satisfied: boolean;
   code: string;
   message: string;
+  origins?: ResolvedPlanSelection['origins'];
+}
+
+export interface InstallVerifySelectionState {
+  agentId: AgentId;
+  roots: {skillIds: string[]; bundleIds: string[]};
+  effectiveSkills: Array<{skillId: string; origins: ResolvedPlanSelection['origins']}>;
+  managedSkillIds: string[];
+  staleManagedSkillIds: string[];
 }
 
 export interface InstallVerifyData {
   planId: string;
   status: InstallVerifyStatus;
   checks: InstallVerifyCheck[];
+  selectionState: InstallVerifySelectionState[];
   blockingDoctorIssueCodes: string[];
 }
 
@@ -174,6 +185,7 @@ export async function installPlanUseCase(
   const summary = summarize({
     linkPlan: built.linkPlan,
     configChangeCount: built.configChanges.length,
+    bundleMembersAdded: resolved.bundleMembersAdded,
     dependenciesAdded: resolved.dependenciesAdded,
     recommendationsNotSelected: resolved.recommendationsNotSelected,
     skills: ready.discovery.skills,
@@ -182,6 +194,11 @@ export async function installPlanUseCase(
   const payload: InstallPlanPayload = installPlanPayloadSchema.parse({
     request: normalizedRequest,
     targetAgents: resolved.agents.map((agent) => agent.adapter.id),
+    rootSelections: resolved.agents.map((agent) => ({
+      agentId: agent.adapter.id,
+      selectedSkillIds: agent.nextSelectedSkillIds,
+      selectedBundleIds: agent.nextSelectedBundleIds
+    })),
     selections: built.selections,
     configChanges: built.configChanges,
     operations: built.linkPlan.operations,
@@ -195,6 +212,7 @@ export async function installPlanUseCase(
       context,
       agents: resolved.agents,
       skills: ready.discovery.skills,
+      bundles: ready.discovery.bundles,
       operations: built.linkPlan.operations,
       homeDir: environment.homeDir
     })
@@ -340,7 +358,7 @@ export async function installApplyUseCase(
         createMachineError(
           'STALE_PLAN',
           `Agent selection changed after plan ${options.planId} was generated (${driftedAgents.join(', ')}).`,
-          {details: {planId: options.planId, changedComponents: ['config'], agents: driftedAgents}}
+          {details: {planId: options.planId, changedComponents: ['rootSelections'], agents: driftedAgents}}
         )
       ],
       {
@@ -362,6 +380,7 @@ export async function installApplyUseCase(
       context,
       agents: agentInputsFromPayload(payload, context),
       skills: ready.discovery.skills,
+      bundles: ready.discovery.bundles,
       operations: payload.operations,
       homeDir: environment.homeDir
     }),
@@ -585,12 +604,12 @@ export async function installVerifyUseCase(
     });
   }
 
-  for (const configChange of payload.configChanges) {
-    const agentConfig: AgentConfig | undefined = context.config?.agents?.[configChange.agentId];
+  for (const rootSelection of payload.rootSelections) {
+    const agentConfig: AgentConfig | undefined = context.config?.agents?.[rootSelection.agentId];
     const actualSkills = uniqueSorted(agentConfig?.selectedSkillIds ?? []);
-    const expectedSkills = uniqueSorted(configChange.selectedSkillIdsTo);
+    const expectedSkills = uniqueSorted(rootSelection.selectedSkillIds);
     const actualBundles = uniqueSorted(agentConfig?.selectedBundleIds ?? []);
-    const expectedBundles = uniqueSorted(configChange.selectedBundleIdsTo);
+    const expectedBundles = uniqueSorted(rootSelection.selectedBundleIds);
     const satisfied =
       agentConfig?.enabled === true &&
       sameIds(actualSkills, expectedSkills) &&
@@ -602,16 +621,16 @@ export async function installVerifyUseCase(
 
     checks.push({
       kind: 'config',
-      agentId: configChange.agentId,
+      agentId: rootSelection.agentId,
       satisfied,
       code: satisfied ? 'config-selection-matches' : 'config-selection-mismatch',
       message: satisfied
         ? 'Config records the expected root selection for this agent.'
-        : `Config root selection for ${configChange.agentId} does not match the plan.`
+        : `Config root selection for ${rootSelection.agentId} does not match the plan.`
     });
   }
 
-  for (const selection of payload.selections.filter((entry) => entry.reasonKind === 'dependency-of')) {
+  for (const selection of payload.selections) {
     const manifestEntry = Object.values(context.manifest.links).find(
       (entry) => entry.agentId === selection.agentId && entry.skillId === selection.skillId
     );
@@ -627,16 +646,62 @@ export async function installVerifyUseCase(
     }
 
     checks.push({
-      kind: 'dependency',
+      kind: selection.reasonKind === 'dependency-of' ? 'dependency' : 'effective',
       agentId: selection.agentId,
       skillId: selection.skillId,
       satisfied,
-      code: satisfied ? 'dependency-installed' : 'dependency-missing',
+      code:
+        selection.reasonKind === 'dependency-of'
+          ? satisfied
+            ? 'dependency-installed'
+            : 'dependency-missing'
+          : satisfied
+            ? 'effective-skill-installed'
+            : 'effective-skill-missing',
       message: satisfied
-        ? `Required dependency ${selection.skillId} is linked (${selection.reason}).`
-        : `Required dependency ${selection.skillId} is not linked (${selection.reason}).`
+        ? `Effective skill ${selection.skillId} is linked (${selection.reason}).`
+        : `Effective skill ${selection.skillId} is not linked (${selection.reason}).`,
+      origins: selection.origins
     });
   }
+
+  const selectionState: InstallVerifySelectionState[] = payload.rootSelections.map((rootSelection) => {
+    const effectiveSkills = payload.selections
+      .filter((selection) => selection.agentId === rootSelection.agentId)
+      .map((selection) => ({skillId: selection.skillId, origins: selection.origins}));
+    const effectiveIds = new Set(effectiveSkills.map((selection) => selection.skillId));
+    const managedSkillIds = uniqueSorted(
+      Object.values(context.manifest.links)
+        .filter((entry) => entry.agentId === rootSelection.agentId)
+        .map((entry) => entry.skillId)
+    );
+    const staleManagedSkillIds = managedSkillIds.filter((skillId) => !effectiveIds.has(skillId));
+
+    if (staleManagedSkillIds.length > 0) {
+      drift = true;
+      for (const skillId of staleManagedSkillIds) {
+        checks.push({
+          kind: 'effective',
+          agentId: rootSelection.agentId,
+          skillId,
+          satisfied: false,
+          code: 'stale-managed-link',
+          message: `Manager-owned link ${skillId} is no longer implied by the plan's root selection.`
+        });
+      }
+    }
+
+    return {
+      agentId: rootSelection.agentId,
+      roots: {
+        skillIds: uniqueSorted(rootSelection.selectedSkillIds),
+        bundleIds: uniqueSorted(rootSelection.selectedBundleIds)
+      },
+      effectiveSkills,
+      managedSkillIds,
+      staleManagedSkillIds
+    };
+  });
 
   const affectedTargets = new Set(
     payload.operations.map((operation) => resolveUserPath(operation.targetPath, environment.homeDir))
@@ -665,7 +730,7 @@ export async function installVerifyUseCase(
             : 'verified';
 
   return succeed(
-    {planId: options.planId, status, checks, blockingDoctorIssueCodes},
+    {planId: options.planId, status, checks, selectionState, blockingDoctorIssueCodes},
     {nextActions: verifyNextActions(status, options.planId)}
   );
 }
@@ -927,33 +992,38 @@ async function persistSelections(options: {
 function agentInputsFromPayload(payload: InstallPlanPayload, context: ReportContext): AgentPlanInput[] {
   const adapters = new Map(getAgentAdapters().map((adapter) => [adapter.id, adapter]));
 
-  return payload.configChanges.flatMap((configChange): AgentPlanInput[] => {
-    const adapter = adapters.get(configChange.agentId);
+  return payload.rootSelections.flatMap((rootSelection): AgentPlanInput[] => {
+    const adapter = adapters.get(rootSelection.agentId);
 
     if (adapter === undefined) {
       return [];
     }
 
-    const agentConfig: AgentConfig | undefined = context.config?.agents?.[configChange.agentId];
+    const configChange = payload.configChanges.find((change) => change.agentId === rootSelection.agentId);
+    const agentConfig: AgentConfig | undefined = context.config?.agents?.[rootSelection.agentId];
 
     return [
       {
         adapter,
-        targetPath: configChange.targetPathTo ?? adapter.defaultTargetPath ?? '',
-        previousSelectedSkillIds: uniqueSorted(agentConfig?.selectedSkillIds ?? []),
-        previousSelectedBundleIds: uniqueSorted(agentConfig?.selectedBundleIds ?? []),
+        targetPath: configChange?.targetPathTo ?? agentConfig?.targetPath ?? adapter.defaultTargetPath ?? '',
+        previousSelectedSkillIds: uniqueSorted(
+          configChange?.selectedSkillIdsFrom ?? rootSelection.selectedSkillIds
+        ),
+        previousSelectedBundleIds: uniqueSorted(
+          configChange?.selectedBundleIdsFrom ?? rootSelection.selectedBundleIds
+        ),
         previousEffectiveSkillIds: uniqueSorted(
           payload.operations
-            .filter((operation) => operation.agentId === configChange.agentId)
+            .filter((operation) => operation.agentId === rootSelection.agentId)
             .map((operation) => operation.skillId)
         ),
-        previousEnabled: agentConfig?.enabled ?? false,
+        previousEnabled: configChange?.enabledFrom ?? agentConfig?.enabled ?? false,
         ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
-        nextSelectedSkillIds: uniqueSorted(configChange.selectedSkillIdsTo),
-        nextSelectedBundleIds: uniqueSorted(configChange.selectedBundleIdsTo),
+        nextSelectedSkillIds: uniqueSorted(rootSelection.selectedSkillIds),
+        nextSelectedBundleIds: uniqueSorted(rootSelection.selectedBundleIds),
         effectiveSelectedSkillIds: uniqueSorted(
           payload.selections
-            .filter((selection) => selection.agentId === configChange.agentId)
+            .filter((selection) => selection.agentId === rootSelection.agentId)
             .map((selection) => selection.skillId)
         ),
         selections: []
@@ -967,26 +1037,40 @@ function agentInputsFromPayload(payload: InstallPlanPayload, context: ReportCont
  * config and active revision, the metadata of the skills it touches, the manifest entries it
  * does not own, and the set of target paths.
  *
- * State the plan does change — the targeted agents' selections and the manifest entries for its
- * own targets — is deliberately excluded. Including it would make every successful apply
- * invalidate its own plan, breaking the required idempotent re-apply. Those parts are validated
- * instead by `reconcileAgentSelections` and by `applyLinkPlan`'s per-operation ownership checks.
+ * Targeted root selections are represented as a recognized before/after state, so a successful
+ * or partial apply remains re-applicable while any third root state changes the independently
+ * named `rootSelections` component. Plan-owned manifest targets remain guarded per operation.
  */
 function fingerprintFor(options: {
   context: ReportContext;
   agents: readonly AgentPlanInput[];
   skills: readonly DiscoveredSkill[];
+  bundles: readonly DiscoveredBundle[];
   operations: readonly LinkPlanOperation[];
   homeDir: string;
 }) {
-  const skillIds = new Set(options.operations.map((operation) => operation.skillId));
+  const skillIds = new Set([
+    ...options.operations.map((operation) => operation.skillId),
+    ...options.agents.flatMap((agent) => [
+      ...agent.previousEffectiveSkillIds,
+      ...agent.effectiveSelectedSkillIds
+    ])
+  ]);
+  const bundleIds = new Set(
+    options.agents.flatMap((agent) => [
+      ...agent.previousSelectedBundleIds,
+      ...agent.nextSelectedBundleIds
+    ])
+  );
   const relevantSkills = options.skills
     .filter((skill) => skillIds.has(skill.ref ?? skill.id))
     .map((skill) => ({
       id: skill.ref ?? skill.id,
+      version: skill.version ?? null,
       absolutePath: skill.absolutePath,
       supportedAgents: [...skill.supportedAgents].sort(),
       requires: [...skill.requires].sort(),
+      recommends: [...skill.recommends].sort(),
       conflictsWith: [...skill.conflictsWith].sort()
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
@@ -1011,9 +1095,56 @@ function fingerprintFor(options: {
       commitHash: item.checkout.commitHash ?? null,
       activeRevisionPath: options.context.lock?.skillpacks[item.config.id]?.activeRevisionPath ?? null
     })),
-    skills: relevantSkills,
+    registry: {
+      skills: relevantSkills,
+      bundles: options.bundles
+        .filter((bundle) => bundleIds.has(bundle.ref ?? bundle.id))
+        .map((bundle) => ({
+          id: bundle.ref ?? bundle.id,
+          version: bundle.version,
+          members: bundle.members.map((member) => ({
+            id: member.ref ?? member.id,
+            versionRange: member.versionRange,
+            actualVersion: member.actualVersion ?? null
+          }))
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id))
+    },
+    rootSelections: fingerprintRootSelections(options.context, options.agents),
     targets: uniqueSorted([...planTargetPaths])
   });
+}
+
+function fingerprintRootSelections(
+  context: ReportContext,
+  agents: readonly AgentPlanInput[]
+): Array<Record<string, unknown>> {
+  return [...agents]
+    .sort((left, right) => left.adapter.id.localeCompare(right.adapter.id))
+    .map((agent) => {
+      const current = context.config?.agents?.[agent.adapter.id];
+      const actualSkills = uniqueSorted(current?.selectedSkillIds ?? []);
+      const actualBundles = uniqueSorted(current?.selectedBundleIds ?? []);
+      const before = {
+        selectedSkillIds: uniqueSorted(agent.previousSelectedSkillIds),
+        selectedBundleIds: uniqueSorted(agent.previousSelectedBundleIds)
+      };
+      const after = {
+        selectedSkillIds: uniqueSorted(agent.nextSelectedSkillIds),
+        selectedBundleIds: uniqueSorted(agent.nextSelectedBundleIds)
+      };
+      const recognized =
+        (sameIds(actualSkills, before.selectedSkillIds) && sameIds(actualBundles, before.selectedBundleIds)) ||
+        (sameIds(actualSkills, after.selectedSkillIds) && sameIds(actualBundles, after.selectedBundleIds));
+
+      return {
+        agentId: agent.adapter.id,
+        before,
+        after,
+        state: recognized ? 'recognized' : 'drift',
+        ...(recognized ? {} : {actual: {selectedSkillIds: actualSkills, selectedBundleIds: actualBundles}})
+      };
+    });
 }
 
 /**
@@ -1051,6 +1182,7 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
 function summarize(options: {
   linkPlan: LinkPlan;
   configChangeCount: number;
+  bundleMembersAdded: string[];
   dependenciesAdded: string[];
   recommendationsNotSelected: string[];
   skills: readonly DiscoveredSkill[];
@@ -1064,7 +1196,10 @@ function summarize(options: {
     alreadySatisfied: options.linkPlan.warnings.filter(
       (warning) => warning.code === 'managed-link-already-present'
     ).length,
+    bundlesSelected: uniqueSorted(options.agents.flatMap((agent) => agent.nextSelectedBundleIds)),
+    bundleMembersAdded: uniqueSorted(options.bundleMembersAdded),
     dependenciesAdded: options.dependenciesAdded,
+    effectiveSkills: uniqueSorted(options.agents.flatMap((agent) => agent.effectiveSelectedSkillIds)),
     recommendationsNotSelected: options.recommendationsNotSelected,
     conflicts: options.linkPlan.conflicts.length,
     riskWarnings: options.skills

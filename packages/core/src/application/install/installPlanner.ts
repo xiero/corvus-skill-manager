@@ -5,6 +5,7 @@ import {
   type AgentConfig,
   type ManagerConfig,
   parseSkillReference,
+  resolveBundleReference,
   resolveSkillReference
 } from '../../config/configSchema.js';
 import {defaultSkillpackId} from '../../skillpackDefaults.js';
@@ -40,7 +41,7 @@ export interface AgentPlanInput {
   previousTargetPath?: string;
   /** The final explicit/root skill selection persisted in Manager Config v3. */
   nextSelectedSkillIds: string[];
-  /** Preserved until the bundle-aware install request is introduced in Phase 5. */
+  /** The final explicit/root bundle selection persisted in Manager Config v3. */
   nextSelectedBundleIds: string[];
   /** The derived linkable set after hard-dependency expansion. */
   effectiveSelectedSkillIds: string[];
@@ -53,6 +54,7 @@ export interface ResolveSelectionsResult {
   /** Recommended skills that were not selected, reported so the agent can offer them. */
   recommendationsNotSelected: string[];
   dependenciesAdded: string[];
+  bundleMembersAdded: string[];
 }
 
 /**
@@ -74,8 +76,10 @@ export function resolveSelections(options: {
   const errors: MachineError[] = [];
   const agents: AgentPlanInput[] = [];
   const skillsById = new Map(options.skills.map((skill) => [skill.ref ?? skill.id, skill]));
+  const bundlesById = new Map(options.bundles.map((bundle) => [bundle.ref ?? bundle.id, bundle]));
   const adaptersById = new Map(options.adapters.map((adapter) => [adapter.id, adapter]));
   const dependenciesAdded = new Set<string>();
+  const bundleMembersAdded = new Set<string>();
   const recommendations = new Set<string>();
 
   for (const agentIdValue of options.request.targetAgents) {
@@ -123,6 +127,17 @@ export function resolveSelections(options: {
       continue;
     }
 
+    const requestedBundleIds = requestedBundleRefsFor(
+      adapter.id,
+      options.request,
+      bundlesById,
+      errors
+    );
+
+    if (requestedBundleIds === undefined) {
+      continue;
+    }
+
     const legacyPackId = options.config?.skillpack?.id ?? defaultSkillpackId;
     const previousSelectedSkillIds = uniqueSorted(
       (agentConfig?.selectedSkillIds ?? []).map((id) => resolveSkillReference(id, legacyPackId))
@@ -133,6 +148,12 @@ export function resolveSelections(options: {
     const nextSelectedSkillIds = options.request.replaceSelection
       ? uniqueSorted(requestedRootIds)
       : uniqueSorted([...previousSelectedSkillIds, ...requestedRootIds]);
+    const nextSelectedBundleIds =
+      options.request.bundleSelectionMode === 'preserve'
+        ? previousSelectedBundleIds
+        : options.request.replaceSelection
+          ? uniqueSorted(requestedBundleIds)
+          : uniqueSorted([...previousSelectedBundleIds, ...requestedBundleIds]);
     const roots = nextSelectedSkillIds.map(
       (skillId): ResolvedSkillSelection =>
         requestedById.get(skillId) ?? {skillId, reason: 'explicit', reasonKind: 'explicit'}
@@ -151,13 +172,14 @@ export function resolveSelections(options: {
         skillRef: root.skillId,
         provenance: root.origins ?? [{kind: root.reasonKind, reason: root.reason}]
       })),
-      rootBundleRefs: previousSelectedBundleIds,
+      rootBundleRefs: nextSelectedBundleIds,
       bundles: options.bundles,
       skills: options.skills
     });
 
     errors.push(...resolutionErrorsForAgent(resolution, adapter));
     for (const dependency of resolution.dependenciesAdded) dependenciesAdded.add(dependency);
+    for (const member of resolution.bundleMembersAdded) bundleMembersAdded.add(member);
 
     for (const selection of resolution.selection.effectiveSkills) {
       const skill = skillsById.get(selection.skillRef);
@@ -237,7 +259,7 @@ export function resolveSelections(options: {
       previousEnabled: agentConfig?.enabled ?? false,
       ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
       nextSelectedSkillIds,
-      nextSelectedBundleIds: previousSelectedBundleIds,
+      nextSelectedBundleIds,
       effectiveSelectedSkillIds: uniqueSorted(effectiveSelectedSkillIds),
       selections: resolution.selection.effectiveSkills.map(toResolvedSelection)
     });
@@ -249,10 +271,43 @@ export function resolveSelections(options: {
     agents,
     errors,
     dependenciesAdded: [...dependenciesAdded].sort((left, right) => left.localeCompare(right)),
+    bundleMembersAdded: [...bundleMembersAdded].sort((left, right) => left.localeCompare(right)),
     recommendationsNotSelected: [...recommendations]
       .filter((skillId) => !selectedEverywhere.has(skillId) && skillsById.has(skillId))
       .sort((left, right) => left.localeCompare(right))
   };
+}
+
+function requestedBundleRefsFor(
+  agentId: AgentId,
+  request: NormalizedInstallRequest,
+  bundlesById: ReadonlyMap<string, DiscoveredBundle>,
+  errors: MachineError[]
+): string[] | undefined {
+  if (request.allCompatible) return [];
+
+  const bundleRefs: string[] = [];
+  let hasUnknownBundle = false;
+
+  for (const selected of request.selectedBundles ?? []) {
+    const bundleRef = resolveBundleReference(selected.id);
+
+    if (!bundlesById.has(bundleRef)) {
+      hasUnknownBundle = true;
+      errors.push(
+        createMachineError('BUNDLE_NOT_FOUND', `No bundle named "${bundleRef}" in a readable skillpack.`, {
+          agentId,
+          field: 'selectedBundles',
+          details: {bundleRef}
+        })
+      );
+      continue;
+    }
+
+    bundleRefs.push(bundleRef);
+  }
+
+  return hasUnknownBundle ? undefined : uniqueSorted(bundleRefs);
 }
 
 function resolutionErrorsForAgent(
@@ -403,7 +458,7 @@ export async function buildInstallLinkPlan(options: {
           skillId: selection.skillId,
           reason: selection.reason,
           reasonKind: selection.reasonKind,
-          ...(selection.origins === undefined ? {} : {origins: selection.origins})
+          origins: selection.origins ?? [{kind: selection.reasonKind, reason: selection.reason}]
         }))
       )
       .sort(

@@ -321,6 +321,7 @@ export {
 export {canonicalJsonStringify, canonicalize} from './application/protocol/canonicalJson.js';
 export {
   type AgentConfigChange,
+  type AgentRootSelection,
   type InstallPlanPayload,
   type InstallPlanSummary,
   type PersistedPlan,
@@ -354,16 +355,22 @@ export {
 export {
   type InstallRequest,
   type NormalizedInstallRequest,
+  type NormalizedSelectedBundle,
   type NormalizedSelectedSkill,
   type SelectionPolicy,
   installRequestFromFlags,
   installRequestLimits,
   installRequestSchema,
   installRequestSchemaVersion,
+  installRequestV1Schema,
+  installRequestV2Schema,
+  legacyInstallRequestSchemaVersion,
   normalizeInstallRequest,
   parseInstallRequest,
   selectionPolicies,
-  selectionPolicySchema
+  selectionPolicySchema,
+  selectedBundleRequestSchema,
+  selectedSkillRequestSchema
 } from './application/install/installRequest.js';
 export {
   type SkillCatalogEntry,
@@ -432,6 +439,7 @@ export {
   type InstallPlanData,
   type InstallVerifyCheck,
   type InstallVerifyData,
+  type InstallVerifySelectionState,
   type InstallVerifyStatus
 } from './application/useCases/installUseCases.js';
 export {
