@@ -164,10 +164,10 @@ For every task:
 - Do not retroactively require versions in registry v1/v2.
 
 **Acceptance criteria:**
-- [ ] Existing valid v1 and v2 fixtures still parse.
-- [ ] A v3 skill without `version` fails.
-- [ ] A v3 skill with malformed SemVer fails.
-- [ ] `currentRegistryVersion` becomes 3 only when all v3 schema pieces required for parsing exist.
+- [x] Existing valid v1 and v2 fixtures still parse.
+- [x] A v3 skill without `version` fails.
+- [x] A v3 skill with malformed SemVer fails.
+- [x] `currentRegistryVersion` becomes 3 only when all v3 schema pieces required for parsing exist.
 
 **Required tests / verification:**
 - Schema tests covering backward compatibility and v3 version validation.
@@ -194,9 +194,9 @@ For every task:
 - Normalize downstream discovery into one internal relationship representation so install code does not branch on registry version.
 
 **Acceptance criteria:**
-- [ ] v3 hard dependency constraints are machine-readable and validated.
-- [ ] v2 string relationships continue to work.
-- [ ] Malformed dependency IDs or ranges fail registry validation.
+- [x] v3 hard dependency constraints are machine-readable and validated.
+- [x] v2 string relationships continue to work.
+- [x] Malformed dependency IDs or ranges fail registry validation.
 
 **Required tests / verification:**
 - Schema tests for exact, caret, tilde and bounded ranges plus invalid objects/ranges.
@@ -224,10 +224,10 @@ For every task:
 - Do not add `path` or `SKILL.md` requirements to bundles.
 
 **Acceptance criteria:**
-- [ ] A bundle is discoverable from registry metadata but has no filesystem installation target of its own.
-- [ ] Bundle IDs obey the same safe identifier rules as skills.
-- [ ] Bundle versions are mandatory valid SemVer.
-- [ ] A v3 registry may contain zero bundles.
+- [x] A bundle is discoverable from registry metadata but has no filesystem installation target of its own.
+- [x] Bundle IDs obey the same safe identifier rules as skills.
+- [x] Bundle versions are mandatory valid SemVer.
+- [x] A v3 registry may contain zero bundles.
 
 **Required tests / verification:**
 - Schema tests for valid bundle, empty/duplicate/malformed members, invalid IDs, invalid versions and unknown fields.
@@ -256,10 +256,10 @@ For every task:
 - Keep `recommends` missing-target behavior non-blocking and `conflictsWith` behavior consistent with current rules.
 
 **Acceptance criteria:**
-- [ ] Unknown bundle member is a blocking discovery error.
-- [ ] Bundle member version mismatch is a blocking discovery error with bundle/member/range/actual-version details.
-- [ ] Hard dependency version mismatch is a blocking discovery error.
-- [ ] Output ordering is deterministic.
+- [x] Unknown bundle member is a blocking discovery error.
+- [x] Bundle member version mismatch is a blocking discovery error with bundle/member/range/actual-version details.
+- [x] Hard dependency version mismatch is a blocking discovery error.
+- [x] Output ordering is deterministic.
 
 **Required tests / verification:**
 - Unit tests for matching/mismatching ranges, duplicate members, unknown members and deterministic issue ordering.
@@ -287,9 +287,9 @@ For every task:
 - Document that cross-skillpack composition and nested bundles require a future registry version.
 
 **Acceptance criteria:**
-- [ ] The schema cannot represent nested bundles.
-- [ ] Cross-skillpack member references fail validation.
-- [ ] The failure is explicit and documented.
+- [x] The schema cannot represent nested bundles.
+- [x] Cross-skillpack member references fail validation.
+- [x] The failure is explicit and documented.
 
 **Required tests / verification:**
 - Schema tests for qualified/cross-pack member references and unknown bundle-specific fields.
@@ -317,9 +317,9 @@ For every task:
 - Do not write registry files or skillpack contents.
 
 **Acceptance criteria:**
-- [ ] `skills validate-registry --json` (or the existing equivalent use case) fully describes Registry v3 failures.
-- [ ] v1/v2 output remains backward compatible where contractually required.
-- [ ] Validation remains read-only.
+- [x] `skills validate-registry --json` (or the existing equivalent use case) fully describes Registry v3 failures.
+- [x] v1/v2 output remains backward compatible where contractually required.
+- [x] Validation remains read-only.
 
 **Required tests / verification:**
 - Application tests asserting exact stable error codes/fields and no filesystem mutations.

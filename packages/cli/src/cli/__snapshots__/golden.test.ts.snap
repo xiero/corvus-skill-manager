@@ -729,6 +729,7 @@ exports[`golden protocol fixtures > skills validate-registry 1`] = `
   "changed": false,
   "command": "skills.validate-registry",
   "data": {
+    "bundleCount": 0,
     "coverage": [
       {
         "field": "domains",
@@ -797,7 +798,7 @@ exports[`golden protocol fixtures > skills validate-registry 1`] = `
         "totalSkills": 8,
       },
     ],
-    "currentRegistryVersion": 2,
+    "currentRegistryVersion": 3,
     "invalidEntries": [],
     "registryPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/registry.json",
     "registryVersion": 2,
@@ -808,9 +809,12 @@ exports[`golden protocol fixtures > skills validate-registry 1`] = `
     "supportedRegistryVersions": [
       1,
       2,
+      3,
     ],
     "unknownRelationshipTargets": [],
     "valid": true,
+    "validBundleMembershipCount": 0,
+    "versionedSkillCount": 0,
   },
   "errors": [],
   "nextActions": [],

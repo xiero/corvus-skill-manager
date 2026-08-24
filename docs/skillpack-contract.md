@@ -37,8 +37,9 @@ The preferred skillpack root contains:
 registry.json
 ```
 
-Two registry versions are supported. **v2 is a strict superset of v1**, so an existing v1
-registry stays valid with no edits at all.
+Three registry versions are supported. **v2 is a strict superset of v1**, and v1/v2 registries
+stay readable with no edits. Registry v3 adds mandatory versions and bundles as an explicit new
+contract rather than changing legacy meaning.
 
 ### Registry v1
 
@@ -133,8 +134,68 @@ Validation rules for v2 metadata:
 - a missing `recommends` target is a warning, not an error;
 - a skill may not require or conflict with itself;
 - cycles in `requires` are rejected;
-- unknown fields are rejected in both versions, so a misspelled `domain` or `recommend` fails
+- unknown fields are rejected in every version, so a misspelled `domain` or `recommend` fails
   loudly instead of being ignored.
+
+### Registry v3
+
+v3 requires canonical Semantic Versioning 2.0.0 versions for skills and bundles. Hard
+dependencies and bundle members use versioned local references; Corvus tests each range against
+the one skill version in the active immutable snapshot and never fetches or chooses another
+version.
+
+```json
+{
+  "version": 3,
+  "skills": [
+    {
+      "id": "review-helper",
+      "version": "2.1.0",
+      "path": "skills/review-helper",
+      "title": "Review Helper",
+      "description": "Helps review code changes.",
+      "supportedAgents": ["codex", "claude"],
+      "requires": [{"id": "git-basics", "version": "^1.4.0"}]
+    },
+    {
+      "id": "git-basics",
+      "version": "1.5.0",
+      "path": "skills/git-basics",
+      "title": "Git Basics",
+      "description": "Provides Git fundamentals.",
+      "supportedAgents": ["codex", "claude"]
+    }
+  ],
+  "bundles": [
+    {
+      "id": "review-workflow",
+      "version": "1.0.0",
+      "title": "Review Workflow",
+      "description": "A maintained code-review composition.",
+      "skills": [{"id": "review-helper", "version": "~2.1.0"}],
+      "tags": ["review"],
+      "keywords": ["quality gate"]
+    }
+  ]
+}
+```
+
+Registry v3 rules:
+
+- every skill and bundle has a canonical full SemVer; leading `v`, partial versions, surrounding
+  whitespace, and loose cleanup forms are rejected, while canonical prerelease/build metadata is
+  allowed;
+- `requires` is an array of strict `{id, version}` objects, where `version` accepts exact, caret,
+  tilde, and comparator-set ranges; `recommends` and `conflictsWith` remain local ID arrays;
+- `bundles` is required and may be `[]`; a bundle requires `id`, `version`, `title`, `description`,
+  and at least one member in `skills`, with optional bounded `tags` and `keywords`;
+- bundles are catalog compositions only: they have no `path`, `SKILL.md`, link target, or
+  filesystem operation of their own;
+- every dependency and bundle member must resolve to a skill in the same registry and satisfy its
+  declared range; unknown targets and mismatches are blocking validation errors;
+- bundle IDs are unique, and member IDs are unique within a bundle;
+- bundle members are unqualified local skill IDs. Cross-skillpack members, bundle-to-bundle
+  members, and nested bundles are unsupported and require a future registry version.
 
 **Case-normalization rule.** Classification tokens (`tags`, `domains`, `tasks`, `languages`,
 `technologies`, `platforms`, `keywords`) are trimmed, lowercased, and have internal whitespace
@@ -162,7 +223,8 @@ consumers never have to handle `undefined`.
    ```
 
    The command is read-only and reports the registry version, invalid entries, missing semantic
-   metadata, unknown relationship targets, cycles, and per-field coverage statistics. It is
+   metadata, unknown relationship targets, cycles, per-field coverage statistics, versioned-skill
+   and bundle counts, valid bundle membership counts, and actionable v3 range mismatches. It is
    suitable for skillpack CI.
 
 While a registry still declares `version: 1` but an entry uses v2 fields, discovery accepts the

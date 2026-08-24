@@ -45,7 +45,7 @@ describe('capabilities', () => {
     }
 
     expect(result.data.protocol.schemaVersion).toBe(1);
-    expect(result.data.registry.supportedVersions).toEqual([1, 2]);
+    expect(result.data.registry.supportedVersions).toEqual([1, 2, 3]);
     expect(result.data.paths.managerStateDir).toBe(home.managerStateDir);
     expect(result.nextActions.map((action) => action.code)).toEqual([
       'run-status',
@@ -424,6 +424,9 @@ describe('validate-registry', () => {
 
     expect(result.data.valid).toBe(true);
     expect(result.data.registryVersion).toBe(2);
+    expect(result.data.versionedSkillCount).toBe(0);
+    expect(result.data.bundleCount).toBe(0);
+    expect(result.data.validBundleMembershipCount).toBe(0);
     expect(result.data.requiredDependencyCycles).toEqual([]);
     expect(result.data.skillsMissingSemanticMetadata).toEqual([]);
     expect(result.data.coverage.find((entry) => entry.field === 'domains')).toEqual({
@@ -470,6 +473,126 @@ describe('validate-registry', () => {
       ]);
       expect(result.data.skillsMissingSemanticMetadata).toEqual(['needs-ghost']);
     }
+  });
+
+  it('reports stable v3 version and bundle diagnostics with counts and no writes', async () => {
+    const home = await newHome({
+      skillpack: {
+        registry: {
+          version: 3,
+          skills: [
+            {
+              id: 'consumer',
+              version: '2.0.0',
+              path: 'skills/consumer',
+              title: 'Consumer',
+              description: 'Consumes a library.',
+              supportedAgents: ['codex'],
+              requires: [{id: 'library', version: '^2.0.0'}]
+            },
+            {
+              id: 'library',
+              version: '1.5.0',
+              path: 'skills/library',
+              title: 'Library',
+              description: 'A library.',
+              supportedAgents: ['codex']
+            },
+            {
+              id: 'unversioned',
+              path: 'skills/unversioned',
+              title: 'Unversioned',
+              description: 'Missing its v3 version.',
+              supportedAgents: ['codex']
+            },
+            {
+              id: 'bad-skill-version',
+              version: 'v1.0.0',
+              path: 'skills/bad-skill-version',
+              title: 'Bad Skill Version',
+              description: 'Has a malformed v3 version.',
+              supportedAgents: ['codex']
+            }
+          ],
+          bundles: [
+            {
+              id: 'valid',
+              version: '1.0.0',
+              title: 'Valid',
+              description: 'A valid composition.',
+              skills: [{id: 'library', version: '^1.0.0'}]
+            },
+            {
+              id: 'missing-member',
+              version: '1.0.0',
+              title: 'Missing Member',
+              description: 'References an unknown skill.',
+              skills: [{id: 'ghost', version: '^1.0.0'}]
+            },
+            {
+              id: 'mismatch',
+              version: '1.0.0',
+              title: 'Mismatch',
+              description: 'Has an unsatisfied member range.',
+              skills: [{id: 'consumer', version: '^3.0.0'}]
+            },
+            {
+              id: 'bad-version',
+              version: 'v1.0.0',
+              title: 'Bad Version',
+              description: 'Has a malformed version.',
+              skills: [{id: 'library', version: '^1.0.0'}]
+            }
+          ]
+        },
+        skills: [
+          {
+            relativePath: 'skills/consumer',
+            frontmatter: {name: 'consumer', description: 'Consumer.'},
+            body: 'Body.'
+          },
+          {
+            relativePath: 'skills/library',
+            frontmatter: {name: 'library', description: 'Library.'},
+            body: 'Body.'
+          }
+        ]
+      }
+    });
+    const before = await listTree(home.homeDir);
+    const result = await appFor(home).validateRegistry();
+
+    expect(await listTree(home.homeDir)).toEqual(before);
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) return;
+
+    expect(result.data).toMatchObject({
+      valid: false,
+      registryVersion: 3,
+      supportedRegistryVersions: [1, 2, 3],
+      currentRegistryVersion: 3,
+      skillCount: 4,
+      versionedSkillCount: 2,
+      bundleCount: 4,
+      validBundleMembershipCount: 1
+    });
+    expect(result.data.invalidEntries.map((issue) => issue.code)).toEqual([
+      'missing-skill-version',
+      'invalid-skill-version',
+      'invalid-bundle-version',
+      'required-skill-version-mismatch',
+      'bundle-member-version-mismatch',
+      'unknown-bundle-member'
+    ]);
+    expect(
+      result.data.invalidEntries.find((issue) => issue.code === 'bundle-member-version-mismatch')
+    ).toMatchObject({
+      bundleId: 'mismatch',
+      memberId: 'consumer',
+      versionRange: '^3.0.0',
+      actualVersion: '2.0.0'
+    });
   });
 });
 

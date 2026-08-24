@@ -291,6 +291,25 @@ function aggregateDiscoveries(skillpacks: readonly SkillpackReportContext[]): Sk
     ...(ready.length === 1 && ready[0]!.discovery!.registryVersion !== undefined
       ? {registryVersion: ready[0]!.discovery!.registryVersion}
       : {}),
+    registryCounts: {
+      skillCount: ready.reduce(
+        (total, item) =>
+          total + (item.discovery?.registryCounts?.skillCount ?? item.discovery?.skills.length ?? 0),
+        0
+      ),
+      versionedSkillCount: ready.reduce(
+        (total, item) => total + (item.discovery?.registryCounts?.versionedSkillCount ?? 0),
+        0
+      ),
+      bundleCount: ready.reduce(
+        (total, item) => total + (item.discovery?.registryCounts?.bundleCount ?? 0),
+        0
+      ),
+      validBundleMembershipCount: ready.reduce(
+        (total, item) => total + (item.discovery?.registryCounts?.validBundleMembershipCount ?? 0),
+        0
+      )
+    },
     skills: ready.flatMap((item) => item.discovery?.skills ?? []).sort((left, right) =>
       (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
     ),

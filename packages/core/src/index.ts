@@ -70,12 +70,17 @@ export {
   type RegistrySkillEntry,
   type RegistrySkillEntryV1,
   type RegistrySkillEntryV2,
+  type RegistrySkillEntryV3,
+  type RegistryBundleMemberV3,
+  type RegistryBundleV3,
+  type VersionedSkillReference,
   type RelationshipField,
   type SemanticMetadataField,
   type SkillRegistry,
   type SupportedAgent,
   currentRegistryVersion,
   normalizeProseList,
+  normalizeRequiredSkillIds,
   normalizeSkillIdList,
   normalizeToken,
   normalizeTokenList,
@@ -84,13 +89,21 @@ export {
   registrySkillEntrySchema,
   registrySkillEntryV1Schema,
   registrySkillEntryV2Schema,
+  registrySkillEntryV3Schema,
+  registryBundleMemberV3Schema,
+  registryBundleV3Schema,
+  versionedSkillReferenceSchema,
   registryVersions,
   relationshipFields,
   semanticMetadataFields,
+  skillIdSchema,
   skillIdPattern,
   skillRegistrySchema,
   skillRegistryV1Schema,
   skillRegistryV2Schema,
+  skillRegistryV3Schema,
+  semanticVersionRangeSchema,
+  semanticVersionSchema,
   supportedAgentSchema
 } from './registry/registrySchema.js';
 export {
@@ -368,6 +381,7 @@ export {
 } from './application/useCases/installUseCases.js';
 export {
   type ExpandRequiredDependenciesResult,
+  type RegistryV3RelationshipValidationResult,
   type ResolvedSkillSelection,
   type SkillConflict,
   type SkillSelectionReasonKind,
@@ -375,6 +389,7 @@ export {
   findRequiredDependencyCycles,
   findSkillConflicts,
   isSkillSupportedByAgent,
+  validateRegistryV3Relationships,
   validateSkillRelationships
 } from './skills/skillRelationships.js';
 export {

@@ -88,6 +88,9 @@ export interface ValidateRegistryData {
   supportedRegistryVersions: number[];
   currentRegistryVersion: number;
   skillCount: number;
+  versionedSkillCount: number;
+  bundleCount: number;
+  validBundleMembershipCount: number;
   valid: boolean;
   invalidEntries: SkillDiscoveryIssue[];
   unknownRelationshipTargets: SkillDiscoveryIssue[];
@@ -340,7 +343,10 @@ export async function validateRegistryUseCase(
       ...(discovery.registryVersion === undefined ? {} : {registryVersion: discovery.registryVersion}),
       supportedRegistryVersions: [...registryVersions],
       currentRegistryVersion,
-      skillCount: discovery.skills.length,
+      skillCount: discovery.registryCounts?.skillCount ?? discovery.skills.length,
+      versionedSkillCount: discovery.registryCounts?.versionedSkillCount ?? 0,
+      bundleCount: discovery.registryCounts?.bundleCount ?? 0,
+      validBundleMembershipCount: discovery.registryCounts?.validBundleMembershipCount ?? 0,
       valid: discovery.errors.length === 0,
       invalidEntries,
       unknownRelationshipTargets,

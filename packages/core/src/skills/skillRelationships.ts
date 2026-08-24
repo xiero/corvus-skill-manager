@@ -1,4 +1,6 @@
 import type {AgentId} from '../agents/AgentAdapter.js';
+import type {RegistryBundleV3, RegistrySkillEntryV3} from '../registry/registrySchema.js';
+import {satisfiesSemanticVersionRange} from '../versioning/semver.js';
 import type {DiscoveredSkill, SkillDiscoveryIssue} from './skillDiscovery.js';
 
 /** Why a skill ended up in an expanded selection. */
@@ -24,6 +26,107 @@ export interface ExpandRequiredDependenciesResult {
   selections: ResolvedSkillSelection[];
   /** Required dependencies that are not present in the discovered skill set. */
   missing: Array<{skillId: string; requiredBy: string}>;
+}
+
+export interface RegistryV3RelationshipValidationResult {
+  errors: SkillDiscoveryIssue[];
+  validBundleMembershipCount: number;
+}
+
+/**
+ * Validates the version-aware relationships that exist only inside one Registry v3 snapshot.
+ * It never resolves another revision or skillpack: the immutable snapshot either satisfies the
+ * authored constraint or is rejected.
+ */
+export function validateRegistryV3Relationships(
+  skills: readonly RegistrySkillEntryV3[],
+  bundles: readonly RegistryBundleV3[]
+): RegistryV3RelationshipValidationResult {
+  const errors: SkillDiscoveryIssue[] = [];
+  const skillsById = new Map(skills.map((skill) => [skill.id, skill]));
+  const bundleIds = new Set(bundles.map((bundle) => bundle.id));
+  const seenBundleIds = new Set<string>();
+  let validBundleMembershipCount = 0;
+
+  for (const skill of [...skills].sort((left, right) => left.id.localeCompare(right.id))) {
+    for (const requirement of skill.requires ?? []) {
+      const requiredSkill = skillsById.get(requirement.id);
+
+      if (requiredSkill === undefined) {
+        errors.push({
+          severity: 'error',
+          code: 'unknown-required-skill',
+          message: `Skill "${skill.id}" requires unknown skill "${requirement.id}" at version "${requirement.version}".`,
+          skillId: skill.id,
+          memberId: requirement.id,
+          versionRange: requirement.version
+        });
+        continue;
+      }
+
+      if (!satisfiesSemanticVersionRange(requiredSkill.version, requirement.version)) {
+        errors.push({
+          severity: 'error',
+          code: 'required-skill-version-mismatch',
+          message: `Skill "${skill.id}" requires "${requirement.id}" at "${requirement.version}", but this snapshot contains "${requiredSkill.version}".`,
+          skillId: skill.id,
+          memberId: requirement.id,
+          versionRange: requirement.version,
+          actualVersion: requiredSkill.version
+        });
+      }
+    }
+  }
+
+  for (const bundle of [...bundles].sort((left, right) => left.id.localeCompare(right.id))) {
+    if (seenBundleIds.has(bundle.id)) {
+      errors.push({
+        severity: 'error',
+        code: 'duplicate-bundle-id',
+        message: `Duplicate bundle id "${bundle.id}".`,
+        bundleId: bundle.id
+      });
+      continue;
+    }
+
+    seenBundleIds.add(bundle.id);
+
+    for (const member of bundle.skills) {
+      const memberSkill = skillsById.get(member.id);
+
+      if (memberSkill === undefined) {
+        const nested = bundleIds.has(member.id);
+        errors.push({
+          severity: 'error',
+          code: nested ? 'nested-bundle-member' : 'unknown-bundle-member',
+          message: nested
+            ? `Bundle "${bundle.id}" cannot contain bundle "${member.id}"; Registry v3 members must be local skills.`
+            : `Bundle "${bundle.id}" contains unknown skill "${member.id}" at version "${member.version}".`,
+          bundleId: bundle.id,
+          memberId: member.id,
+          versionRange: member.version
+        });
+        continue;
+      }
+
+      if (!satisfiesSemanticVersionRange(memberSkill.version, member.version)) {
+        errors.push({
+          severity: 'error',
+          code: 'bundle-member-version-mismatch',
+          message: `Bundle "${bundle.id}" requires member "${member.id}" at "${member.version}", but this snapshot contains "${memberSkill.version}".`,
+          bundleId: bundle.id,
+          memberId: member.id,
+          versionRange: member.version,
+          actualVersion: memberSkill.version
+        });
+        continue;
+      }
+
+      validBundleMembershipCount += 1;
+    }
+  }
+
+  return {errors: sortIssues(errors), validBundleMembershipCount};
 }
 
 /**
@@ -307,7 +410,9 @@ function canonicalCycleKey(cycleNodes: readonly string[]): string {
 function sortIssues(issues: SkillDiscoveryIssue[]): SkillDiscoveryIssue[] {
   return [...issues].sort(
     (left, right) =>
+      (left.bundleId ?? '').localeCompare(right.bundleId ?? '') ||
       (left.skillId ?? '').localeCompare(right.skillId ?? '') ||
+      (left.memberId ?? '').localeCompare(right.memberId ?? '') ||
       left.code.localeCompare(right.code) ||
       left.message.localeCompare(right.message)
   );

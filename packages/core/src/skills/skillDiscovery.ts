@@ -4,14 +4,24 @@ import matter from 'gray-matter';
 import {z} from 'zod';
 import {isPathInside, resolveUserPath} from '../paths.js';
 import {
+  type RegistryBundleV3,
   type RegistrySkillEntry,
+  type RegistrySkillEntryV3,
   normalizeProseList,
+  normalizeRequiredSkillIds,
   normalizeSkillIdList,
   normalizeTokenList,
+  registryBundleV3Schema,
   registrySkillEntrySchema,
+  registrySkillEntryV2Schema,
+  registrySkillEntryV3Schema,
+  semanticVersionSchema,
   semanticMetadataFields
 } from '../registry/registrySchema.js';
-import {validateSkillRelationships} from './skillRelationships.js';
+import {
+  validateRegistryV3Relationships,
+  validateSkillRelationships
+} from './skillRelationships.js';
 
 export type SkillDiscoverySeverity = 'error' | 'warning';
 
@@ -20,6 +30,10 @@ export interface SkillDiscoveryIssue {
   code: string;
   message: string;
   skillId?: string;
+  bundleId?: string;
+  memberId?: string;
+  versionRange?: string;
+  actualVersion?: string;
   path?: string;
 }
 
@@ -69,6 +83,13 @@ export interface SkillDiscoveryResult {
   source: SkillDiscoverySource;
   /** The version declared by `registry.json`, when one is declared. */
   registryVersion?: number;
+  /** Registry-level counts used by the read-only maintainer validation report. */
+  registryCounts?: {
+    skillCount: number;
+    versionedSkillCount: number;
+    bundleCount: number;
+    validBundleMembershipCount: number;
+  };
   skills: DiscoveredSkill[];
   warnings: SkillRiskWarning[];
   errors: SkillDiscoveryIssue[];
@@ -92,15 +113,25 @@ const skillFrontmatterSchema = z
   })
   .passthrough();
 
-const rawRegistrySchema = z
+const rawLegacyRegistrySchema = z
   .object({
-    version: z.number().int().positive().optional(),
+    version: z.union([z.literal(1), z.literal(2)]).optional(),
     skills: z.array(z.unknown())
   })
   .strict();
 
+const rawRegistryV3Schema = z
+  .object({
+    version: z.literal(3),
+    skills: z.array(z.unknown()),
+    bundles: z.array(z.unknown())
+  })
+  .strict();
+
+const rawRegistrySchema = z.union([rawLegacyRegistrySchema, rawRegistryV3Schema]);
+
 type RegistryLoadResult =
-  | {status: 'loaded'; skills: unknown[]; version?: number}
+  | {status: 'loaded'; skills: unknown[]; bundles: unknown[]; version?: number}
   | {status: 'missing'}
   | {status: 'invalid'};
 
@@ -164,16 +195,28 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
   }
 
   const seenSkillIds = new Set<string>();
+  const registryV3Skills: RegistrySkillEntryV3[] = [];
+  const registryV3Bundles: RegistryBundleV3[] = [];
+  result.registryCounts = {
+    skillCount: registry.skills.length,
+    versionedSkillCount:
+      registry.version === 3
+        ? registry.skills.filter((entry) =>
+            semanticVersionSchema.safeParse(inferObjectString(entry, 'version')).success
+          ).length
+        : 0,
+    bundleCount: registry.bundles.length,
+    validBundleMembershipCount: 0
+  };
 
   for (const rawEntry of registry.skills) {
-    const entryResult = registrySkillEntrySchema.safeParse(rawEntry);
+    const entryResult = (registry.version === 3
+      ? registrySkillEntryV3Schema
+      : registrySkillEntryV2Schema
+    ).safeParse(rawEntry);
 
     if (!entryResult.success) {
-      const invalidEntryIssue: SkillDiscoveryIssue = {
-        severity: 'error',
-        code: 'invalid-skill-entry',
-        message: `Invalid skill entry: ${formatZodIssues(entryResult.error)}`
-      };
+      const invalidEntryIssue = invalidSkillEntryIssue(rawEntry, entryResult.error, registry.version);
       const inferredSkillId = inferSkillId(rawEntry);
 
       if (inferredSkillId !== undefined) {
@@ -197,6 +240,11 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
     }
 
     seenSkillIds.add(entry.id);
+
+    if (registry.version === 3) {
+      registryV3Skills.push(entry as RegistrySkillEntryV3);
+    }
+
     const resolvedSkillPath = validateSkillPath(resolvedRoot, entry, result.errors);
 
     if (resolvedSkillPath === undefined) {
@@ -255,6 +303,23 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
     );
   }
 
+  if (registry.version === 3) {
+    for (const rawBundle of registry.bundles) {
+      const bundleResult = registryBundleV3Schema.safeParse(rawBundle);
+
+      if (!bundleResult.success) {
+        result.errors.push(invalidBundleEntryIssue(rawBundle, bundleResult.error));
+        continue;
+      }
+
+      registryV3Bundles.push(bundleResult.data);
+    }
+
+    const v3Validation = validateRegistryV3Relationships(registryV3Skills, registryV3Bundles);
+    result.errors.push(...v3Validation.errors);
+    result.registryCounts.validBundleMembershipCount = v3Validation.validBundleMembershipCount;
+  }
+
   applyRelationshipValidation(result);
   return result;
 }
@@ -288,7 +353,7 @@ function toDiscoveredSkill(options: {
     keywords: normalizeTokenList(entry.keywords),
     useCases: normalizeProseList(entry.useCases),
     nonGoals: normalizeProseList(entry.nonGoals),
-    requires: normalizeSkillIdList(entry.requires),
+    requires: normalizeRequiredSkillIds(entry.requires),
     recommends: normalizeSkillIdList(entry.recommends),
     conflictsWith: normalizeSkillIdList(entry.conflictsWith),
     relativePath: options.relativePath,
@@ -315,7 +380,7 @@ function entryDeclaresSemanticMetadata(rawEntry: unknown): boolean {
 function applyRelationshipValidation(result: SkillDiscoveryResult): void {
   const relationshipIssues = validateSkillRelationships(result.skills);
 
-  result.errors.push(...relationshipIssues.errors);
+  appendUniqueIssues(result.errors, relationshipIssues.errors);
   result.warnings.push(
     ...relationshipIssues.warnings.map((issue): SkillRiskWarning => ({...issue, severity: 'warning'}))
   );
@@ -377,8 +442,132 @@ async function loadRegistry(
   return {
     status: 'loaded',
     skills: registryResult.data.skills,
+    bundles: 'bundles' in registryResult.data ? registryResult.data.bundles : [],
     ...(registryResult.data.version === undefined ? {} : {version: registryResult.data.version})
   };
+}
+
+function invalidSkillEntryIssue(
+  rawEntry: unknown,
+  error: z.ZodError,
+  registryVersion: number | undefined
+): SkillDiscoveryIssue {
+  const versionIssue = error.issues.find((issue) => issue.path.length === 1 && issue.path[0] === 'version');
+  const dependencyRangeIssue = error.issues.find(
+    (issue) => issue.path[0] === 'requires' && issue.path[2] === 'version'
+  );
+
+  if (registryVersion === 3 && versionIssue !== undefined) {
+    const missing = !hasDefinedProperty(rawEntry, 'version');
+    return {
+      severity: 'error',
+      code: missing ? 'missing-skill-version' : 'invalid-skill-version',
+      message: `Invalid Registry v3 skill version: ${formatZodIssues(error)}`
+    };
+  }
+
+  if (registryVersion === 3 && dependencyRangeIssue !== undefined) {
+    const dependencyIndex = dependencyRangeIssue.path[1];
+    const dependency = inferArrayObject(rawEntry, 'requires', dependencyIndex);
+    const memberId = inferObjectString(dependency, 'id');
+    const versionRange = inferObjectString(dependency, 'version');
+    return {
+      severity: 'error',
+      code: 'invalid-required-skill-version-range',
+      message: `Invalid Registry v3 hard dependency: ${formatZodIssues(error)}`,
+      ...(memberId === undefined ? {} : {memberId}),
+      ...(versionRange === undefined ? {} : {versionRange})
+    };
+  }
+
+  return {
+    severity: 'error',
+    code: 'invalid-skill-entry',
+    message: `Invalid skill entry: ${formatZodIssues(error)}`
+  };
+}
+
+function invalidBundleEntryIssue(rawBundle: unknown, error: z.ZodError): SkillDiscoveryIssue {
+  const inferredBundleId = inferObjectString(rawBundle, 'id');
+  const versionIssue = error.issues.find((issue) => issue.path.length === 1 && issue.path[0] === 'version');
+  const duplicateMemberIssue = error.issues.find((issue) => issue.message.startsWith('Duplicate bundle member'));
+  const memberRangeIssue = error.issues.find(
+    (issue) => issue.path[0] === 'skills' && issue.path[2] === 'version'
+  );
+  const qualifiedMemberIssue = error.issues.find((issue) => {
+    if (issue.path[0] !== 'skills' || issue.path[2] !== 'id') return false;
+    const memberIndex = issue.path[1];
+    const skills = rawBundle !== null && typeof rawBundle === 'object'
+      ? (rawBundle as {skills?: unknown}).skills
+      : undefined;
+    const member = Array.isArray(skills) && typeof memberIndex === 'number' ? skills[memberIndex] : undefined;
+    return inferObjectString(member, 'id')?.includes(':') === true;
+  });
+
+  let code = 'invalid-bundle-entry';
+  let memberIssue: z.ZodIssue | undefined;
+
+  if (versionIssue !== undefined) {
+    code = hasDefinedProperty(rawBundle, 'version') ? 'invalid-bundle-version' : 'missing-bundle-version';
+  } else if (duplicateMemberIssue !== undefined) {
+    code = 'duplicate-bundle-member';
+    memberIssue = duplicateMemberIssue;
+  } else if (qualifiedMemberIssue !== undefined) {
+    code = 'qualified-bundle-member';
+    memberIssue = qualifiedMemberIssue;
+  } else if (memberRangeIssue !== undefined) {
+    code = 'invalid-bundle-member-version-range';
+    memberIssue = memberRangeIssue;
+  }
+
+  const member = inferArrayObject(rawBundle, 'skills', memberIssue?.path[1]);
+  const memberId = inferObjectString(member, 'id');
+  const versionRange = inferObjectString(member, 'version');
+
+  return {
+    severity: 'error',
+    code,
+    message: `Invalid Registry v3 bundle: ${formatZodIssues(error)}`,
+    ...(inferredBundleId === undefined ? {} : {bundleId: inferredBundleId}),
+    ...(memberId === undefined ? {} : {memberId}),
+    ...(versionRange === undefined ? {} : {versionRange})
+  };
+}
+
+function appendUniqueIssues(target: SkillDiscoveryIssue[], additions: readonly SkillDiscoveryIssue[]): void {
+  const seen = new Set(target.map(issueIdentity));
+
+  for (const issue of additions) {
+    const identity = issueIdentity(issue);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    target.push(issue);
+  }
+}
+
+function issueIdentity(issue: SkillDiscoveryIssue): string {
+  return [issue.code, issue.skillId ?? '', issue.bundleId ?? '', issue.memberId ?? ''].join('\u0000');
+}
+
+function hasDefinedProperty(value: unknown, key: string): boolean {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    key in value &&
+    (value as Record<string, unknown>)[key] !== undefined
+  );
+}
+
+function inferObjectString(value: unknown, key: string): string | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'string' ? candidate : undefined;
+}
+
+function inferArrayObject(value: unknown, key: string, index: unknown): unknown {
+  if (value === null || typeof value !== 'object' || typeof index !== 'number') return undefined;
+  const collection = (value as Record<string, unknown>)[key];
+  return Array.isArray(collection) ? collection[index] : undefined;
 }
 
 async function discoverSkillsWithoutRegistry(
