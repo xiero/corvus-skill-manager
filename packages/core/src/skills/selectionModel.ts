@@ -6,9 +6,9 @@ export interface RootSelection {
 
 export const selectionProvenanceKinds = [
   'explicit',
+  'all-compatible',
   'bundle-member',
-  'dependency-of',
-  'all-compatible'
+  'dependency-of'
 ] as const;
 
 export type SelectionProvenanceKind = (typeof selectionProvenanceKinds)[number];

@@ -33,6 +33,13 @@ v1/v2 configs normalize to that v3 shape in memory without a read-side write. Ef
 skills are derived and represented through the pure adapter-neutral selection model; they are not
 persisted in config or in the ownership-only manifest.
 
+Effective resolution is one deterministic domain pipeline: qualified bundle roots expand to their
+authored direct members, those members merge with explicit or all-compatible skill roots, and hard
+dependencies expand within the owning skillpack. The result deduplicates link targets while
+retaining all origins and transitive bundle provenance. The application planner validates agent
+support and conflicts only after this full expansion, so bundles are atomic at planning time;
+recommendations from any effective skill are reported but never selected automatically.
+
 Rules:
 
 - pure and independently testable, with no knowledge of Ink, Commander, argv, or JSON envelopes;

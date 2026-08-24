@@ -118,6 +118,13 @@ boundaries.
   authorized write workflow may persist v3. The shared pure selection read model in
   `packages/core/src/skills/selectionModel.ts` keeps canonical skill/bundle roots separate from
   deduplicated effective skills and retains every provenance path.
+- The pure resolver pipeline expands qualified bundle roots to authored direct members, merges
+  them with skill roots, and then traverses same-skillpack hard dependencies. Effective skills
+  remain unique while explicit, all-compatible, bundle-member, and dependency origins stay
+  independently explainable; transitive bundle roots are retained for diagnostics.
+- Agent compatibility and symmetric conflicts are evaluated only after complete effective
+  expansion. Any unsupported bundle member or dependency blocks the whole agent plan, and
+  recommendations from effective skills remain advisory rather than becoming roots or links.
 - Registry v1/v2 remain readable without inferred versions or manager-authored migration.
   `allCompatible` continues to mean compatible individual skills and never selects bundles.
 - Bundle-aware writes use the same shared application/core plan-then-apply path as individual

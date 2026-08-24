@@ -589,9 +589,9 @@ For every task:
 - Return structured missing/invalid bundle errors even though valid discovery should normally prevent them.
 
 **Acceptance criteria:**
-- [ ] Selecting one bundle yields its exact direct members.
-- [ ] Selecting overlapping bundles deduplicates skills while retaining provenance.
-- [ ] Unknown bundle is a blocking deterministic error.
+- [x] Selecting one bundle yields its exact direct members.
+- [x] Selecting overlapping bundles deduplicates skills while retaining provenance.
+- [x] Unknown bundle is a blocking deterministic error.
 
 **Required tests / verification:**
 - Unit tests for one bundle, overlapping bundles, duplicate roots and unknown bundle.
@@ -618,8 +618,8 @@ For every task:
 - Allow effective skills to preserve more than one origin when useful, or establish deterministic precedence plus an origins collection.
 
 **Acceptance criteria:**
-- [ ] Plan/status can distinguish explicit skill, bundle member and transitive dependency.
-- [ ] Existing explicit/dependency behavior remains intact.
+- [x] Plan/status can distinguish explicit skill, bundle member and transitive dependency.
+- [x] Existing explicit/dependency behavior remains intact.
 
 **Required tests / verification:**
 - Relationship and plan schema tests.
@@ -648,9 +648,9 @@ For every task:
 - Return dependencies-added and bundle-members-added separately.
 
 **Acceptance criteria:**
-- [ ] No duplicate effective link targets arise from overlapping roots.
-- [ ] Dependency traversal remains terminating/deterministic.
-- [ ] A dependency shared by two bundles remains one effective skill.
+- [x] No duplicate effective link targets arise from overlapping roots.
+- [x] Dependency traversal remains terminating/deterministic.
+- [x] A dependency shared by two bundles remains one effective skill.
 
 **Required tests / verification:**
 - Unit tests for mixed explicit/bundle roots, shared dependencies and deterministic order.
@@ -677,8 +677,8 @@ For every task:
 - Keep current strict behavior for explicit unsupported skills and required dependencies.
 
 **Acceptance criteria:**
-- [ ] A bundle installation is atomic at planning semantics: incompatible effective set blocks the plan for that agent.
-- [ ] Error output is actionable and stable.
+- [x] A bundle installation is atomic at planning semantics: incompatible effective set blocks the plan for that agent.
+- [x] Error output is actionable and stable.
 
 **Required tests / verification:**
 - Planner tests for unsupported direct member and unsupported transitive dependency.
@@ -705,9 +705,9 @@ For every task:
 - Keep symmetric conflict behavior.
 
 **Acceptance criteria:**
-- [ ] A conflict introduced by two different bundles blocks planning.
-- [ ] Recommendations remain warnings/offers only.
-- [ ] No recommendation becomes a root/effective skill without explicit selection.
+- [x] A conflict introduced by two different bundles blocks planning.
+- [x] Recommendations remain warnings/offers only.
+- [x] No recommendation becomes a root/effective skill without explicit selection.
 
 **Required tests / verification:**
 - Tests for bundle-vs-bundle conflict, bundle-vs-explicit conflict and recommendations.

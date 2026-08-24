@@ -152,6 +152,19 @@ export {
   deriveBundleSupportedAgents
 } from './skills/bundleCompatibility.js';
 export {
+  type BundleExpansionResult,
+  type BundleResolutionError,
+  type BundleResolutionErrorCode,
+  bundleResolutionErrorCodes,
+  expandBundleSelection
+} from './skills/bundleResolver.js';
+export {
+  type EffectiveSelectionResolution,
+  type EffectiveSelectionResolutionError,
+  type RootSkillSelection,
+  resolveEffectiveSelection
+} from './skills/effectiveSelectionResolver.js';
+export {
   type BundleCatalogEntry,
   type BundleMemberSummary,
   type BundleSearchResult,

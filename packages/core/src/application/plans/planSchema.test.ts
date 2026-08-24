@@ -5,7 +5,8 @@ import {
   computeStateFingerprint,
   createPlanArtifact,
   parsePersistedPlan,
-  planSchemaVersion
+  planSchemaVersion,
+  resolvedSkillSelectionSchema
 } from './planSchema.js';
 
 describe('plan schema v2 root config changes', () => {
@@ -66,5 +67,29 @@ describe('plan schema v2 root config changes', () => {
     expect(planSchemaVersion).toBe(2);
     expect(parsePersistedPlan(artifact).planSchemaVersion).toBe(2);
     expect(() => parsePersistedPlan({...artifact, planSchemaVersion: 1})).toThrow();
+  });
+
+  it('accepts bundle-member provenance and retains multiple canonical origins', () => {
+    expect(
+      resolvedSkillSelectionSchema.parse({
+        agentId: 'codex',
+        skillId: 'team:review',
+        reason: 'explicit',
+        reasonKind: 'explicit',
+        origins: [
+          {kind: 'explicit', reason: 'explicit'},
+          {kind: 'bundle-member', reason: 'bundle:team:workflow'}
+        ]
+      })
+    ).toEqual({
+      agentId: 'codex',
+      skillId: 'team:review',
+      reason: 'explicit',
+      reasonKind: 'explicit',
+      origins: [
+        {kind: 'explicit', reason: 'explicit'},
+        {kind: 'bundle-member', reason: 'bundle:team:workflow'}
+      ]
+    });
   });
 });

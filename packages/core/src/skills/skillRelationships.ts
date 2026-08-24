@@ -2,15 +2,18 @@ import type {AgentId} from '../agents/AgentAdapter.js';
 import type {RegistryBundleV3, RegistrySkillEntryV3} from '../registry/registrySchema.js';
 import {satisfiesSemanticVersionRange} from '../versioning/semver.js';
 import type {DiscoveredSkill, SkillDiscoveryIssue} from './skillDiscovery.js';
+import type {SelectionProvenance, SelectionProvenanceKind} from './selectionModel.js';
 
 /** Why a skill ended up in an expanded selection. */
-export type SkillSelectionReasonKind = 'explicit' | 'dependency-of' | 'all-compatible';
+export type SkillSelectionReasonKind = SelectionProvenanceKind;
 
 export interface ResolvedSkillSelection {
   skillId: string;
   /** Stable, machine-readable provenance, e.g. `dependency-of:embedded-driver-development`. */
   reason: string;
   reasonKind: SkillSelectionReasonKind;
+  /** Every retained origin; omitted by legacy callers that only have a primary reason. */
+  origins?: SelectionProvenance[];
 }
 
 export interface SkillConflict {

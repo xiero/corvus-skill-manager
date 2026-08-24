@@ -16,12 +16,16 @@ import {
 } from '../../links/linkPlan.js';
 import type {ManagerManifest} from '../../manifest/manifestSchema.js';
 import {resolveUserPath} from '../../paths.js';
-import type {DiscoveredSkill} from '../../skills/skillDiscovery.js';
+import {
+  resolveEffectiveSelection,
+  type EffectiveSelectionResolution
+} from '../../skills/effectiveSelectionResolver.js';
+import type {DiscoveredBundle, DiscoveredSkill} from '../../skills/skillDiscovery.js';
 import {
   type ResolvedSkillSelection,
-  expandRequiredDependencies,
   findSkillConflicts
 } from '../../skills/skillRelationships.js';
+import type {EffectiveSkillSelection, SelectionProvenance} from '../../skills/selectionModel.js';
 import {type MachineError, createMachineError} from '../protocol/errors.js';
 import type {AgentConfigChange, PlanIssue, ResolvedPlanSelection} from '../plans/planSchema.js';
 import type {NormalizedInstallRequest} from './installRequest.js';
@@ -63,6 +67,7 @@ export function resolveSelections(options: {
   request: NormalizedInstallRequest;
   adapters: readonly AgentAdapter[];
   skills: readonly DiscoveredSkill[];
+  bundles: readonly DiscoveredBundle[];
   config: ManagerConfig | undefined;
   homeDir: string;
 }): ResolveSelectionsResult {
@@ -132,45 +137,56 @@ export function resolveSelections(options: {
       (skillId): ResolvedSkillSelection =>
         requestedById.get(skillId) ?? {skillId, reason: 'explicit', reasonKind: 'explicit'}
     );
-    const previousExpanded = expandRequiredDependencies(
-      options.skills,
-      previousSelectedSkillIds.map((skillId) => ({skillId, reason: 'explicit', reasonKind: 'explicit'}))
-    );
-    const expanded = expandRequiredDependencies(options.skills, roots);
+    const previousResolution = resolveEffectiveSelection({
+      rootSkillSelections: previousSelectedSkillIds.map((skillRef) => ({
+        skillRef,
+        provenance: [{kind: 'explicit', reason: 'explicit'}]
+      })),
+      rootBundleRefs: previousSelectedBundleIds,
+      bundles: options.bundles,
+      skills: options.skills
+    });
+    const resolution = resolveEffectiveSelection({
+      rootSkillSelections: roots.map((root) => ({
+        skillRef: root.skillId,
+        provenance: root.origins ?? [{kind: root.reasonKind, reason: root.reason}]
+      })),
+      rootBundleRefs: previousSelectedBundleIds,
+      bundles: options.bundles,
+      skills: options.skills
+    });
 
-    for (const missing of expanded.missing) {
-      errors.push(
-        createMachineError(
-          'SKILL_NOT_FOUND',
-          `Skill "${missing.requiredBy}" requires "${missing.skillId}", which is not in the active skillpack.`,
-          {skillId: missing.skillId, agentId: adapter.id}
-        )
-      );
-    }
+    errors.push(...resolutionErrorsForAgent(resolution, adapter));
+    for (const dependency of resolution.dependenciesAdded) dependenciesAdded.add(dependency);
 
-    for (const selection of expanded.selections) {
-      const skill = skillsById.get(selection.skillId);
+    for (const selection of resolution.selection.effectiveSkills) {
+      const skill = skillsById.get(selection.skillRef);
 
       if (skill === undefined) {
         continue;
       }
 
       if (!skill.supportedAgents.includes(adapter.id)) {
-        const skillRef = skill.ref ?? skill.id;
+        const bundleRefs = resolution.bundleOriginsBySkill[selection.skillRef] ?? [];
+        const primary = primaryOrigin(selection);
         errors.push(
           createMachineError(
             'SKILL_NOT_SUPPORTED_BY_AGENT',
-            selection.reasonKind === 'dependency-of'
-              ? `Required dependency "${skillRef}" (${selection.reason}) does not support ${adapter.displayName}.`
-              : `Skill "${skillRef}" does not support ${adapter.displayName}.`,
-            {skillId: skillRef, agentId: adapter.id}
+            bundleRefs.length > 0
+              ? `Bundle${bundleRefs.length === 1 ? '' : 's'} "${bundleRefs.join('", "')}" require${bundleRefs.length === 1 ? 's' : ''} unsupported skill "${selection.skillRef}" for ${adapter.displayName}.`
+              : primary.kind === 'dependency-of'
+                ? `Required dependency "${selection.skillRef}" (${primary.reason}) does not support ${adapter.displayName}.`
+                : `Skill "${selection.skillRef}" does not support ${adapter.displayName}.`,
+            {
+              skillId: selection.skillRef,
+              agentId: adapter.id,
+              ...(bundleRefs.length === 0
+                ? {}
+                : {details: {bundleRefs, origins: selection.provenance}})
+            }
           )
         );
         continue;
-      }
-
-      if (selection.reasonKind === 'dependency-of') {
-        dependenciesAdded.add(skill.ref ?? skill.id);
       }
 
       for (const recommended of skill.recommends) {
@@ -178,16 +194,34 @@ export function resolveSelections(options: {
       }
     }
 
-    const effectiveSelectedSkillIds = expanded.selections
-      .filter((selection) => skillsById.has(selection.skillId))
-      .map((selection) => selection.skillId);
+    const effectiveSelectedSkillIds = resolution.selection.effectiveSkills
+      .filter((selection) => skillsById.has(selection.skillRef))
+      .map((selection) => selection.skillRef);
 
     for (const conflict of findSkillConflicts(options.skills, effectiveSelectedSkillIds)) {
+      const left = resolution.selection.effectiveSkills.find((item) => item.skillRef === conflict.skillId);
+      const right = resolution.selection.effectiveSkills.find(
+        (item) => item.skillRef === conflict.conflictsWithSkillId
+      );
       errors.push(
         createMachineError(
           'SKILL_CONFLICT',
           `Skills "${conflict.skillId}" and "${conflict.conflictsWithSkillId}" declare a conflict and cannot both be installed for ${adapter.displayName}.`,
-          {skillId: conflict.skillId, agentId: adapter.id, details: {conflictsWith: conflict.conflictsWithSkillId}}
+          {
+            skillId: conflict.skillId,
+            agentId: adapter.id,
+            details: {
+              conflictsWith: conflict.conflictsWithSkillId,
+              bundleRefs: uniqueSorted([
+                ...(resolution.bundleOriginsBySkill[conflict.skillId] ?? []),
+                ...(resolution.bundleOriginsBySkill[conflict.conflictsWithSkillId] ?? [])
+              ]),
+              origins: {
+                [conflict.skillId]: left?.provenance ?? [],
+                [conflict.conflictsWithSkillId]: right?.provenance ?? []
+              }
+            }
+          }
         )
       );
     }
@@ -197,17 +231,15 @@ export function resolveSelections(options: {
       targetPath,
       previousSelectedSkillIds,
       previousSelectedBundleIds,
-      previousEffectiveSkillIds: uniqueSorted(
-        previousExpanded.selections
-          .filter((selection) => skillsById.has(selection.skillId))
-          .map((selection) => selection.skillId)
-      ),
+      previousEffectiveSkillIds: previousResolution.selection.effectiveSkills
+        .filter((selection) => skillsById.has(selection.skillRef))
+        .map((selection) => selection.skillRef),
       previousEnabled: agentConfig?.enabled ?? false,
       ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
       nextSelectedSkillIds,
       nextSelectedBundleIds: previousSelectedBundleIds,
       effectiveSelectedSkillIds: uniqueSorted(effectiveSelectedSkillIds),
-      selections: expanded.selections
+      selections: resolution.selection.effectiveSkills.map(toResolvedSelection)
     });
   }
 
@@ -220,6 +252,52 @@ export function resolveSelections(options: {
     recommendationsNotSelected: [...recommendations]
       .filter((skillId) => !selectedEverywhere.has(skillId) && skillsById.has(skillId))
       .sort((left, right) => left.localeCompare(right))
+  };
+}
+
+function resolutionErrorsForAgent(
+  resolution: EffectiveSelectionResolution,
+  adapter: AgentAdapter
+): MachineError[] {
+  return resolution.errors.map((error) => {
+    if ('requiredBy' in error) {
+      return createMachineError('SKILL_NOT_FOUND', error.message, {
+        skillId: error.skillRef,
+        agentId: adapter.id,
+        details: {requiredBy: error.requiredBy, bundleRefs: error.bundleRefs, resolutionCode: error.code}
+      });
+    }
+
+    if ('skillRef' in error) {
+      return createMachineError('SKILL_NOT_FOUND', error.message, {
+        skillId: error.skillRef,
+        agentId: adapter.id,
+        details: {resolutionCode: error.code}
+      });
+    }
+
+    return createMachineError('SKILL_NOT_FOUND', error.message, {
+      agentId: adapter.id,
+      details: {
+        bundleRef: error.bundleRef,
+        ...(error.memberRef === undefined ? {} : {memberRef: error.memberRef}),
+        resolutionCode: error.code
+      }
+    });
+  });
+}
+
+function primaryOrigin(selection: EffectiveSkillSelection): SelectionProvenance {
+  return selection.provenance[0] ?? {kind: 'explicit', reason: 'explicit'};
+}
+
+function toResolvedSelection(selection: EffectiveSkillSelection): ResolvedSkillSelection {
+  const primary = primaryOrigin(selection);
+  return {
+    skillId: selection.skillRef,
+    reason: primary.reason,
+    reasonKind: primary.kind,
+    origins: selection.provenance
   };
 }
 
@@ -324,7 +402,8 @@ export async function buildInstallLinkPlan(options: {
           agentId: agent.adapter.id,
           skillId: selection.skillId,
           reason: selection.reason,
-          reasonKind: selection.reasonKind
+          reasonKind: selection.reasonKind,
+          ...(selection.origins === undefined ? {} : {origins: selection.origins})
         }))
       )
       .sort(

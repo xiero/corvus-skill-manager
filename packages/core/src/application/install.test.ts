@@ -2,7 +2,11 @@ import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {type TestHome, createStubGit, createTestHome, listTree} from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
+import {
+  type SkillpackFixture,
+  v2SkillpackFixture,
+  v3BundleSkillpackFixture
+} from '../../../../test/support/skillpackFixtures.js';
 import {loadConfig, saveConfig} from '../config/configStore.js';
 import type {CorvusApplication} from './CorvusApplication.js';
 import {createCorvusApplication} from './createCorvusApplication.js';
@@ -45,6 +49,62 @@ async function planAndApply(
 
 function codexTargetDir(home: TestHome): string {
   return path.join(home.homeDir, '.agents', 'skills');
+}
+
+async function selectCodexBundles(home: TestHome, selectedBundleIds: string[]): Promise<void> {
+  const config = await loadConfig(home.configPath);
+  await saveConfig(
+    {
+      ...config,
+      agents: {
+        ...config.agents,
+        codex: {enabled: true, selectedSkillIds: [], selectedBundleIds}
+      }
+    },
+    {configPath: home.configPath}
+  );
+}
+
+function v3RelationshipFixture(options: {
+  skills: Array<{
+    id: string;
+    supportedAgents?: string[];
+    requires?: string[];
+    recommends?: string[];
+    conflictsWith?: string[];
+  }>;
+  bundles: Array<{id: string; skills: string[]}>;
+}): SkillpackFixture {
+  return {
+    registry: {
+      version: 3,
+      skills: options.skills.map((skill) => ({
+        id: skill.id,
+        version: '1.0.0',
+        path: `skills/${skill.id}`,
+        title: skill.id,
+        description: `${skill.id} skill.`,
+        supportedAgents: skill.supportedAgents ?? ['codex'],
+        ...(skill.requires === undefined
+          ? {}
+          : {requires: skill.requires.map((id) => ({id, version: '^1.0.0'}))}),
+        ...(skill.recommends === undefined ? {} : {recommends: skill.recommends}),
+        ...(skill.conflictsWith === undefined ? {} : {conflictsWith: skill.conflictsWith})
+      })),
+      bundles: options.bundles.map((bundle) => ({
+        id: bundle.id,
+        version: '1.0.0',
+        title: bundle.id,
+        description: `${bundle.id} bundle.`,
+        skills: bundle.skills.map((id) => ({id, version: '^1.0.0'}))
+      }))
+    },
+    skills: options.skills.map((skill) => ({
+      relativePath: `skills/${skill.id}`,
+      frontmatter: {name: skill.id, description: `${skill.id} skill.`},
+      body: `${skill.id} body.`
+    }))
+  };
 }
 
 describe('install request contract', () => {
@@ -140,13 +200,20 @@ describe('install plan', () => {
         agentId: 'codex',
         skillId: 'corvus-skillpack:embedded-driver-development',
         reason: 'Relevant to embedded drivers.',
-        reasonKind: 'explicit'
+        reasonKind: 'explicit',
+        origins: [{kind: 'explicit', reason: 'Relevant to embedded drivers.'}]
       },
       {
         agentId: 'codex',
         skillId: 'corvus-skillpack:embedded-toolchain',
         reason: 'dependency-of:corvus-skillpack:embedded-driver-development',
-        reasonKind: 'dependency-of'
+        reasonKind: 'dependency-of',
+        origins: [
+          {
+            kind: 'dependency-of',
+            reason: 'dependency-of:corvus-skillpack:embedded-driver-development'
+          }
+        ]
       }
     ]);
     expect(result.data.plan.summary.recommendationsNotSelected).toEqual(['corvus-skillpack:embedded-testing']);
@@ -308,7 +375,7 @@ describe('install plan', () => {
   });
 
   it('preserves existing bundle roots through the v1 skill-only install workflow', async () => {
-    const home = await newHome();
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
     const config = await loadConfig(home.configPath);
     await saveConfig(
       {
@@ -318,7 +385,7 @@ describe('install plan', () => {
           codex: {
             enabled: true,
             selectedSkillIds: [],
-            selectedBundleIds: ['corvus-skillpack:review-flow']
+            selectedBundleIds: ['corvus-skillpack:default']
           }
         }
       },
@@ -328,7 +395,7 @@ describe('install plan', () => {
     const plan = await app.installPlan({
       schemaVersion: 1,
       targetAgents: ['codex'],
-      selectedSkills: [{id: 'git-commit'}],
+      selectedSkills: [{id: 'docs-helper'}],
       replaceSelection: true
     });
 
@@ -336,15 +403,164 @@ describe('install plan', () => {
     if (!plan.ok || plan.data.planId === undefined) return;
 
     expect(plan.data.plan.configChanges[0]).toMatchObject({
-      selectedBundleIdsFrom: ['corvus-skillpack:review-flow'],
-      selectedBundleIdsTo: ['corvus-skillpack:review-flow']
+      selectedBundleIdsFrom: ['corvus-skillpack:default'],
+      selectedBundleIdsTo: ['corvus-skillpack:default']
+    });
+    expect(plan.data.plan.operations.map((operation) => operation.skillId).sort()).toEqual([
+      'corvus-skillpack:docs-helper',
+      'corvus-skillpack:git-basics',
+      'corvus-skillpack:review-helper',
+      'corvus-skillpack:test-helper'
+    ]);
+    expect(
+      plan.data.plan.selections.find(
+        (selection) => selection.skillId === 'corvus-skillpack:review-helper'
+      )
+    ).toMatchObject({
+      reason: 'bundle:corvus-skillpack:default',
+      reasonKind: 'bundle-member',
+      origins: [
+        {kind: 'bundle-member', reason: 'bundle:corvus-skillpack:default'}
+      ]
     });
 
     const apply = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
     expect(apply.ok).toBe(true);
     expect((await loadConfig(home.configPath)).agents?.codex?.selectedBundleIds).toEqual([
-      'corvus-skillpack:review-flow'
+      'corvus-skillpack:default'
     ]);
+  });
+
+  it('blocks a bundle atomically when a direct member does not support the target agent', async () => {
+    const home = await newHome({
+      skillpack: v3RelationshipFixture({
+        skills: [
+          {id: 'supported'},
+          {id: 'blocked', supportedAgents: ['claude']}
+        ],
+        bundles: [{id: 'workflow', skills: ['supported', 'blocked']}]
+      })
+    });
+    await selectCodexBundles(home, ['corvus-skillpack:workflow']);
+
+    const result = await appFor(home).installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: []
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: 'SKILL_NOT_SUPPORTED_BY_AGENT',
+        skillId: 'corvus-skillpack:blocked',
+        details: expect.objectContaining({bundleRefs: ['corvus-skillpack:workflow']})
+      })
+    ]);
+  });
+
+  it('blocks a bundle when a transitive dependency does not support the target agent', async () => {
+    const home = await newHome({
+      skillpack: v3RelationshipFixture({
+        skills: [
+          {id: 'member', requires: ['foundation']},
+          {id: 'foundation', supportedAgents: ['claude']}
+        ],
+        bundles: [{id: 'workflow', skills: ['member']}]
+      })
+    });
+    await selectCodexBundles(home, ['corvus-skillpack:workflow']);
+
+    const result = await appFor(home).installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: []
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]).toMatchObject({
+      code: 'SKILL_NOT_SUPPORTED_BY_AGENT',
+      skillId: 'corvus-skillpack:foundation',
+      details: {bundleRefs: ['corvus-skillpack:workflow']}
+    });
+  });
+
+  it('detects bundle-vs-bundle and bundle-vs-explicit conflicts with bundle provenance', async () => {
+    const fixture = v3RelationshipFixture({
+      skills: [
+        {id: 'alpha', conflictsWith: ['beta']},
+        {id: 'beta'}
+      ],
+      bundles: [
+        {id: 'alpha-flow', skills: ['alpha']},
+        {id: 'beta-flow', skills: ['beta']}
+      ]
+    });
+    const bundleHome = await newHome({skillpack: fixture});
+    await selectCodexBundles(bundleHome, [
+      'corvus-skillpack:alpha-flow',
+      'corvus-skillpack:beta-flow'
+    ]);
+    const bundleConflict = await appFor(bundleHome).installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: []
+    });
+
+    expect(bundleConflict.ok).toBe(false);
+    if (!bundleConflict.ok) {
+      expect(bundleConflict.errors[0]).toMatchObject({
+        code: 'SKILL_CONFLICT',
+        details: {
+          bundleRefs: ['corvus-skillpack:alpha-flow', 'corvus-skillpack:beta-flow']
+        }
+      });
+    }
+
+    const explicitHome = await newHome({skillpack: fixture});
+    await selectCodexBundles(explicitHome, ['corvus-skillpack:alpha-flow']);
+    const explicitConflict = await appFor(explicitHome).installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'beta'}]
+    });
+
+    expect(explicitConflict.ok).toBe(false);
+    if (!explicitConflict.ok) {
+      expect(explicitConflict.errors[0]).toMatchObject({
+        code: 'SKILL_CONFLICT',
+        details: {bundleRefs: ['corvus-skillpack:alpha-flow']}
+      });
+    }
+  });
+
+  it('reports recommendations from bundle-effective skills without selecting them', async () => {
+    const home = await newHome({
+      skillpack: v3RelationshipFixture({
+        skills: [
+          {id: 'member', recommends: ['optional']},
+          {id: 'optional'}
+        ],
+        bundles: [{id: 'workflow', skills: ['member']}]
+      })
+    });
+    await selectCodexBundles(home, ['corvus-skillpack:workflow']);
+
+    const result = await appFor(home).installPlan({
+      schemaVersion: 1,
+      targetAgents: ['codex'],
+      selectedSkills: []
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.plan.summary.recommendationsNotSelected).toEqual(['corvus-skillpack:optional']);
+    expect(result.data.plan.operations.map((operation) => operation.skillId)).toEqual([
+      'corvus-skillpack:member'
+    ]);
+    expect(result.warnings.some((warning) => warning.code === 'recommendation-not-selected')).toBe(true);
   });
 
   it('lists every removal in replacement mode', async () => {

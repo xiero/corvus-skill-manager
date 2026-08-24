@@ -151,6 +151,12 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
       "selections": [
         {
           "agentId": "codex",
+          "origins": [
+            {
+              "kind": "explicit",
+              "reason": "explicit",
+            },
+          ],
           "reason": "explicit",
           "reasonKind": "explicit",
           "skillId": "corvus-skillpack:git-commit",
@@ -262,12 +268,24 @@ exports[`golden protocol fixtures > install plan with a dependency expansion 1`]
       "selections": [
         {
           "agentId": "codex",
+          "origins": [
+            {
+              "kind": "explicit",
+              "reason": "explicit",
+            },
+          ],
           "reason": "explicit",
           "reasonKind": "explicit",
           "skillId": "corvus-skillpack:embedded-driver-development",
         },
         {
           "agentId": "codex",
+          "origins": [
+            {
+              "kind": "dependency-of",
+              "reason": "dependency-of:corvus-skillpack:embedded-driver-development",
+            },
+          ],
           "reason": "dependency-of:corvus-skillpack:embedded-driver-development",
           "reasonKind": "dependency-of",
           "skillId": "corvus-skillpack:embedded-toolchain",

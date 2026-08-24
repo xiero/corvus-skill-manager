@@ -155,6 +155,7 @@ export async function installPlanUseCase(
     request: normalizedRequest,
     adapters,
     skills: ready.discovery.skills,
+    bundles: ready.discovery.bundles,
     config: context.config,
     homeDir: environment.homeDir
   });

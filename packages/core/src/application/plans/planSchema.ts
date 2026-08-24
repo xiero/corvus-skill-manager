@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {agentIdSchema, skillReferencePattern} from '../../config/configSchema.js';
+import {selectionProvenanceKinds} from '../../skills/selectionModel.js';
 import {canonicalJsonStringify} from '../protocol/canonicalJson.js';
 
 /** Version of the persisted plan artifact format. */
@@ -113,12 +114,21 @@ export const agentConfigChangeSchema = z
 
 export type AgentConfigChange = z.infer<typeof agentConfigChangeSchema>;
 
+export const selectionProvenanceSchema = z
+  .object({
+    kind: z.enum(selectionProvenanceKinds),
+    reason: z.string().min(1)
+  })
+  .strict();
+
 export const resolvedSkillSelectionSchema = z
   .object({
     agentId: agentIdSchema,
     skillId: z.string().min(1),
     reason: z.string().min(1),
-    reasonKind: z.enum(['explicit', 'dependency-of', 'all-compatible'])
+    reasonKind: z.enum(selectionProvenanceKinds),
+    /** Additive in plan schema v2 so existing persisted plan documents remain parseable. */
+    origins: z.array(selectionProvenanceSchema).min(1).optional()
   })
   .strict();
 
