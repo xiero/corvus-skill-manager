@@ -13,7 +13,8 @@ runs a deterministic JSON command interface built for coding agents — see
 - Performs each pack's initial revision clone only when that pack's active snapshot is absent.
 - Detects remote skillpack changes in read-only mode and lets you preview/approve a new local revision snapshot.
 - Discovers skills from `registry.json`, or from `SKILL.md` files in read-only fallback mode when a registry is missing.
-- Reads optional registry v2 semantic metadata (domain, task, language, technology, platform, use case) and skill relationships, so skills can be found by intent rather than by name.
+- Reads Registry v1/v2 unchanged and supports Registry v3 canonical skill versions, versioned
+  dependencies, and maintained bundles alongside the v2 semantic metadata used for intent search.
 - Lets you enable supported agents and select skills per agent.
 - Generates a deterministic dry-run link plan.
 - Applies confirmed plans by creating/removing manager-owned symlinks or Windows junctions.
@@ -26,6 +27,8 @@ runs a deterministic JSON command interface built for coding agents — see
 - It does not automatically update the local skill collection; revision activation requires a preview and an explicit approval (`a` in the TUI, or a matching `--confirm` plan token in the machine CLI).
 - It does not overwrite unmanaged files, directories, or symlinks.
 - It does not execute skill scripts or install dependencies inside the skillpack.
+- It does not execute bundles as workflows. A bundle is a named, versioned composition whose
+  effective skills are linked individually after preview and confirmation.
 - It does not generate Gemini `.toml` command wrappers.
 - It does not provide marketplace, cloud, auth, Express, backend, or copy-fallback behavior.
 - It does not embed an LLM, require an AI API key, or make a semantic choice invisibly. The calling agent interprets intent; Corvus executes deterministic operations.
@@ -162,7 +165,7 @@ relevant paths, and the exit-code contract — everything needed to operate the 
 external documentation.
 
 The agent then follows: `status` → make the required skillpack sources ready → `skills search` / `skills inspect`
-→ choose exact skill IDs → `install plan` → review conflicts → `install apply --plan-id <id>
+or `bundles search` / `bundles inspect` → choose exact skill and bundle roots → `install plan` → review conflicts → `install apply --plan-id <id>
 --confirm <id>` → `install verify`.
 
 Two properties matter:
@@ -236,6 +239,25 @@ Pack-specific machine operations accept `--skillpack-id`. Removing an unused sec
 uses `skillpack remove-plan` followed by `remove-apply`; the registration is removed but its
 immutable snapshots and `current` link are deliberately preserved.
 
+### Registry v3 bundles and versions
+
+Registry v3 requires a canonical SemVer on every skill and bundle. Dependency and bundle-member
+ranges are checked against the single version in the active snapshot; Corvus does not download
+or choose among versions. SemVer communicates compatibility and upgrade meaning, while the
+skillpack Git commit remains the exact physical reproducibility lock.
+
+Config v3 stores only qualified **root selections**: skills chosen directly and bundles chosen
+directly. The **effective selection** is derived deterministically from those roots, bundle
+members, and transitive hard dependencies. It is not persisted in config or the link-ownership
+manifest. Removing a bundle root therefore recomputes the effective set and retains a shared
+skill whenever another skill or bundle root still requires it.
+
+Bundles are same-skillpack, skills-only compositions. They cannot contain bundles, refer across
+skillpacks, execute workflow steps, or create a filesystem target of their own. Recommendations
+remain advisory and are never installed automatically. Registry v1/v2 and Config v1/v2 remain
+readable; legacy selected skills normalize in memory to Config v3 skill roots without a
+read-side write.
+
 ## Revision Snapshot Model
 
 Initial clone creates an immutable revision under `revisions/<commit>/repo` and points `current` at it. The configured checkout path is `current`.
@@ -302,7 +324,7 @@ selection.
 - [Machine Protocol v1](docs/agent-protocol-v1.md)
 - [Semantic Registry](docs/semantic-registry.md)
 - [Skillpack Contract](docs/skillpack-contract.md)
-- [Registry v1 to v2 Migration](docs/skillpack-registry-migration.md)
+- [Registry v1/v2 to v3 Migration](docs/skillpack-registry-migration.md)
 - [Managed Manifest Behavior](docs/managed-manifest.md)
 - [Safety Model](docs/safety-model.md)
 - [npm Publishing](docs/npm-publishing.md)

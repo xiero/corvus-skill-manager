@@ -211,6 +211,36 @@ describe('agent documentation', () => {
     }
   });
 
+  it('keeps public Registry v3, bundle, and protocol boundaries aligned', async () => {
+    const [readme, architecture, contract, agentInterface, protocol, migration] = await Promise.all(
+      [
+        'README.md',
+        'architecture.md',
+        'docs/skillpack-contract.md',
+        'docs/agent-interface.md',
+        'docs/agent-protocol-v1.md',
+        'docs/skillpack-registry-migration.md'
+      ].map(async (relativePath) => readDoc(relativePath))
+    );
+
+    expect(readme).toContain('Registry v3 bundles and versions');
+    expect(readme).toContain('Config v3 stores only qualified **root selections**');
+    expect(architecture).toContain('Registry v1/v2 remain readable');
+    expect(architecture).toContain('Install request v2');
+    expect(contract).toContain('### Registry v3');
+    expect(contract).toContain('"version": 3');
+    expect(contract).toContain('"bundles": [');
+    expect(agentInterface).toContain('--bundle corvus-skillpack:review-workflow');
+    expect(protocol).toContain('current install request is v2');
+    expect(protocol).toContain('current persisted plan is v3');
+    expect(migration).toContain('Config v1/v2 remains readable');
+
+    for (const document of [readme, architecture, contract, agentInterface, protocol, migration]) {
+      expect(document).toMatch(/bundle.{0,200}workflow/is);
+      expect(document).toMatch(/immutable.{0,160}(?:commit|revision|snapshot)/is);
+    }
+  });
+
   it('never instructs an agent to overwrite unmanaged targets or mutate the active checkout', async () => {
     const documents = await Promise.all(
       ['docs/agent-interface.md', 'docs/agent-protocol-v1.md', 'docs/skillpack-registry-migration.md'].map(

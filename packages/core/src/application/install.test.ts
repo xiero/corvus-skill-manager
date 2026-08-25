@@ -188,6 +188,30 @@ describe('install request contract', () => {
 });
 
 describe('install plan', () => {
+  it('produces the same bundle-aware plan digest for equivalent reordered roots', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const first = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'test-helper'}, {id: 'docs-helper'}],
+      selectedBundles: [{id: 'documentation'}, {id: 'default'}]
+    });
+    const second = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [{id: 'docs-helper'}, {id: 'test-helper'}],
+      selectedBundles: [{id: 'default'}, {id: 'documentation'}]
+    });
+
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(second.data.plan.request).toEqual(first.data.plan.request);
+    expect(second.data.plan).toEqual(first.data.plan);
+    expect(second.data.digest).toBe(first.data.digest);
+    expect(second.data.planId).toBe(first.data.planId);
+  });
+
   it('expands required dependencies with a dependency-of reason', async () => {
     const home = await newHome();
     const result = await appFor(home).installPlan({
@@ -1017,13 +1041,13 @@ describe('install apply', () => {
     }
   });
 
-  it('requires the confirmation token to match the plan id', async () => {
-    const home = await newHome();
+  it('requires the confirmation token to match a bundle plan id', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
     const app = appFor(home);
     const plan = await app.installPlan({
-      schemaVersion: 1,
+      schemaVersion: 2,
       targetAgents: ['codex'],
-      selectedSkills: [{id: 'git-commit'}]
+      selectedBundles: [{id: 'default'}]
     });
 
     expect(plan.ok).toBe(true);
@@ -1040,7 +1064,7 @@ describe('install apply', () => {
       expect(result.errors[0]?.code).toBe('PLAN_CONFIRMATION_REQUIRED');
     }
 
-    await expect(fs.lstat(path.join(codexTargetDir(home), 'git-commit'))).rejects.toThrow();
+    await expect(fs.lstat(path.join(codexTargetDir(home), 'review-helper'))).rejects.toThrow();
   });
 
   it('rejects an unknown plan id', async () => {
@@ -1069,13 +1093,13 @@ describe('install apply', () => {
     }
   });
 
-  it('rejects a tampered plan file', async () => {
-    const home = await newHome();
+  it('rejects a tampered bundle plan file', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
     const app = appFor(home);
     const plan = await app.installPlan({
-      schemaVersion: 1,
+      schemaVersion: 2,
       targetAgents: ['codex'],
-      selectedSkills: [{id: 'git-commit'}]
+      selectedBundles: [{id: 'default'}]
     });
 
     expect(plan.ok).toBe(true);

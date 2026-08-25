@@ -97,11 +97,10 @@ Remote change detection is read-only and compares the active commit with `git ls
 
 ## Registry v3 Bundles And Selection Semantics
 
-The implementation-facing contract for Registry v3, bundles, semantic versions, selection,
-migration, and normative Registry/Config examples is
+The frozen feature contract for Registry v3, bundles, semantic versions, selection, migration,
+and normative Registry/Config examples is
 [`_specs/registry-v3-bundles-and-versioning.md`](_specs/registry-v3-bundles-and-versioning.md).
-Later implementation work must follow that contract instead of redefining these terms or
-boundaries.
+The public authoring contract is [`docs/skillpack-contract.md`](docs/skillpack-contract.md).
 
 - A **skill** is a linkable capability; a **bundle** is a named composition of skills with no
   filesystem target or runtime of its own; a **skillpack** is the immutable repository snapshot
@@ -157,6 +156,10 @@ boundaries.
   Major changes are advisory breaking risks only. Both TUI surfaces and machine JSON present this
   shared model, and revision activation still requires the persisted update plan plus explicit
   confirmation.
+- Maintainer CI can compare two explicit Registry v3 roots with the read-only
+  `skills check-version-discipline` command. It fingerprints complete skill directories without
+  following symlinks and reports changed skills/bundles whose declared SemVer precedence did not
+  move; it never writes either root or chooses a patch/minor/major bump.
 
 ## Link Planning And Apply
 
@@ -200,4 +203,7 @@ Supported MVP agents can receive linked skills. Custom agents require a target p
 Tests are colocated as `*.test.ts(x)` next to the code under test. Shared fixtures and harnesses
 live in `test/support/` at the repo root: a representative registry v2 skillpack, a stub git
 runner that records every invocation, temporary-HOME creation, and directory-tree diffing used
-to assert that read-only commands write nothing.
+to assert that read-only commands write nothing. Shared deterministic fixtures cover Registry
+v1/v2/v3, overlapping bundles, transitive dependencies, recommendations, conflicts, and
+duplicate local IDs across skillpacks. Platform-decision tests exercise POSIX directory
+symlinks and injected Windows junction behavior without requiring both operating systems in CI.

@@ -1,8 +1,58 @@
 # Changelog
 
-## Unreleased — Agent-native interface and intent-based skill installation
+## Unreleased — Registry v3 bundles and versioning
 
 **Draft release notes. Nothing has been published.**
+
+The three public packages are prepared for a coordinated `0.5.0` feature release.
+
+### Registry v3
+
+- Registry v3 requires canonical SemVer for every skill and bundle, and version ranges for hard
+  dependencies and bundle members. Registry v1/v2 and registryless discovery remain readable
+  without inferred versions or manager-authored rewrites.
+- SemVer communicates logical compatibility and upgrade meaning; the immutable skillpack Git
+  commit remains the exact physical reproducibility lock. Corvus never downloads or selects a
+  different entity version.
+- Maintainers gain read-only Registry v3 validation and
+  `skills check-version-discipline --base <path> --candidate <path>`, which detects changed
+  existing skills/bundles whose declared SemVer precedence did not move without choosing the
+  appropriate bump.
+
+### Bundles and root selection
+
+- Registry v3 bundles are bounded, same-skillpack compositions of version-ranged skills. They are
+  discoverable through deterministic list/search/inspect views but have no `SKILL.md`, link
+  target, runtime, nested membership, cross-pack member, or executable workflow.
+- Config v3 persists explicit skill roots and bundle roots separately. Effective skills are
+  derived from those roots, bundle members, and transitive hard dependencies; overlapping
+  provenance is retained while the manifest remains a manager-owned link ledger.
+- Guided Flow presents bundle compatibility and member versions before individual skills. The
+  machine interface adds `bundles list|search|inspect` and repeatable `install plan --bundle`.
+- Bundle apply/removal remains atomic per agent and plan-then-apply. Removing a root recomputes
+  effective links and retains shared members/dependencies implied by another root.
+
+### Update intelligence and safety
+
+- Skillpack update preview now reports deterministic skill/bundle deltas, SemVer change classes,
+  advisory breaking risk, and configured bundles affected through direct or transitive members.
+- Bundle definitions, versioned skill metadata, root selections, targets, and manifest state are
+  included in stale-plan fingerprints. Exact confirmation, digest validation, unmanaged-target
+  protection, immutable revision rules, and read-only no-write behavior remain unchanged.
+
+### Schema and migration notes
+
+- Machine envelope schema remains v1.
+- Install request schema v2 adds `selectedBundles`; legacy request v1 remains readable and
+  preserves existing bundle roots it cannot express.
+- Persisted plan schema is now v3. Plans from older manager releases must be regenerated and
+  reviewed before apply.
+- Config v1/v2 normalizes in memory to Config v3, conservatively treating every legacy selected
+  skill as an explicit root and initializing empty bundle roots. Read-only commands do not write
+  the migrated form.
+- The release introduces no automatic Registry migration and no mutable skillpack checkout work.
+
+## 0.4.0 — Agent-native interface and intent-based skill installation
 
 Corvus Skill Manager becomes operable by a coding agent without the user knowing any Corvus
 commands, while the human TUI stays exactly as it was.

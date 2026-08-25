@@ -431,3 +431,24 @@ answer all architecture-level questions required for implementation.
   skillpacks.
 - Run `pnpm typecheck` and `pnpm test` for every task; use targeted Vitest suites first when
   runtime behavior changes.
+
+## Implementation Status
+
+Completed on 2026-08-25 through tasks `CSM-BND-001`–`CSM-BND-042`.
+
+- Registry v3, Config v3, install request v2, persisted plan v3, and machine envelope v1 are
+  implemented as independent versioned contracts. Registry v1/v2, Config v1/v2, and request v1
+  remain backward-compatible inputs with side-effect-free normalization where applicable.
+- Bundle discovery, compatibility, root/effective resolution, plan/apply/verify, Guided Flow,
+  machine commands, semantic update preview, and version-discipline comparison all use shared
+  core/application behavior.
+- The public core, TUI, and CLI packages are prepared together at `0.5.0`; the private workspace
+  version remains independent under the established release process.
+- No architectural scope deviation was required. Phase 10 corrected only the task document's
+  duplicate Phase 9 heading. Nested/cross-skillpack bundles, workflow execution, multi-version
+  resolution, automatic recommendations, and mutable active skillpacks remain out of scope.
+- Focused Phase 10 verification passed 74 documentation/application/link tests. The first full
+  release gate passed typecheck, build, and 466 tests before the package version bump; the final
+  post-bump gate is recorded in the matching implementation plan.
+- No active or existing skillpack checkout/revision was mutated. All filesystem regression tests
+  used temporary fixtures owned by their test harnesses.

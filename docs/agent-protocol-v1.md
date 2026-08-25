@@ -216,7 +216,10 @@ corvus-skills install plan --agent codex --bundle team:review-workflow --json
 
 `--bundle` is repeatable and may be combined with repeatable `--skill`. Explicit roots remain
 mutually exclusive with `--all-compatible`. Bundle discovery is read-only; the install flag
-creates a persisted plan and is not an apply shortcut.
+creates a persisted plan and is not an apply shortcut. Bundles have no executable workflow or
+filesystem target: apply links only the derived skills. Bundle-root removal uses request v2 with
+the full desired root sets plus `replaceSelection: true`; plan v3 then shows which links are
+removed and which shared effective skills remain before exact-confirmation apply.
 
 See `docs/examples/agent-install-requests.json` for validated examples.
 
