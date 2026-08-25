@@ -103,6 +103,105 @@ exports[`golden protocol fixtures > agents list 1`] = `
 }
 `;
 
+exports[`golden protocol fixtures > bundles search 1`] = `
+{
+  "changed": false,
+  "command": "bundles.search",
+  "data": {
+    "limit": 20,
+    "query": "review quality",
+    "results": [
+      {
+        "compatibility": [
+          {
+            "agentId": "codex",
+            "compatible": true,
+            "issues": [],
+          },
+        ],
+        "description": "A maintained code review composition.",
+        "id": "default",
+        "keywords": [
+          "quality gate",
+          "pull request",
+        ],
+        "matchedFields": [
+          "description",
+          "keywords",
+          "tags",
+          "title",
+        ],
+        "matchedTerms": [
+          "quality",
+          "review",
+        ],
+        "matches": [
+          {
+            "field": "title",
+            "kind": "partial",
+            "term": "review",
+            "weight": 30,
+          },
+          {
+            "field": "tags",
+            "kind": "exact",
+            "term": "review",
+            "weight": 15,
+          },
+          {
+            "field": "description",
+            "kind": "partial",
+            "term": "review",
+            "weight": 4,
+          },
+          {
+            "field": "keywords",
+            "kind": "partial",
+            "term": "quality",
+            "weight": 7,
+          },
+        ],
+        "members": [
+          {
+            "actualVersion": "2.1.0",
+            "id": "review-helper",
+            "ref": "corvus-skillpack:review-helper",
+            "versionRange": "~2.1.0",
+          },
+          {
+            "actualVersion": "3.0.0-beta.1",
+            "id": "test-helper",
+            "ref": "corvus-skillpack:test-helper",
+            "versionRange": ">=3.0.0-beta.1 <4.0.0",
+          },
+        ],
+        "ref": "corvus-skillpack:default",
+        "score": 56,
+        "skillpackId": "corvus-skillpack",
+        "supportedAgents": [
+          "codex",
+        ],
+        "tags": [
+          "review",
+        ],
+        "title": "Review Workflow",
+        "version": "1.2.0",
+      },
+    ],
+    "terms": [
+      "quality",
+      "review",
+    ],
+    "totalMatches": 1,
+  },
+  "errors": [],
+  "nextActions": [],
+  "ok": true,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
 exports[`golden protocol fixtures > install plan blocked by an unmanaged target 1`] = `
 {
   "changed": false,
@@ -224,6 +323,129 @@ exports[`golden protocol fixtures > install plan blocked by an unmanaged target 
     },
   ],
   "ok": false,
+  "schemaVersion": 1,
+  "warnings": [],
+}
+`;
+
+exports[`golden protocol fixtures > install plan with a bundle root 1`] = `
+{
+  "changed": false,
+  "command": "install.plan",
+  "data": {
+    "digest": "<SHA256>",
+    "plan": {
+      "configChanges": [
+        {
+          "agentId": "codex",
+          "enabledFrom": false,
+          "enabledTo": true,
+          "selectedBundleIdsFrom": [],
+          "selectedBundleIdsTo": [
+            "corvus-skillpack:documentation",
+          ],
+          "selectedSkillIdsFrom": [],
+          "selectedSkillIdsTo": [],
+          "targetPathTo": "~/.agents/skills",
+        },
+      ],
+      "conflicts": [],
+      "managerStateDir": "<HOME>/.agents/corvus-skill-manager",
+      "operations": [
+        {
+          "agentId": "codex",
+          "skillId": "corvus-skillpack:docs-helper",
+          "sourcePath": "<HOME>/.agents/skillpacks/corvus-skillpack/current/skills/docs-helper",
+          "targetPath": "<HOME>/.agents/skills/docs-helper",
+          "type": "create-link",
+        },
+      ],
+      "request": {
+        "allCompatible": false,
+        "bundleSelectionMode": "explicit",
+        "replaceSelection": false,
+        "schemaVersion": 2,
+        "selectedBundles": [
+          {
+            "id": "documentation",
+          },
+        ],
+        "selectedSkills": [],
+        "targetAgents": [
+          "codex",
+        ],
+      },
+      "rootSelections": [
+        {
+          "agentId": "codex",
+          "selectedBundleIds": [
+            "corvus-skillpack:documentation",
+          ],
+          "selectedSkillIds": [],
+        },
+      ],
+      "selections": [
+        {
+          "agentId": "codex",
+          "origins": [
+            {
+              "kind": "bundle-member",
+              "reason": "bundle:corvus-skillpack:documentation",
+            },
+          ],
+          "reason": "bundle:corvus-skillpack:documentation",
+          "reasonKind": "bundle-member",
+          "skillId": "corvus-skillpack:docs-helper",
+        },
+      ],
+      "skillpackCheckoutPath": "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      "skillpackCheckoutPaths": [
+        "<HOME>/.agents/skillpacks/corvus-skillpack/current",
+      ],
+      "stateFingerprint": {
+        "algorithm": "sha256",
+        "components": {
+          "<NORMALIZED>": "<SHA256>",
+        },
+        "value": "<SHA256>",
+      },
+      "summary": {
+        "alreadySatisfied": 0,
+        "bundleMembersAdded": [
+          "corvus-skillpack:docs-helper",
+        ],
+        "bundlesSelected": [
+          "corvus-skillpack:documentation",
+        ],
+        "configChanges": 1,
+        "conflicts": 0,
+        "creates": 1,
+        "dependenciesAdded": [],
+        "effectiveSkills": [
+          "corvus-skillpack:docs-helper",
+        ],
+        "recommendationsNotSelected": [],
+        "removals": 0,
+        "riskWarnings": 0,
+      },
+      "targetAgents": [
+        "codex",
+      ],
+      "warnings": [],
+    },
+    "planId": "install-<DIGEST32>",
+    "planPath": "<HOME>/.agents/corvus-skill-manager/plans/install-<DIGEST32>.json",
+    "requiresConfirmation": true,
+  },
+  "errors": [],
+  "nextActions": [
+    {
+      "code": "apply-install-plan",
+      "command": "corvus-skills install apply --plan-id install-<DIGEST32> --confirm install-<DIGEST32> --json",
+      "description": "Apply the reviewed plan with the exact confirmation token.",
+    },
+  ],
+  "ok": true,
   "schemaVersion": 1,
   "warnings": [],
 }

@@ -15,6 +15,7 @@ import {machineErrorCodes} from '../protocol/errors.js';
 import {createNextAction} from '../protocol/nextActions.js';
 import {type UseCaseResult, succeed} from '../protocol/result.js';
 import {searchLimits} from '../skills/skillCatalog.js';
+import {bundleCatalogLimits} from '../skills/bundleCatalog.js';
 
 export type CommandMode = 'read-only' | 'write';
 
@@ -55,6 +56,14 @@ export interface CapabilitiesData {
     exitCodes: typeof exitCodeCategoryDescriptions;
   };
   registry: {supportedVersions: number[]; currentVersion: number};
+  bundles: {
+    referenceFormat: string;
+    discoveryCommands: MachineCommand[];
+    installRequestField: string;
+    installFlag: string;
+    membersAreSkillsOnly: boolean;
+    allCompatibleIncludesBundles: boolean;
+  };
   commands: CommandCapability[];
   agents: AgentCapability[];
   requestFormats: string[];
@@ -64,7 +73,10 @@ export interface CapabilitiesData {
     description: string;
     writeCommands: string[];
   };
-  limits: {searchLimit: {min: number; max: number; default: number}};
+  limits: {
+    searchLimit: {min: number; max: number; default: number};
+    bundleSearchLimit: {min: number; max: number; default: number};
+  };
   paths: {
     homeDir: string;
     managerStateDir: string;
@@ -257,6 +269,49 @@ export const commandCapabilities: readonly CommandCapability[] = [
     options: []
   },
   {
+    command: 'bundles.list',
+    cli: 'bundles list',
+    summary: 'List Registry v3 bundles and whole-bundle agent compatibility.',
+    mode: 'read-only',
+    requiresConfirmation: false,
+    options: [
+      {flag: '--agent <id>', description: 'Filter to bundles compatible with this agent.', required: false, repeatable: true},
+      {
+        flag: '--limit <n>',
+        description: `Maximum results, ${bundleCatalogLimits.minLimit}-${bundleCatalogLimits.maxLimit}.`,
+        required: false,
+        repeatable: false
+      }
+    ]
+  },
+  {
+    command: 'bundles.search',
+    cli: 'bundles search',
+    summary: 'Rank bundle metadata using deterministic local lexical scoring. No LLM, no network.',
+    mode: 'read-only',
+    requiresConfirmation: false,
+    options: [
+      {flag: '--query <text>', description: 'Search terms.', required: true, repeatable: false},
+      {flag: '--agent <id>', description: 'Filter to bundles compatible with this agent.', required: false, repeatable: true},
+      {
+        flag: '--limit <n>',
+        description: `Maximum results, ${bundleCatalogLimits.minLimit}-${bundleCatalogLimits.maxLimit}.`,
+        required: false,
+        repeatable: false
+      }
+    ]
+  },
+  {
+    command: 'bundles.inspect',
+    cli: 'bundles inspect',
+    summary: 'Return exact bundle metadata, members, versions, and per-agent compatibility.',
+    mode: 'read-only',
+    requiresConfirmation: false,
+    options: [
+      {flag: '<bundle-id...>', description: 'One or more exact bundle refs.', required: true, repeatable: true}
+    ]
+  },
+  {
     command: 'install.plan',
     cli: 'install plan',
     summary: 'Produce a persisted, digest-identified installation plan from an exact selection.',
@@ -266,6 +321,7 @@ export const commandCapabilities: readonly CommandCapability[] = [
     options: [
       {flag: '--agent <id>', description: 'Target agent id.', required: true, repeatable: true},
       {flag: '--skill <id>', description: 'Exact skill id to install.', required: false, repeatable: true},
+      {flag: '--bundle <id>', description: 'Exact bundle root to install.', required: false, repeatable: true},
       {flag: '--reason <skill-id=text>', description: 'Provenance for a selected skill.', required: false, repeatable: true},
       {flag: '--all-compatible', description: 'Select every skill compatible with each target agent.', required: false, repeatable: false},
       {flag: '--replace-selection', description: 'Replace the targeted agents’ selections instead of adding.', required: false, repeatable: false},
@@ -335,6 +391,18 @@ export function capabilitiesUseCase(
         exitCodes: exitCodeCategoryDescriptions
       },
       registry: {supportedVersions: [...registryVersions], currentVersion: currentRegistryVersion},
+      bundles: {
+        referenceFormat: '<skillpack-id>:<bundle-id>',
+        discoveryCommands: [
+          'bundles.list',
+          'bundles.search',
+          'bundles.inspect'
+        ] satisfies MachineCommand[],
+        installRequestField: 'selectedBundles',
+        installFlag: '--bundle <id>',
+        membersAreSkillsOnly: true,
+        allCompatibleIncludesBundles: false
+      },
       commands: [...commandCapabilities],
       agents,
       requestFormats: ['cli-flags', 'json-request-file', 'json-request-stdin'],
@@ -352,6 +420,11 @@ export function capabilitiesUseCase(
           min: searchLimits.minLimit,
           max: searchLimits.maxLimit,
           default: searchLimits.defaultLimit
+        },
+        bundleSearchLimit: {
+          min: bundleCatalogLimits.minLimit,
+          max: bundleCatalogLimits.maxLimit,
+          default: bundleCatalogLimits.defaultLimit
         }
       },
       paths: {
@@ -383,9 +456,14 @@ export function capabilitiesUseCase(
           'corvus-skills skills search --query "<terms>" --json'
         ),
         createNextAction(
+          'search-bundles',
+          'Search bundle compositions, then inspect an exact qualified bundle ref.',
+          'corvus-skills bundles search --query "<terms>" --json'
+        ),
+        createNextAction(
           'plan-install',
-          'Plan an installation for the exact skill IDs.',
-          'corvus-skills install plan --agent <id> --skill <id> --json'
+          'Plan an installation for exact skill or bundle roots.',
+          'corvus-skills install plan --agent <id> --bundle <id> --json'
         )
       ]
     }

@@ -43,6 +43,7 @@ describe('help output', () => {
         agents                  Agent adapter commands.
         skillpack               Skillpack snapshot commands.
         skills                  Skill catalog commands.
+        bundles                 Bundle catalog commands.
         install                 Installation commands.
         help [command]          display help for command
       "

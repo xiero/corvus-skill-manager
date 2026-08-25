@@ -33,6 +33,9 @@ export const machineCommands = [
   'skills.search',
   'skills.inspect',
   'skills.validate-registry',
+  'bundles.list',
+  'bundles.search',
+  'bundles.inspect',
   'install.plan',
   'install.apply',
   'install.verify'

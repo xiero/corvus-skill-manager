@@ -1,5 +1,5 @@
 {
-  "$comment": "Validated examples of install request documents. Request v2 supports explicit skill and bundle roots; request v1 skill-only documents remain readable. Pass one with: corvus-skills install plan --request <file> --json, or pipe it to --request -.",
+  "$comment": "Validated examples of install request documents. Request v2 supports explicit skill and bundle roots; request v1 skill-only documents remain readable. Discover bundles with bundles list/search/inspect. Pass one with: corvus-skills install plan --request <file> --json, pipe it to --request -, or use repeatable --bundle flags for simple requests.",
   "schemaIdentifier": "corvus.install-request.v2",
   "examples": [
     {

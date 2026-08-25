@@ -7,7 +7,11 @@ import {
   createTestHome,
   listTree
 } from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture, writeSkillpack} from '../../../../test/support/skillpackFixtures.js';
+import {
+  v2SkillpackFixture,
+  v3BundleSkillpackFixture,
+  writeSkillpack
+} from '../../../../test/support/skillpackFixtures.js';
 import {aiQuickStartLine} from './createProgram.js';
 import type {CliIo} from './output.js';
 import {parseRequestDocument} from './requestInput.js';
@@ -294,6 +298,92 @@ describe('catalog commands', () => {
     expect((result.json as {data: {skills: Array<{content?: string}>}}).data.skills[0]?.content).toContain(
       'git-commit'
     );
+  });
+
+  it('discovers bundle metadata read-only and preserves qualified refs', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const before = await listTree(home.homeDir);
+    const listed = await run(['bundles', 'list', '--agent', 'codex', '--limit', '1', '--json'], {home});
+    const searched = await run(
+      ['bundles', 'search', '--query', 'review quality', '--agent', 'codex', '--json'],
+      {home}
+    );
+    const inspected = await run(
+      ['bundles', 'inspect', 'corvus-skillpack:default', '--json'],
+      {home}
+    );
+
+    expectCleanJsonOutput(listed);
+    expectCleanJsonOutput(searched);
+    expectCleanJsonOutput(inspected);
+    expect(listed.exitCode).toBe(0);
+    expect((listed.json as {data: {bundles: Array<{ref: string}>}}).data.bundles[0]?.ref).toBe(
+      'corvus-skillpack:default'
+    );
+    expect((searched.json as {data: {results: Array<{ref: string}>}}).data.results[0]?.ref).toBe(
+      'corvus-skillpack:default'
+    );
+    expect((inspected.json as {data: {bundles: Array<{members: unknown[]}>}}).data.bundles[0]?.members).toHaveLength(2);
+    expect(await listTree(home.homeDir)).toEqual(before);
+  });
+
+  it('plans, applies, and verifies a bundle selected by flag', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const plan = await run(
+      ['install', 'plan', '--agent', 'codex', '--bundle', 'documentation', '--json'],
+      {home}
+    );
+
+    expectCleanJsonOutput(plan);
+    expect(plan.exitCode).toBe(0);
+    expect(plan.json).toMatchObject({
+      data: {
+        plan: {
+          rootSelections: [
+            {
+              agentId: 'codex',
+              selectedBundleIds: ['corvus-skillpack:documentation'],
+              selectedSkillIds: []
+            }
+          ],
+          summary: {bundlesSelected: ['corvus-skillpack:documentation']}
+        }
+      }
+    });
+
+    const planId = (plan.json as {data: {planId: string}}).data.planId;
+    const apply = await run(
+      ['install', 'apply', '--plan-id', planId, '--confirm', planId, '--json'],
+      {home}
+    );
+    const verify = await run(['install', 'verify', '--plan-id', planId, '--json'], {home});
+
+    expect(apply.exitCode).toBe(0);
+    expect(apply.json).toMatchObject({ok: true, changed: true});
+    expect(verify.exitCode).toBe(0);
+    expect((verify.json as {data: {status: string}}).data.status).toBe('verified');
+  });
+
+  it('returns stable bundle errors and rejects all-compatible with explicit roots', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const unknown = await run(['bundles', 'inspect', 'ghost', '--json'], {home});
+    const incompatible = await run(
+      ['install', 'plan', '--agent', 'claude', '--bundle', 'default', '--json'],
+      {home}
+    );
+    const mixedMode = await run(
+      ['install', 'plan', '--agent', 'codex', '--bundle', 'documentation', '--all-compatible', '--json'],
+      {home}
+    );
+
+    expect(unknown.exitCode).toBe(2);
+    expect((unknown.json as {errors: Array<{code: string}>}).errors[0]?.code).toBe('BUNDLE_NOT_FOUND');
+    expect(incompatible.exitCode).toBe(3);
+    expect((incompatible.json as {errors: Array<{code: string}>}).errors[0]?.code).toBe(
+      'BUNDLE_NOT_SUPPORTED_BY_AGENT'
+    );
+    expect(mixedMode.exitCode).toBe(2);
+    expect((mixedMode.json as {errors: Array<{code: string}>}).errors[0]?.code).toBe('INVALID_REQUEST');
   });
 });
 

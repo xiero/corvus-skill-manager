@@ -61,8 +61,9 @@ High-level use cases that compose domain primitives into complete workflows:
 - `skillpack.status`, `skillpack.setupPlan`, `skillpack.setupApply`,
   `skillpack.updateCheck`, `skillpack.updatePreview`, `skillpack.updateApply`;
 - `skills.list`, `skills.search`, `skills.inspect`, `skills.validateRegistry`;
-- read-only `listBundles`, `searchBundles`, and `inspectBundles` methods for future adapter
-  presentation (machine commands and TUI screens are added in their dedicated phases);
+- read-only `bundles.list`, `bundles.search`, and `bundles.inspect` workflows, exposed by the
+  machine adapter through `listBundles`, `searchBundles`, and `inspectBundles` application
+  methods (TUI presentation remains a later phase);
 - `install.plan`, `install.apply`, `install.verify`.
 
 Rules:
@@ -76,6 +77,11 @@ Rules:
 
 The application layer is the single seam an MCP adapter would later bind to. Adding MCP is
 explicitly **out of scope** for this pass.
+
+The machine CLI's bundle commands only parse flags and serialize envelopes. Filtering,
+deterministic lexical scoring, whole-bundle compatibility, qualified-reference resolution, and
+install expansion all remain in core/application code. A repeatable `install plan --bundle`
+flag is equivalent to request-v2 `selectedBundles`; it cannot apply directly.
 
 ### 3. Ink TUI adapter — `packages/tui/`
 

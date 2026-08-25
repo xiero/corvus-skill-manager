@@ -224,6 +224,49 @@ export function createProgram(options: {
     async () => options.executor.skillsValidateRegistry()
   );
 
+  const bundles = program.command('bundles').description('Bundle catalog commands.');
+
+  register(
+    bundles
+      .command('list')
+      .description('List Registry v3 bundles and whole-bundle compatibility.')
+      .option('--agent <id>', 'Filter to bundles compatible with this agent.', collect, [])
+      .option('--limit <n>', 'Maximum number of results.'),
+    async (opts) =>
+      options.executor.bundlesList({
+        agent: asStringArray(opts.agent),
+        ...(typeof opts.limit === 'string' ? {limit: opts.limit} : {})
+      })
+  );
+
+  register(
+    bundles
+      .command('search')
+      .description('Rank bundle metadata using deterministic local scoring.')
+      .requiredOption('--query <text>', 'Search terms.')
+      .option('--agent <id>', 'Filter to bundles compatible with this agent.', collect, [])
+      .option('--limit <n>', 'Maximum number of results.'),
+    async (opts) =>
+      options.executor.bundlesSearch({
+        query: String(opts.query),
+        agent: asStringArray(opts.agent),
+        ...(typeof opts.limit === 'string' ? {limit: opts.limit} : {})
+      })
+  );
+
+  register(
+    bundles
+      .command('inspect')
+      .description('Return exact bundle metadata, members, versions, and compatibility.')
+      .argument('<bundle-id...>', 'One or more exact bundle refs.'),
+    async (opts) => {
+      const args = (opts.__args as unknown[] | undefined) ?? [];
+      const bundleIds = Array.isArray(args[0]) ? (args[0] as string[]) : [];
+
+      return options.executor.bundlesInspect(bundleIds);
+    }
+  );
+
   const install = program.command('install').description('Installation commands.');
 
   register(
@@ -232,6 +275,7 @@ export function createProgram(options: {
       .description('Produce a persisted, digest-identified installation plan.')
       .option('--agent <id>', 'Target agent id.', collect, [])
       .option('--skill <id>', 'Exact skill id to install.', collect, [])
+      .option('--bundle <id>', 'Exact bundle root to install.', collect, [])
       .option('--reason <skill-id=text>', 'Provenance for a selected skill.', collect, [])
       .option('--target-path <agent-id=path>', 'Explicit target directory for an agent.', collect, [])
       .option('--all-compatible', 'Select every skill compatible with each target agent.')
@@ -243,6 +287,7 @@ export function createProgram(options: {
       options.executor.installPlan({
         agent: asStringArray(opts.agent),
         skill: asStringArray(opts.skill),
+        bundle: asStringArray(opts.bundle),
         reason: asStringArray(opts.reason),
         targetPath: asStringArray(opts.targetPath),
         ...(opts.allCompatible === undefined ? {} : {allCompatible: opts.allCompatible === true}),

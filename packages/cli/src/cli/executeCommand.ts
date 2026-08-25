@@ -39,6 +39,7 @@ export interface PlanRefFlags {
 export interface InstallPlanFlags {
   agent?: string[];
   skill?: string[];
+  bundle?: string[];
   reason?: string[];
   targetPath?: string[];
   allCompatible?: boolean;
@@ -66,6 +67,9 @@ export interface Executor {
   skillsSearch(flags: {query: string; agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
   skillsInspect(skillIds: string[], flags: {includeContent?: boolean}): Promise<MachineEnvelope>;
   skillsValidateRegistry(): Promise<MachineEnvelope>;
+  bundlesList(flags: {agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
+  bundlesSearch(flags: {query: string; agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
+  bundlesInspect(bundleIds: string[]): Promise<MachineEnvelope>;
   installPlan(flags: InstallPlanFlags): Promise<MachineEnvelope>;
   installApply(flags: PlanRefFlags & {replaceBrokenLinks?: boolean}): Promise<MachineEnvelope>;
   installVerify(flags: {planId: string}): Promise<MachineEnvelope>;
@@ -158,6 +162,33 @@ export function createExecutor(options: ExecutorOptions): Executor {
       ),
     skillsValidateRegistry: async () =>
       toMachineEnvelope('skills.validate-registry', await app.validateRegistry()),
+    bundlesList: async (flags) => {
+      const limit = parseLimit(flags.limit);
+      if (!limit.ok) return invalidRequest('bundles.list', limit.message, 'limit');
+
+      return toMachineEnvelope(
+        'bundles.list',
+        await app.listBundles({
+          ...(flags.agent === undefined ? {} : {agentIds: flags.agent}),
+          ...(limit.value === undefined ? {} : {limit: limit.value})
+        })
+      );
+    },
+    bundlesSearch: async (flags) => {
+      const limit = parseLimit(flags.limit);
+      if (!limit.ok) return invalidRequest('bundles.search', limit.message, 'limit');
+
+      return toMachineEnvelope(
+        'bundles.search',
+        await app.searchBundles({
+          query: flags.query,
+          ...(flags.agent === undefined ? {} : {agentIds: flags.agent}),
+          ...(limit.value === undefined ? {} : {limit: limit.value})
+        })
+      );
+    },
+    bundlesInspect: async (bundleIds) =>
+      toMachineEnvelope('bundles.inspect', await app.inspectBundles({bundleIds})),
     installPlan: async (flags) => {
       const request = await buildInstallRequest(flags, options.io);
 
@@ -198,12 +229,20 @@ async function buildInstallRequest(
   }
 
   const skills = flags.skill ?? [];
+  const bundles = flags.bundle ?? [];
 
-  if (skills.length === 0 && flags.allCompatible !== true) {
+  if (flags.allCompatible === true && (skills.length > 0 || bundles.length > 0)) {
+    return {
+      ok: false,
+      message: 'Use --all-compatible or explicit --skill/--bundle selections, never both.'
+    };
+  }
+
+  if (skills.length === 0 && bundles.length === 0 && flags.allCompatible !== true) {
     return {
       ok: false,
       message:
-        'Provide at least one --skill, or --all-compatible. A deliberately empty selection must be supplied through --request.'
+        'Provide at least one --skill or --bundle, or --all-compatible. A deliberately empty selection must be supplied through --request.'
     };
   }
 
@@ -224,6 +263,7 @@ async function buildInstallRequest(
     value: installRequestFromFlags({
       agents,
       skills,
+      bundles,
       reasons: reasons.value,
       ...(flags.allCompatible === undefined ? {} : {allCompatible: flags.allCompatible}),
       ...(flags.replaceSelection === undefined ? {} : {replaceSelection: flags.replaceSelection}),
@@ -232,6 +272,17 @@ async function buildInstallRequest(
       ...(Object.keys(targetPaths.value).length === 0 ? {} : {agentTargetPaths: targetPaths.value})
     })
   };
+}
+
+function parseLimit(
+  value: string | undefined
+): {ok: true; value?: number} | {ok: false; message: string} {
+  if (value === undefined) return {ok: true};
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? {ok: true, value: parsed}
+    : {ok: false, message: '--limit must be a number.'};
 }
 
 function parseKeyValueFlags(

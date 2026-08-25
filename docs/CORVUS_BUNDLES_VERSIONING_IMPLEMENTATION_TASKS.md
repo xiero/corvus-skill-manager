@@ -947,9 +947,9 @@ For every task:
 - Keep CLI package transport-only.
 
 **Acceptance criteria:**
-- [ ] `corvus-skills capabilities --json` is sufficient for an agent to learn how to discover and install a bundle.
-- [ ] stdout remains exactly one JSON document in JSON mode.
-- [ ] No business logic appears in CLI handlers.
+- [x] `corvus-skills capabilities --json` is sufficient for an agent to learn how to discover and install a bundle.
+- [x] stdout remains exactly one JSON document in JSON mode.
+- [x] No business logic appears in CLI handlers.
 
 **Required tests / verification:**
 - Protocol snapshot/contract tests and CLI adapter tests.
@@ -976,8 +976,8 @@ For every task:
 - Preserve qualified refs across multiple skillpacks.
 
 **Acceptance criteria:**
-- [ ] An agent can discover `team-skills:spec-unleashed`, plan it and apply the returned plan using the existing confirmation model.
-- [ ] Unknown/ambiguous refs fail deterministically.
+- [x] An agent can discover `team-skills:spec-unleashed`, plan it and apply the returned plan using the existing confirmation model.
+- [x] Unknown/ambiguous refs fail deterministically.
 
 **Required tests / verification:**
 - CLI integration tests for JSON shape, exit codes and plan-then-apply flow.

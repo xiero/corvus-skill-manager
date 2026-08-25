@@ -1,7 +1,12 @@
 import path from 'node:path';
 import type {AgentId} from '../../agents/AgentAdapter.js';
 import {getAgentAdapters} from '../../agents/adapters.js';
-import type {AgentConfig, ManagerConfig} from '../../config/configSchema.js';
+import {
+  type AgentConfig,
+  type ManagerConfig,
+  parseBundleReference,
+  resolveBundleReference
+} from '../../config/configSchema.js';
 import {saveConfig} from '../../config/configStore.js';
 import {type ApplyActionResult, applyLinkPlan} from '../../links/applyEngine.js';
 import type {LinkPlan, LinkPlanOperation} from '../../links/linkPlan.js';
@@ -161,6 +166,19 @@ export async function installPlanUseCase(
     );
   }
 
+  const bundleRegistryErrors = selectedBundleRegistryErrors(normalizedRequest, context);
+  if (bundleRegistryErrors.length > 0) {
+    return fail(bundleRegistryErrors, {
+      nextActions: [
+        createNextAction(
+          'validate-registry',
+          'Inspect Registry v3 relationship errors; Corvus never repairs a skillpack registry.',
+          'corvus-skills skills validate-registry --json'
+        )
+      ]
+    });
+  }
+
   const adapters = getAgentAdapters();
   const resolved = resolveSelections({
     request: normalizedRequest,
@@ -286,6 +304,66 @@ export async function installPlanUseCase(
         )
       ]
     }
+  );
+}
+
+function selectedBundleRegistryErrors(
+  request: NormalizedInstallRequest,
+  context: ReportContext
+): MachineError[] {
+  if (request.allCompatible) return [];
+
+  const errors: MachineError[] = [];
+
+  for (const selected of request.selectedBundles ?? []) {
+    const bundleRef = resolveBundleReference(selected.id);
+    const parsed = parseBundleReference(bundleRef);
+    if (parsed === undefined) continue;
+
+    const discovery = context.skillpacks.find(
+      (skillpack) => skillpack.config.id === parsed.skillpackId
+    )?.discovery;
+    if (discovery === undefined) continue;
+
+    const bundle = discovery.bundles.find((candidate) => candidate.id === parsed.bundleId);
+    const directMemberIds = new Set(bundle?.members.map((member) => member.id) ?? []);
+
+    for (const issue of discovery.errors) {
+      const affectsBundle =
+        issue.bundleId === parsed.bundleId ||
+        (issue.code === 'required-skill-version-mismatch' &&
+          issue.skillId !== undefined &&
+          directMemberIds.has(issue.skillId));
+      if (!affectsBundle) continue;
+
+      const versionMismatch =
+        issue.code === 'bundle-member-version-mismatch' ||
+        issue.code === 'required-skill-version-mismatch';
+      errors.push(
+        createMachineError(
+          versionMismatch ? 'VERSION_MISMATCH' : 'BUNDLE_MEMBER_MISMATCH',
+          issue.message,
+          {
+            field: 'selectedBundles',
+            ...(issue.skillId === undefined ? {} : {skillId: issue.skillId}),
+            details: {
+              bundleRef,
+              registryIssueCode: issue.code,
+              ...(issue.memberId === undefined ? {} : {memberId: issue.memberId}),
+              ...(issue.versionRange === undefined ? {} : {versionRange: issue.versionRange}),
+              ...(issue.actualVersion === undefined ? {} : {actualVersion: issue.actualVersion})
+            }
+          }
+        )
+      );
+    }
+  }
+
+  return errors.sort(
+    (left, right) =>
+      left.code.localeCompare(right.code) ||
+      String(left.details?.bundleRef ?? '').localeCompare(String(right.details?.bundleRef ?? '')) ||
+      left.message.localeCompare(right.message)
   );
 }
 

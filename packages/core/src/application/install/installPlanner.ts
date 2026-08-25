@@ -193,7 +193,9 @@ export function resolveSelections(options: {
         const primary = primaryOrigin(selection);
         errors.push(
           createMachineError(
-            'SKILL_NOT_SUPPORTED_BY_AGENT',
+            bundleRefs.length > 0
+              ? 'BUNDLE_NOT_SUPPORTED_BY_AGENT'
+              : 'SKILL_NOT_SUPPORTED_BY_AGENT',
             bundleRefs.length > 0
               ? `Bundle${bundleRefs.length === 1 ? '' : 's'} "${bundleRefs.join('", "')}" require${bundleRefs.length === 1 ? 's' : ''} unsupported skill "${selection.skillRef}" for ${adapter.displayName}.`
               : primary.kind === 'dependency-of'
@@ -331,7 +333,14 @@ function resolutionErrorsForAgent(
       });
     }
 
-    return createMachineError('SKILL_NOT_FOUND', error.message, {
+    const code =
+      error.code === 'bundle-not-found'
+        ? 'BUNDLE_NOT_FOUND'
+        : error.code === 'invalid-bundle-reference'
+          ? 'INVALID_REQUEST'
+          : 'BUNDLE_MEMBER_MISMATCH';
+
+    return createMachineError(code, error.message, {
       agentId: adapter.id,
       details: {
         bundleRef: error.bundleRef,

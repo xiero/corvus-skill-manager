@@ -35,13 +35,16 @@ learn the workflow.
    corvus-skills skillpack setup-plan --json
    corvus-skills skillpack setup-apply --plan-id <id> --confirm <id> --json
    ```
-5. **Find candidates.** Translate the user's intent into search terms and search:
+5. **Find candidates.** Translate the user's intent into search terms and search skills and/or
+   maintained bundles:
    ```bash
    corvus-skills skills search --query "embedded firmware c cpp cmake stm32 debugging" --agent codex --json
+   corvus-skills bundles search --query "embedded firmware workflow" --agent codex --json
    ```
-   Use `skills list` when you want the whole catalog, and `skills inspect <id...>` to read full
-   metadata before committing. `--include-content` additionally returns `SKILL.md`, for named
-   skills only.
+   Use `skills list` or `bundles list` for a whole catalog. Inspect exact candidates with
+   `skills inspect <id...>` or `bundles inspect <id...>`; bundle inspection includes member
+   ranges, actual versions, and per-agent compatibility. `--include-content` additionally
+   returns `SKILL.md` for named skills only because bundles have no content file.
 6. **Choose exact IDs.** Search returns `score`, `matchedFields`, and `matchedTerms` for every
    candidate so you can explain your choice — and so can the user. Ranking is lexical and
    deterministic; the final selection is yours, not Corvus's.
@@ -166,10 +169,17 @@ JSON
 dependency with reason `dependency-of:embedded-driver-development`. Report added dependencies to
 the user.
 
-### 4. Install a known bundle through request v2
+### 4. Discover and install a bundle
 
-Bundle discovery commands and dedicated flags arrive in the bundle machine-interface phase.
-When the exact qualified bundle ref is already known, request v2 can plan it now:
+Search and inspect before selecting the exact qualified bundle ref:
+
+```bash
+corvus-skills bundles search --query "review quality pull request" --agent codex --json
+corvus-skills bundles inspect corvus-skillpack:review-workflow --json
+corvus-skills install plan --agent codex --bundle corvus-skillpack:review-workflow --json
+```
+
+The dedicated flag and request-v2 document below normalize to the same bundle root:
 
 ```bash
 corvus-skills install plan --request - --json <<'JSON'

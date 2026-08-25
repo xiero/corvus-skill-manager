@@ -68,26 +68,33 @@ async function selectCodexBundles(home: TestHome, selectedBundleIds: string[]): 
 function v3RelationshipFixture(options: {
   skills: Array<{
     id: string;
+    version?: string;
     supportedAgents?: string[];
-    requires?: string[];
+    requires?: Array<string | {id: string; version: string}>;
     recommends?: string[];
     conflictsWith?: string[];
   }>;
-  bundles: Array<{id: string; skills: string[]}>;
+  bundles: Array<{id: string; skills: Array<string | {id: string; version: string}>}>;
 }): SkillpackFixture {
   return {
     registry: {
       version: 3,
       skills: options.skills.map((skill) => ({
         id: skill.id,
-        version: '1.0.0',
+        version: skill.version ?? '1.0.0',
         path: `skills/${skill.id}`,
         title: skill.id,
         description: `${skill.id} skill.`,
         supportedAgents: skill.supportedAgents ?? ['codex'],
         ...(skill.requires === undefined
           ? {}
-          : {requires: skill.requires.map((id) => ({id, version: '^1.0.0'}))}),
+          : {
+              requires: skill.requires.map((requirement) =>
+                typeof requirement === 'string'
+                  ? {id: requirement, version: '^1.0.0'}
+                  : requirement
+              )
+            }),
         ...(skill.recommends === undefined ? {} : {recommends: skill.recommends}),
         ...(skill.conflictsWith === undefined ? {} : {conflictsWith: skill.conflictsWith})
       })),
@@ -96,7 +103,9 @@ function v3RelationshipFixture(options: {
         version: '1.0.0',
         title: bundle.id,
         description: `${bundle.id} bundle.`,
-        skills: bundle.skills.map((id) => ({id, version: '^1.0.0'}))
+        skills: bundle.skills.map((member) =>
+          typeof member === 'string' ? {id: member, version: '^1.0.0'} : member
+        )
       }))
     },
     skills: options.skills.map((skill) => ({
@@ -650,7 +659,7 @@ describe('install plan', () => {
     if (result.ok) return;
     expect(result.errors).toEqual([
       expect.objectContaining({
-        code: 'SKILL_NOT_SUPPORTED_BY_AGENT',
+        code: 'BUNDLE_NOT_SUPPORTED_BY_AGENT',
         skillId: 'corvus-skillpack:blocked',
         details: expect.objectContaining({bundleRefs: ['corvus-skillpack:workflow']})
       })
@@ -678,10 +687,62 @@ describe('install plan', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors[0]).toMatchObject({
-      code: 'SKILL_NOT_SUPPORTED_BY_AGENT',
+      code: 'BUNDLE_NOT_SUPPORTED_BY_AGENT',
       skillId: 'corvus-skillpack:foundation',
       details: {bundleRefs: ['corvus-skillpack:workflow']}
     });
+  });
+
+  it('reports selected bundle member and version mismatches with stable protocol codes', async () => {
+    const missingMemberHome = await newHome({
+      skillpack: v3RelationshipFixture({
+        skills: [{id: 'member'}],
+        bundles: [{id: 'workflow', skills: ['member', 'ghost']}]
+      })
+    });
+    const missingMember = await appFor(missingMemberHome).installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'workflow'}]
+    });
+
+    expect(missingMember.ok).toBe(false);
+    if (!missingMember.ok) {
+      expect(missingMember.errors[0]).toMatchObject({
+        code: 'BUNDLE_MEMBER_MISMATCH',
+        details: {
+          bundleRef: 'corvus-skillpack:workflow',
+          memberId: 'ghost',
+          registryIssueCode: 'unknown-bundle-member'
+        }
+      });
+    }
+
+    const versionHome = await newHome({
+      skillpack: v3RelationshipFixture({
+        skills: [{id: 'member', version: '1.0.0'}],
+        bundles: [{id: 'workflow', skills: [{id: 'member', version: '^2.0.0'}]}]
+      })
+    });
+    const versionMismatch = await appFor(versionHome).installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedBundles: [{id: 'workflow'}]
+    });
+
+    expect(versionMismatch.ok).toBe(false);
+    if (!versionMismatch.ok) {
+      expect(versionMismatch.errors[0]).toMatchObject({
+        code: 'VERSION_MISMATCH',
+        details: {
+          bundleRef: 'corvus-skillpack:workflow',
+          memberId: 'member',
+          versionRange: '^2.0.0',
+          actualVersion: '1.0.0',
+          registryIssueCode: 'bundle-member-version-mismatch'
+        }
+      });
+    }
   });
 
   it('detects bundle-vs-bundle and bundle-vs-explicit conflicts with bundle provenance', async () => {

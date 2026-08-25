@@ -74,6 +74,9 @@ meaning and never changes category. `details` carries structured extras — for 
 | `CONFIG_INVALID` | invalid-request | 2 | `config.json` does not match its schema. |
 | `SKILL_NOT_FOUND` | invalid-request | 2 | No such qualified or default-pack skill id in the readable configured catalogs. |
 | `BUNDLE_NOT_FOUND` | invalid-request | 2 | No such qualified or default-pack bundle id in the readable configured catalogs. |
+| `BUNDLE_NOT_SUPPORTED_BY_AGENT` | conflict | 3 | A selected bundle member or transitive dependency does not support the target agent; the bundle is atomic. |
+| `BUNDLE_MEMBER_MISMATCH` | conflict | 3 | A selected bundle's member graph is unavailable or inconsistent with the readable snapshot. |
+| `VERSION_MISMATCH` | conflict | 3 | The active snapshot does not satisfy a required skill or bundle-member version constraint. |
 | `UNKNOWN_AGENT` | invalid-request | 2 | Not a known agent adapter. |
 | `CONFIG_NOT_FOUND` | conflict | 3 | Manager config does not exist yet. |
 | `SKILLPACK_NOT_CONFIGURED` | conflict | 3 | No skillpack is configured. |
@@ -173,6 +176,19 @@ The current request schema is `corvus.install-request.v2`. It accepts `selectedS
 `replaceSelection: true` replaces both root collections. `allCompatible` remains mutually
 exclusive with explicit roots and selects individual skills only. Legacy request v1 documents
 remain readable and preserve existing bundle roots because v1 could not express them.
+
+Equivalent bundle flag transport is available for simple requests:
+
+```bash
+corvus-skills bundles list --agent codex --json
+corvus-skills bundles search --query "review quality" --agent codex --json
+corvus-skills bundles inspect team:review-workflow --json
+corvus-skills install plan --agent codex --bundle team:review-workflow --json
+```
+
+`--bundle` is repeatable and may be combined with repeatable `--skill`. Explicit roots remain
+mutually exclusive with `--all-compatible`. Bundle discovery is read-only; the install flag
+creates a persisted plan and is not an apply shortcut.
 
 See `docs/examples/agent-install-requests.json` for validated examples.
 

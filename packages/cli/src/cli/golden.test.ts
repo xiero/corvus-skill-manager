@@ -3,7 +3,10 @@ import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {machineEnvelopeSchema} from '@corvus-tools/skill-manager-core';
 import {type TestHome, createStubGit, createTestHome} from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
+import {
+  v2SkillpackFixture,
+  v3BundleSkillpackFixture
+} from '../../../../test/support/skillpackFixtures.js';
 import type {CliIo} from './output.js';
 import {runCli} from './runCli.js';
 
@@ -106,6 +109,28 @@ describe('golden protocol fixtures', () => {
     expect(normalize(envelope, home)).toMatchSnapshot();
   });
 
+  it('bundles search', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const {exitCode, envelope} = await runJson(
+      ['bundles', 'search', '--query', 'review quality', '--agent', 'codex'],
+      home
+    );
+
+    expect(exitCode).toBe(0);
+    expect(normalize(envelope, home)).toMatchSnapshot();
+  });
+
+  it('install plan with a bundle root', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const {exitCode, envelope} = await runJson(
+      ['install', 'plan', '--agent', 'codex', '--bundle', 'documentation'],
+      home
+    );
+
+    expect(exitCode).toBe(0);
+    expect(normalize(envelope, home)).toMatchSnapshot();
+  });
+
   it('install plan with a dependency expansion', async () => {
     const home = await newHome();
     const {exitCode, envelope} = await runJson(
@@ -172,7 +197,8 @@ describe('envelope contract across every command', () => {
       ['skills', 'list'],
       ['skills', 'search', '--query', 'git'],
       ['skills', 'inspect', 'git-commit'],
-      ['skills', 'validate-registry']
+      ['skills', 'validate-registry'],
+      ['bundles', 'list']
     ];
 
     for (const argv of argvs) {

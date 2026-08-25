@@ -54,8 +54,25 @@ describe('capabilities', () => {
       'run-status',
       'run-skillpack-setup-plan',
       'search-skills',
+      'search-bundles',
       'plan-install'
     ]);
+    expect(result.data.bundles).toEqual({
+      referenceFormat: '<skillpack-id>:<bundle-id>',
+      discoveryCommands: ['bundles.list', 'bundles.search', 'bundles.inspect'],
+      installRequestField: 'selectedBundles',
+      installFlag: '--bundle <id>',
+      membersAreSkillsOnly: true,
+      allCompatibleIncludesBundles: false
+    });
+    expect(result.data.protocol.errorCodes).toEqual(
+      expect.arrayContaining([
+        'BUNDLE_NOT_FOUND',
+        'BUNDLE_NOT_SUPPORTED_BY_AGENT',
+        'BUNDLE_MEMBER_MISMATCH',
+        'VERSION_MISMATCH'
+      ])
+    );
   });
 
   it('advertises every machine command exactly once with a read/write classification', async () => {
@@ -75,6 +92,10 @@ describe('capabilities', () => {
       expect(['read-only', 'write']).toContain(command.mode);
       expect(command.mode === 'write' ? command.requiresConfirmation : true).toBe(true);
     }
+
+    expect(result.data.commands.find((command) => command.command === 'install.plan')?.options).toContainEqual(
+      expect.objectContaining({flag: '--bundle <id>', repeatable: true})
+    );
   });
 
   it('derives supported agents from the adapter registry', async () => {

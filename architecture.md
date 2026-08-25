@@ -131,6 +131,10 @@ boundaries.
   skills. Read-only operations stay side-effect free, adapters do not duplicate resolution
   logic, the manifest remains a link-ownership ledger, and active skillpack snapshots remain
   immutable.
+- The machine adapter exposes `bundles list`, `bundles search`, and `bundles inspect` as
+  deterministic read-only views over the shared bundle catalog. `install plan --bundle <ref>`
+  transports exact bundle roots into request v2 and still requires the persisted plan plus exact
+  confirmation before any write.
 - Install request v2 accepts explicit skill and bundle roots while preserving v1 skill-only
   reads. Persisted plan schema v3 shows final roots, effective provenance, and link operations
   independently; replacement recomputes the effective set instead of maintaining refcounts.
