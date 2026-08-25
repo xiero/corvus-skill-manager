@@ -24,6 +24,8 @@ import type {
   BundlesListOptions,
   BundlesSearchData,
   BundlesSearchOptions,
+  CheckVersionDisciplineData,
+  CheckVersionDisciplineOptions,
   DiscoverSkillsData,
   SkillsInspectData,
   SkillsInspectOptions,
@@ -81,6 +83,9 @@ export interface CorvusApplication {
   searchSkills(options: SkillsSearchOptions): Promise<UseCaseResult<SkillsSearchData>>;
   inspectSkills(options: SkillsInspectOptions): Promise<UseCaseResult<SkillsInspectData>>;
   validateRegistry(): Promise<UseCaseResult<ValidateRegistryData>>;
+  checkVersionDiscipline(
+    options: CheckVersionDisciplineOptions
+  ): Promise<UseCaseResult<CheckVersionDisciplineData>>;
   listBundles(options?: BundlesListOptions): Promise<UseCaseResult<BundlesListData>>;
   searchBundles(options: BundlesSearchOptions): Promise<UseCaseResult<BundlesSearchData>>;
   inspectBundles(options: BundlesInspectOptions): Promise<UseCaseResult<BundlesInspectData>>;

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {DiscoveredBundle, DiscoveredSkill} from '../skills/skillDiscovery.js';
-import {compareSkillpackRevisions} from './revisionComparison.js';
+import {compareSkillpackRevisions, findVersionDisciplineIssues} from './revisionComparison.js';
 
 describe('compareSkillpackRevisions', () => {
   it('classifies deterministic skill and bundle add/remove/version deltas', () => {
@@ -119,6 +119,56 @@ describe('compareSkillpackRevisions', () => {
     expect(result.affectedBundles[0]?.reasons).toEqual(expect.arrayContaining([
       expect.objectContaining({kind: 'effective-skill-added', entityId: 'helper'})
     ]));
+  });
+
+  it('detects changed skills and bundles whose SemVer precedence was not bumped', () => {
+    const inputs = {
+      currentSkills: [skill('unchanged', '1.0.0'), skill('same', '1.0.0'), skill('bumped', '1.0.0')],
+      candidateSkills: [
+        skill('unchanged', '1.0.0'),
+        skill('same', '1.0.0', {description: 'Changed without a bump.'}),
+        skill('bumped', '1.0.1', {description: 'Changed with a bump.'})
+      ],
+      currentBundles: [bundle('same-bundle', '2.0.0', ['same']), bundle('bumped-bundle', '2.0.0', ['bumped'])],
+      candidateBundles: [
+        bundle('same-bundle', '2.0.0+candidate', ['same', 'bumped']),
+        bundle('bumped-bundle', '2.1.0', ['bumped', 'same'])
+      ]
+    };
+    const comparison = compareSkillpackRevisions(inputs);
+
+    expect(findVersionDisciplineIssues({comparison, ...inputs})).toEqual([
+      {
+        code: 'bundle-version-not-bumped',
+        entityKind: 'bundle',
+        entityId: 'same-bundle',
+        declaredVersion: '2.0.0+candidate',
+        message: 'Changed bundle "same-bundle" retains SemVer precedence 2.0.0+candidate; declare a maintainer-chosen version bump.'
+      },
+      {
+        code: 'skill-version-not-bumped',
+        entityKind: 'skill',
+        entityId: 'same',
+        declaredVersion: '1.0.0',
+        message: 'Changed skill "same" retains SemVer precedence 1.0.0; declare a maintainer-chosen version bump.'
+      }
+    ]);
+  });
+
+  it('passes unchanged entities, changed entities with any precedence bump, and add/remove deltas', () => {
+    const inputs = {
+      currentSkills: [skill('unchanged', '1.0.0'), skill('bumped', '1.0.0'), skill('removed', '1.0.0')],
+      candidateSkills: [
+        skill('unchanged', '1.0.0+candidate'),
+        skill('bumped', '2.0.0'),
+        skill('added', '1.0.0')
+      ],
+      currentBundles: [bundle('flow', '1.0.0', ['unchanged'])],
+      candidateBundles: [bundle('flow', '1.0.1', ['unchanged', 'bumped'])]
+    };
+    const comparison = compareSkillpackRevisions(inputs);
+
+    expect(findVersionDisciplineIssues({comparison, ...inputs})).toEqual([]);
   });
 });
 

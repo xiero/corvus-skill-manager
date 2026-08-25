@@ -54,6 +54,21 @@ export interface SkillpackRevisionComparison {
   affectedBundles: AffectedBundleUpdate[];
 }
 
+export const versionDisciplineIssueCodes = [
+  'skill-version-not-bumped',
+  'bundle-version-not-bumped'
+] as const;
+
+export type VersionDisciplineIssueCode = (typeof versionDisciplineIssueCodes)[number];
+
+export interface VersionDisciplineIssue {
+  code: VersionDisciplineIssueCode;
+  entityKind: 'skill' | 'bundle';
+  entityId: string;
+  declaredVersion: string;
+  message: string;
+}
+
 /**
  * Compares two already-discovered immutable snapshots. This is intentionally pure: callers own
  * revision IO and adapters only render or serialize the returned deterministic read model.
@@ -93,6 +108,92 @@ export function compareSkillpackRevisions(options: {
       bundleDeltas
     })
   };
+}
+
+/**
+ * Finds changed existing Registry v3 entities whose declared SemVer precedence did not move.
+ * The result deliberately does not propose what kind of bump a maintainer should choose.
+ */
+export function findVersionDisciplineIssues(
+  options: {
+    comparison: Pick<SkillpackRevisionComparison, 'skillDeltas' | 'bundleDeltas'>;
+    currentSkills: readonly DiscoveredSkill[];
+    candidateSkills: readonly DiscoveredSkill[];
+    currentBundles: readonly DiscoveredBundle[];
+    candidateBundles: readonly DiscoveredBundle[];
+    changedSkillIds?: readonly string[];
+  }
+): VersionDisciplineIssue[] {
+  const changedSkillIds = contentChangedEntityIds({
+    current: options.currentSkills,
+    candidate: options.candidateSkills,
+    signature: skillSignature,
+    forcedChangedIds: new Set(options.changedSkillIds ?? [])
+  });
+  const changedBundleIds = contentChangedEntityIds({
+    current: options.currentBundles,
+    candidate: options.candidateBundles,
+    signature: bundleSignature,
+    forcedChangedIds: new Set()
+  });
+  const issues = [
+    ...options.comparison.skillDeltas.flatMap((delta) =>
+      changedSkillIds.has(delta.id) ? versionDisciplineIssue('skill', delta) : []
+    ),
+    ...options.comparison.bundleDeltas.flatMap((delta) =>
+      changedBundleIds.has(delta.id) ? versionDisciplineIssue('bundle', delta) : []
+    )
+  ];
+
+  return issues.sort(
+    (left, right) =>
+      left.entityKind.localeCompare(right.entityKind) || left.entityId.localeCompare(right.entityId)
+  );
+}
+
+function contentChangedEntityIds<T extends {id: string}>(options: {
+  current: readonly T[];
+  candidate: readonly T[];
+  signature: (entity: T) => string;
+  forcedChangedIds: ReadonlySet<string>;
+}): Set<string> {
+  const currentById = new Map(options.current.map((entity) => [entity.id, entity]));
+  const candidateById = new Map(options.candidate.map((entity) => [entity.id, entity]));
+  const changed = new Set<string>();
+
+  for (const [id, current] of currentById) {
+    const candidate = candidateById.get(id);
+    if (
+      candidate !== undefined &&
+      (options.forcedChangedIds.has(id) || options.signature(current) !== options.signature(candidate))
+    ) {
+      changed.add(id);
+    }
+  }
+
+  return changed;
+}
+
+function versionDisciplineIssue(
+  entityKind: VersionDisciplineIssue['entityKind'],
+  delta: RevisionEntityDelta
+): VersionDisciplineIssue[] {
+  if (
+    delta.change !== 'changed' ||
+    delta.versionChange !== 'same' ||
+    delta.nextVersion === undefined
+  ) {
+    return [];
+  }
+
+  const code = entityKind === 'skill' ? 'skill-version-not-bumped' : 'bundle-version-not-bumped';
+  return [{
+    code,
+    entityKind,
+    entityId: delta.id,
+    declaredVersion: delta.nextVersion,
+    message: `Changed ${entityKind} "${delta.id}" retains SemVer precedence ${delta.nextVersion}; declare a maintainer-chosen version bump.`
+  }];
 }
 
 function compareEntities<T extends {id: string; version?: string}>(options: {

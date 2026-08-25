@@ -2,15 +2,28 @@ import {promises as fs} from 'node:fs';
 import type {AgentId} from '../../agents/AgentAdapter.js';
 import {resolveSkillReference} from '../../config/configSchema.js';
 import {getAgentAdapter, getAgentAdapters} from '../../agents/adapters.js';
+import {resolveUserPath} from '../../paths.js';
 import {
   type SemanticMetadataField,
   currentRegistryVersion,
   registryVersions,
   semanticMetadataFields
 } from '../../registry/registrySchema.js';
-import type {DiscoveredSkill, SkillDiscoveryIssue} from '../../skills/skillDiscovery.js';
+import {
+  type DiscoveredSkill,
+  type SkillDiscoveryIssue,
+  type SkillDiscoveryResult,
+  discoverSkillsFromCheckout
+} from '../../skills/skillDiscovery.js';
 import {deriveBundleAgentCompatibility} from '../../skills/bundleCompatibility.js';
 import {findRequiredDependencyCycles} from '../../skills/skillRelationships.js';
+import {
+  type RevisionEntityDelta,
+  type VersionDisciplineIssue,
+  compareSkillpackRevisions,
+  findVersionDisciplineIssues
+} from '../../versioning/revisionComparison.js';
+import {findChangedSkillContentIds} from '../../versioning/skillContentFingerprint.js';
 import {isPrecondition, loadContext, requireReadySkillpack} from '../context.js';
 import type {ApplicationEnvironment} from '../ports.js';
 import {
@@ -147,6 +160,27 @@ export interface ValidateRegistryData {
   requiredDependencyCycles: string[][];
   skillsMissingSemanticMetadata: string[];
   coverage: RegistryFieldCoverage[];
+}
+
+export const versionDisciplineSeverities = ['error', 'warning'] as const;
+export type VersionDisciplineSeverity = (typeof versionDisciplineSeverities)[number];
+
+export interface CheckVersionDisciplineOptions {
+  basePath: string;
+  candidatePath: string;
+  severity?: string;
+}
+
+export interface CheckVersionDisciplineData {
+  basePath: string;
+  candidatePath: string;
+  baseRegistryVersion: 3;
+  candidateRegistryVersion: 3;
+  severity: VersionDisciplineSeverity;
+  valid: boolean;
+  skillDeltas: RevisionEntityDelta[];
+  bundleDeltas: RevisionEntityDelta[];
+  issues: VersionDisciplineIssue[];
 }
 
 export interface DiscoverSkillsData {
@@ -574,6 +608,162 @@ export async function validateRegistryUseCase(
             ]
     }
   );
+}
+
+/**
+ * Read-only maintainer check for Registry v3 release discipline. Both checkout paths are explicit
+ * so CI can compare arbitrary revisions without loading or creating manager state.
+ */
+export async function checkVersionDisciplineUseCase(
+  environment: ApplicationEnvironment,
+  options: CheckVersionDisciplineOptions
+): Promise<UseCaseResult<CheckVersionDisciplineData>> {
+  const severity = options.severity ?? 'error';
+  if (!versionDisciplineSeverities.includes(severity as VersionDisciplineSeverity)) {
+    return failWith(
+      createMachineError('INVALID_REQUEST', '--severity must be either "error" or "warning".', {
+        field: 'severity'
+      })
+    );
+  }
+
+  if (options.basePath.trim() === '' || options.candidatePath.trim() === '') {
+    return failWith(
+      createMachineError('INVALID_REQUEST', 'Both --base and --candidate paths are required.', {
+        field: options.basePath.trim() === '' ? 'basePath' : 'candidatePath'
+      })
+    );
+  }
+
+  const basePath = resolveUserPath(options.basePath, environment.homeDir);
+  const candidatePath = resolveUserPath(options.candidatePath, environment.homeDir);
+  const [base, candidate] = await Promise.all([
+    discoverSkillsFromCheckout(basePath),
+    discoverSkillsFromCheckout(candidatePath)
+  ]);
+  const invalidInputs = [
+    ...versionDisciplineInputErrors('base', base),
+    ...versionDisciplineInputErrors('candidate', candidate)
+  ];
+
+  if (invalidInputs.length > 0) {
+    return fail(invalidInputs, {
+      data: {
+        basePath,
+        candidatePath,
+        baseRegistryVersion: base.registryVersion ?? null,
+        candidateRegistryVersion: candidate.registryVersion ?? null
+      }
+    });
+  }
+
+  const changedSkillIds = await findChangedSkillContentIds({
+    currentSkills: base.skills,
+    candidateSkills: candidate.skills
+  });
+  const comparison = compareSkillpackRevisions({
+    currentSkills: base.skills,
+    candidateSkills: candidate.skills,
+    currentBundles: base.bundles,
+    candidateBundles: candidate.bundles,
+    changedSkillIds
+  });
+  const issues = findVersionDisciplineIssues({
+    comparison,
+    currentSkills: base.skills,
+    candidateSkills: candidate.skills,
+    currentBundles: base.bundles,
+    candidateBundles: candidate.bundles,
+    changedSkillIds
+  });
+  const report: CheckVersionDisciplineData = {
+    basePath,
+    candidatePath,
+    baseRegistryVersion: 3,
+    candidateRegistryVersion: 3,
+    severity: severity as VersionDisciplineSeverity,
+    valid: issues.length === 0,
+    skillDeltas: comparison.skillDeltas,
+    bundleDeltas: comparison.bundleDeltas,
+    issues
+  };
+
+  if (issues.length === 0) return succeed(report);
+
+  const nextActions = [
+    createNextAction(
+      'choose-version-bumps',
+      'Review each changed entity and declare maintainer-chosen SemVer bumps; Corvus does not choose them.'
+    )
+  ];
+  if (severity === 'warning') {
+    return succeed(report, {
+      warnings: issues.map((issue) =>
+        createMachineWarning(issue.code, issue.message, {
+          ...(issue.entityKind === 'skill' ? {skillId: issue.entityId} : {})
+        })
+      ),
+      nextActions
+    });
+  }
+
+  return fail(
+    issues.map((issue) =>
+      createMachineError('VERSION_MISMATCH', issue.message, {
+        field: 'version',
+        ...(issue.entityKind === 'skill' ? {skillId: issue.entityId} : {}),
+        details: {
+          issueCode: issue.code,
+          entityKind: issue.entityKind,
+          entityId: issue.entityId,
+          declaredVersion: issue.declaredVersion
+        }
+      })
+    ),
+    {data: {...report}, nextActions}
+  );
+}
+
+function versionDisciplineInputErrors(
+  label: 'base' | 'candidate',
+  discovery: SkillDiscoveryResult
+): MachineError[] {
+  if (discovery.registryVersion !== 3) {
+    return [
+      createMachineError(
+        'INVALID_REQUEST',
+        `The ${label} path must contain a valid Registry v3 registry.json.`,
+        {
+          field: `${label}Path`,
+          path: discovery.registryPath,
+          details: {
+            registryVersion: discovery.registryVersion ?? null,
+            discoverySource: discovery.source
+          }
+        }
+      )
+    ];
+  }
+
+  if (discovery.errors.length === 0) return [];
+  return [
+    createMachineError(
+      'INVALID_REQUEST',
+      `The ${label} Registry v3 checkout has ${discovery.errors.length} validation error(s).`,
+      {
+        field: `${label}Path`,
+        path: discovery.registryPath,
+        details: {
+          registryIssues: discovery.errors.map((issue) => ({
+            code: issue.code,
+            message: issue.message,
+            ...(issue.skillId === undefined ? {} : {skillId: issue.skillId}),
+            ...(issue.bundleId === undefined ? {} : {bundleId: issue.bundleId})
+          }))
+        }
+      }
+    )
+  ];
 }
 
 function buildCoverage(skills: readonly DiscoveredSkill[]): RegistryFieldCoverage[] {

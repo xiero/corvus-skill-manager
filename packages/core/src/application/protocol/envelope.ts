@@ -33,6 +33,7 @@ export const machineCommands = [
   'skills.search',
   'skills.inspect',
   'skills.validate-registry',
+  'skills.check-version-discipline',
   'bundles.list',
   'bundles.search',
   'bundles.inspect',

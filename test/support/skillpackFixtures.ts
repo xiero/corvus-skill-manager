@@ -41,6 +41,24 @@ function toYaml(value: Record<string, unknown>): string {
     .concat('\n');
 }
 
+/** Minimal Registry v1 fixture retained for backward-compatibility construction tests. */
+export const v1SkillpackFixture: SkillpackFixture = {
+  registry: {
+    version: 1,
+    skills: [
+      {
+        id: 'legacy-helper',
+        path: 'skills/legacy-helper',
+        title: 'Legacy Helper',
+        description: 'Exercises the Registry v1 compatibility path.',
+        supportedAgents: ['codex'],
+        tags: ['legacy']
+      }
+    ]
+  },
+  skills: [skillFile('skills/legacy-helper', 'legacy-helper', 'Use the legacy helper.')]
+};
+
 /**
  * A representative registry v2 skillpack spanning embedded, web, testing, documentation, and
  * general-development skills. Used by catalog/search/install tests and by CLI process tests so
@@ -230,7 +248,8 @@ export const v3BundleSkillpackFixture: SkillpackFixture = {
         supportedAgents: ['codex', 'claude'],
         tags: ['review'],
         domains: ['code-quality'],
-        requires: [{id: 'git-basics', version: '^1.4.0'}]
+        requires: [{id: 'git-basics', version: '^1.4.0'}],
+        recommends: ['docs-helper']
       },
       {
         id: 'git-basics',
@@ -258,6 +277,16 @@ export const v3BundleSkillpackFixture: SkillpackFixture = {
         description: 'Helps write technical documentation.',
         supportedAgents: ['codex', 'claude'],
         tags: ['documentation']
+      },
+      {
+        id: 'legacy-review',
+        version: '1.0.0',
+        path: 'skills/legacy-review',
+        title: 'Legacy Review',
+        description: 'Represents an alternative review approach.',
+        supportedAgents: ['codex'],
+        tags: ['review'],
+        conflictsWith: ['review-helper']
       }
     ],
     bundles: [
@@ -268,7 +297,8 @@ export const v3BundleSkillpackFixture: SkillpackFixture = {
         description: 'A maintained code review composition.',
         skills: [
           {id: 'review-helper', version: '~2.1.0'},
-          {id: 'test-helper', version: '>=3.0.0-beta.1 <4.0.0'}
+          {id: 'test-helper', version: '>=3.0.0-beta.1 <4.0.0'},
+          {id: 'docs-helper', version: '^1.0.0'}
         ],
         tags: ['Review', 'review'],
         keywords: ['quality gate', 'pull request']
@@ -288,7 +318,8 @@ export const v3BundleSkillpackFixture: SkillpackFixture = {
     skillFile('skills/review-helper', 'review-helper', 'Review code changes.'),
     skillFile('skills/git-basics', 'git-basics', 'Use Git fundamentals.'),
     skillFile('skills/test-helper', 'test-helper', 'Design focused tests.'),
-    skillFile('skills/docs-helper', 'docs-helper', 'Write technical documentation.')
+    skillFile('skills/docs-helper', 'docs-helper', 'Write technical documentation.'),
+    skillFile('skills/legacy-review', 'legacy-review', 'Use an alternative review approach.')
   ]
 };
 
@@ -315,7 +346,7 @@ export const v3BundleSkillpackUpdateFixture: SkillpackFixture = (() => {
     defaultBundle.version = '2.0.0';
     const reviewMember = defaultBundle.skills.find((member) => member.id === 'review-helper');
     if (reviewMember !== undefined) reviewMember.version = '^3.0.0';
-    defaultBundle.skills.push({id: 'docs-helper', version: '^1.0.0'});
+    defaultBundle.skills.push({id: 'git-basics', version: '^1.5.0'});
   }
 
   return fixture;

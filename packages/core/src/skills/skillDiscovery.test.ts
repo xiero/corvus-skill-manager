@@ -104,7 +104,8 @@ describe('skill discovery', () => {
       ['review-helper', '2.1.0'],
       ['git-basics', '1.5.0'],
       ['test-helper', '3.0.0-beta.1'],
-      ['docs-helper', '1.0.0']
+      ['docs-helper', '1.0.0'],
+      ['legacy-review', '1.0.0']
     ]);
     expect(result.bundles.map((bundle) => bundle.id)).toEqual(['default', 'documentation']);
     expect(result.bundles[0]).toEqual({
@@ -124,6 +125,11 @@ describe('skill discovery', () => {
           id: 'test-helper',
           versionRange: '>=3.0.0-beta.1 <4.0.0',
           actualVersion: '3.0.0-beta.1'
+        },
+        {
+          id: 'docs-helper',
+          versionRange: '^1.0.0',
+          actualVersion: '1.0.0'
         }
       ]
     });

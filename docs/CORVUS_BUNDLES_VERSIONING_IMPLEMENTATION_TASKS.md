@@ -1215,10 +1215,10 @@ For every task:
 - Keep CI severity configurable or document the recommended company policy.
 
 **Acceptance criteria:**
-- [ ] Unchanged content with unchanged version passes.
-- [ ] Changed content with unchanged version is detected.
-- [ ] Changed content with any bumped version passes the 'bumped' check.
-- [ ] The command performs no writes.
+- [x] Unchanged content with unchanged version passes.
+- [x] Changed content with unchanged version is detected.
+- [x] Changed content with any bumped version passes the 'bumped' check.
+- [x] The command performs no writes.
 
 **Required tests / verification:**
 - Comparison tests and no-write assertions.
@@ -1245,8 +1245,8 @@ For every task:
 - Keep fixture generation deterministic.
 
 **Acceptance criteria:**
-- [ ] Tests can construct v1/v2/v3 environments without one-off setup.
-- [ ] The v3 fixture is suitable for application, TUI and machine-interface tests.
+- [x] Tests can construct v1/v2/v3 environments without one-off setup.
+- [x] The v3 fixture is suitable for application, TUI and machine-interface tests.
 
 **Required tests / verification:**
 - Fixture self-tests where appropriate; migrate duplicated ad-hoc fixtures to the shared helper.

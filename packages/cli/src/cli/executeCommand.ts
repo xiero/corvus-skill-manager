@@ -67,6 +67,11 @@ export interface Executor {
   skillsSearch(flags: {query: string; agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
   skillsInspect(skillIds: string[], flags: {includeContent?: boolean}): Promise<MachineEnvelope>;
   skillsValidateRegistry(): Promise<MachineEnvelope>;
+  skillsCheckVersionDiscipline(flags: {
+    basePath: string;
+    candidatePath: string;
+    severity?: string;
+  }): Promise<MachineEnvelope>;
   bundlesList(flags: {agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
   bundlesSearch(flags: {query: string; agent?: string[]; limit?: string}): Promise<MachineEnvelope>;
   bundlesInspect(bundleIds: string[]): Promise<MachineEnvelope>;
@@ -162,6 +167,15 @@ export function createExecutor(options: ExecutorOptions): Executor {
       ),
     skillsValidateRegistry: async () =>
       toMachineEnvelope('skills.validate-registry', await app.validateRegistry()),
+    skillsCheckVersionDiscipline: async (flags) =>
+      toMachineEnvelope(
+        'skills.check-version-discipline',
+        await app.checkVersionDiscipline({
+          basePath: flags.basePath,
+          candidatePath: flags.candidatePath,
+          ...(flags.severity === undefined ? {} : {severity: flags.severity})
+        })
+      ),
     bundlesList: async (flags) => {
       const limit = parseLimit(flags.limit);
       if (!limit.ok) return invalidRequest('bundles.list', limit.message, 'limit');

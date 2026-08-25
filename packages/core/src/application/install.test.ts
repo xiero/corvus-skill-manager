@@ -471,11 +471,13 @@ describe('install plan', () => {
     expect(plan.data.plan.summary).toMatchObject({
       bundlesSelected: ['corvus-skillpack:default'],
       bundleMembersAdded: [
+        'corvus-skillpack:docs-helper',
         'corvus-skillpack:review-helper',
         'corvus-skillpack:test-helper'
       ],
       dependenciesAdded: ['corvus-skillpack:git-basics'],
       effectiveSkills: [
+        'corvus-skillpack:docs-helper',
         'corvus-skillpack:git-basics',
         'corvus-skillpack:review-helper',
         'corvus-skillpack:test-helper'
@@ -498,6 +500,7 @@ describe('install plan', () => {
       expect.objectContaining({
         roots: {skillIds: [], bundleIds: ['corvus-skillpack:default']},
         managedSkillIds: [
+          'corvus-skillpack:docs-helper',
           'corvus-skillpack:git-basics',
           'corvus-skillpack:review-helper',
           'corvus-skillpack:test-helper'
@@ -1424,7 +1427,7 @@ describe('install verify', () => {
     await planAndApply(app, {
       schemaVersion: 2,
       targetAgents: ['codex'],
-      selectedSkills: [{id: 'docs-helper'}]
+      selectedSkills: [{id: 'legacy-review'}]
     });
     const replacement = await app.installPlan({
       schemaVersion: 2,
@@ -1441,12 +1444,12 @@ describe('install verify', () => {
     expect(verify.ok).toBe(true);
     expect(await listTree(home.homeDir)).toEqual(before);
     if (!verify.ok) return;
-    expect(verify.data.selectionState[0]).toMatchObject({
-      staleManagedSkillIds: ['corvus-skillpack:docs-helper']
-    });
+    expect(verify.data.selectionState[0]).toEqual(
+      expect.objectContaining({staleManagedSkillIds: ['corvus-skillpack:legacy-review']})
+    );
     expect(
       verify.data.checks.find((check) => check.code === 'stale-managed-link')
-    ).toMatchObject({skillId: 'corvus-skillpack:docs-helper', satisfied: false});
-    expect((await fs.lstat(path.join(codexTargetDir(home), 'docs-helper'))).isSymbolicLink()).toBe(true);
+    ).toMatchObject({skillId: 'corvus-skillpack:legacy-review', satisfied: false});
+    expect((await fs.lstat(path.join(codexTargetDir(home), 'legacy-review'))).isSymbolicLink()).toBe(true);
   });
 });

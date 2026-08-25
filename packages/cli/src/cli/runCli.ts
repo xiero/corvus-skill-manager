@@ -77,6 +77,7 @@ function commandFor(argv: string[]): MachineCommand {
     'skills.search',
     'skills.inspect',
     'skills.validate-registry',
+    'skills.check-version-discipline',
     'install.plan',
     'install.apply',
     'install.verify'

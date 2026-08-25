@@ -101,6 +101,18 @@ contracts.
    The command is read-only. It reports the registry version, invalid entries, unknown
    relationship targets, required-dependency cycles, skills with no semantic metadata at all,
    and per-field coverage statistics.
+7. **Check version discipline before release.** Compare two valid Registry v3 checkout roots:
+   ```bash
+   corvus-skills skills check-version-discipline \
+     --base ./base-checkout --candidate . --json
+   ```
+   The default `error` severity gives CI a non-zero exit when an existing skill's registry
+   metadata or complete directory content changed without moving its declared SemVer precedence,
+   or when bundle metadata/membership changed without doing so. Use `--severity warning` for an
+   advisory rollout. Build-metadata-only changes do not count as a bump. Corvus reports the
+   affected entity and current declaration but never chooses patch, minor, or major for the
+   maintainer. The command reads only the two supplied roots; it does not require or create
+   manager state.
 
 ## Migration
 

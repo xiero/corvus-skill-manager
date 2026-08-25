@@ -269,6 +269,28 @@ export const commandCapabilities: readonly CommandCapability[] = [
     options: []
   },
   {
+    command: 'skills.check-version-discipline',
+    cli: 'skills check-version-discipline',
+    summary: 'Compare two Registry v3 checkout roots and detect changed entities without a SemVer bump.',
+    mode: 'read-only',
+    requiresConfirmation: false,
+    options: [
+      {flag: '--base <path>', description: 'Base Registry v3 checkout root.', required: true, repeatable: false},
+      {
+        flag: '--candidate <path>',
+        description: 'Candidate Registry v3 checkout root.',
+        required: true,
+        repeatable: false
+      },
+      {
+        flag: '--severity <error|warning>',
+        description: 'Fail on findings (default) or report them as warnings.',
+        required: false,
+        repeatable: false
+      }
+    ]
+  },
+  {
     command: 'bundles.list',
     cli: 'bundles list',
     summary: 'List Registry v3 bundles and whole-bundle agent compatibility.',

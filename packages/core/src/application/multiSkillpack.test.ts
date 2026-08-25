@@ -144,6 +144,11 @@ describe('multiple skillpacks', () => {
     if (!discovery.ok || !list.ok) return;
 
     const defaults = discovery.data.discovery.bundles.filter((bundle) => bundle.id === 'default');
+    const reviewHelpers = discovery.data.discovery.skills.filter((skill) => skill.id === 'review-helper');
+    expect(reviewHelpers.map((skill) => skill.ref)).toEqual([
+      'corvus-skillpack:review-helper',
+      'team-pack:review-helper'
+    ]);
     expect(defaults.map((bundle) => bundle.ref)).toEqual([
       'corvus-skillpack:default',
       'team-pack:default'

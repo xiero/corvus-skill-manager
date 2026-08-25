@@ -292,6 +292,49 @@ describe('catalog commands', () => {
     expect(await listTree(home.homeDir)).toEqual(before);
   });
 
+  it('checks version discipline with configurable CI severity and no writes', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const candidatePath = path.join(home.homeDir, 'candidate');
+    const candidateFixture = structuredClone(v3BundleSkillpackFixture);
+    const registry = candidateFixture.registry as {skills: Array<{id: string; description: string}>};
+    const review = registry.skills.find((skill) => skill.id === 'review-helper');
+    if (review !== undefined) review.description = 'Changed without a version bump.';
+    await writeSkillpack(candidatePath, candidateFixture);
+    const before = await listTree(home.homeDir);
+    const argv = [
+      'skills',
+      'check-version-discipline',
+      '--base',
+      home.revisionRepoPath,
+      '--candidate',
+      candidatePath
+    ];
+    const strict = await run([...argv, '--json'], {home});
+    const advisory = await run([...argv, '--severity', 'warning', '--json'], {home});
+
+    expectCleanJsonOutput(strict);
+    expectCleanJsonOutput(advisory);
+    expect(strict.exitCode).toBe(3);
+    expect(strict.json).toMatchObject({
+      command: 'skills.check-version-discipline',
+      ok: false,
+      changed: false,
+      data: {
+        valid: false,
+        issues: [expect.objectContaining({entityKind: 'skill', entityId: 'review-helper'})]
+      },
+      errors: [expect.objectContaining({code: 'VERSION_MISMATCH'})]
+    });
+    expect(advisory.exitCode).toBe(0);
+    expect(advisory.json).toMatchObject({
+      command: 'skills.check-version-discipline',
+      ok: true,
+      data: {valid: false, severity: 'warning'},
+      warnings: [expect.objectContaining({code: 'skill-version-not-bumped'})]
+    });
+    expect(await listTree(home.homeDir)).toEqual(before);
+  });
+
   it('returns SKILL.md content only when opted in', async () => {
     const home = await newHome({skillpack: v2SkillpackFixture});
     const result = await run(['skills', 'inspect', 'git-commit', '--include-content', '--json'], {home});
@@ -325,7 +368,7 @@ describe('catalog commands', () => {
     expect((searched.json as {data: {results: Array<{ref: string}>}}).data.results[0]?.ref).toBe(
       'corvus-skillpack:default'
     );
-    expect((inspected.json as {data: {bundles: Array<{members: unknown[]}>}}).data.bundles[0]?.members).toHaveLength(2);
+    expect((inspected.json as {data: {bundles: Array<{members: unknown[]}>}}).data.bundles[0]?.members).toHaveLength(3);
     expect(await listTree(home.homeDir)).toEqual(before);
   });
 

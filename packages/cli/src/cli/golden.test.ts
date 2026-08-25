@@ -109,6 +109,22 @@ describe('golden protocol fixtures', () => {
     expect(normalize(envelope, home)).toMatchSnapshot();
   });
 
+  it('skills check-version-discipline', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const {exitCode, envelope} = await runJson([
+      'skills',
+      'check-version-discipline',
+      '--base',
+      home.revisionRepoPath,
+      '--candidate',
+      home.revisionRepoPath
+    ], home);
+
+    expect(exitCode).toBe(0);
+    expect(machineEnvelopeSchema.safeParse(envelope).success).toBe(true);
+    expect(normalize(envelope, home)).toMatchSnapshot();
+  });
+
   it('bundles search', async () => {
     const home = await newHome({skillpack: v3BundleSkillpackFixture});
     const {exitCode, envelope} = await runJson(

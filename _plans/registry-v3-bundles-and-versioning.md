@@ -1,106 +1,113 @@
-Timestamp: 2026-08-25T05:41:06Z
-Version: v1.8.0
+Timestamp: 2026-08-25T06:07:02Z
+Version: v1.9.0
 
-# Implementation Plan: Registry v3 Bundles and Versioning — Phase 8
+# Implementation Plan: Registry v3 Bundles and Versioning — Phase 9
 
 ## Context
 
-Phases 1–7 established Registry v3 bundles through human and machine install workflows. Phase 8
-implements `CSM-BND-035` through `CSM-BND-037`: deterministic semantic comparison of active and
-candidate revisions, impact analysis for configured bundle roots, and equivalent structured
-machine/TUI update previews without changing the existing activation gate.
+Phases 1–8 established Registry v3, bundle-aware selection, and semantic update intelligence.
+Phase 9 implements maintainer tooling tasks `CSM-BND-038` and `CSM-BND-039`: a read-only,
+CI-suitable version-discipline check between two local Registry v3 revisions, plus representative
+shared v1/v2/v3 fixtures that exercise the complete bundle relationship model.
 
 Source spec: `_specs/registry-v3-bundles-and-versioning.md`
 
 ## Open Question Status
 
-- Answered: one pure core comparison model owns skill and bundle deltas; git setup composes it
-  with existing changed-file data, while adapters only render or serialize the result.
-- Answered: each entity delta has `added`, `removed`, or `changed` status and a version-change
-  classification of `major`, `minor`, `patch`, `same`, or `unknown`. Added/removed and legacy
-  unversioned comparisons use `unknown` because no two declared versions exist to compare.
-- Answered: a configured bundle is affected by its own version/metadata/membership delta or by a
-  delta to a direct/transitive effective member. Major declared-version changes set a
-  `breakingRisk` warning but never block or approve activation.
-- Answered: update-plan payload fields are additive and optional in the persisted schema so
-  existing schema-v3 plan artifacts retain their original digest representation; newly created
-  plans always carry the semantic fields.
-- Answered: both the Guided Flow and Manage Skillpacks previews render the same core-produced
-  semantic summary that machine JSON exposes.
+- Answered: expose a dedicated machine command, `skills check-version-discipline`, because this
+  is maintainer/CI tooling rather than an end-user mutation workflow.
+- Answered: require explicit `--base <path>` and `--candidate <path>` checkout roots. The check
+  reads those roots directly and does not require or create manager config.
+- Answered: default CI severity is `error`; `--severity warning` returns the same structured
+  findings as warnings with a successful exit for advisory adoption.
+- Answered: a violation means an existing skill's complete directory content or normalized
+  registry metadata changed while SemVer precedence stayed the same, or an existing bundle's
+  metadata/membership changed while SemVer precedence stayed the same.
+- Answered: added/removed entities are reported as deltas but do not require a bump check, and
+  Corvus never recommends patch/minor/major.
 - Still blocked: none.
 
 ## Assumptions
 
-- Semantic deltas are local IDs within the update plan's named skillpack; the surrounding
-  `skillpackId` provides qualification context.
-- Existing changed skill IDs and changed-file paths remain present for compatibility and audit.
-- Bundle impact analysis accepts canonical selected bundle roots gathered from in-memory config;
-  it does not read or write manager state itself.
-- Registry v1/v2 and registryless snapshots remain comparable by identity/content, with absent
-  versions explicitly reported as `unknown`.
-- No new runtime dependency is required; the existing strict SemVer classifier is reused.
+- Both inputs must be valid Registry v3 checkout roots. Legacy v1/v2 fixtures remain supported by
+  normal discovery, but version discipline cannot be proven when declared versions are absent.
+- Build-metadata-only version changes have identical SemVer precedence and therefore do not
+  satisfy the bump check.
+- Skill content includes every regular file and symlink entry below the registered skill
+  directory, compared deterministically without following symlinks.
+- The existing Phase 8 semantic comparison remains the single owner of entity signature and
+  version-change classification.
+- No runtime dependency, plan artifact, state fingerprint, or protocol-envelope version change
+  is required.
 
 ## Critical Files
 
-- `packages/core/src/versioning/revisionComparison.ts` — pure deterministic entity delta and
-  selected-bundle impact model.
-- `packages/core/src/git/skillpackSetup.ts` — read both immutable snapshots and attach semantic
-  comparison while preserving changed-file output.
-- `packages/core/src/application/plans/planSchema.ts` and
-  `packages/core/src/application/useCases/skillpackUseCases.ts` — structured additive update-plan
-  fields and selected-root wiring.
-- `packages/tui/src/screens/SkillpackSetupScreen.tsx` and
-  `packages/tui/src/screens/WizardScreen.tsx` — shared-data human presentation only.
-- Core comparison/application/plan tests, TUI render tests, and CLI machine-envelope tests.
-- `architecture.md`, `docs/agent-native-architecture.md`, `docs/agent-interface.md`, and the
-  ordered implementation checklist.
+- `packages/core/src/versioning/revisionComparison.ts` — expose version-discipline findings from
+  the existing deterministic semantic delta model.
+- `packages/core/src/application/useCases/skillsUseCases.ts` — read and validate both revisions,
+  fingerprint skill directory content, and produce the read-only application result.
+- `packages/core/src/application/CorvusApplication.ts` and
+  `packages/core/src/application/createCorvusApplication.ts` — shared use-case surface.
+- `packages/core/src/application/protocol/envelope.ts` and
+  `packages/core/src/application/useCases/capabilitiesUseCase.ts` — public machine command and
+  capability declaration.
+- `packages/cli/src/cli/createProgram.ts` and `packages/cli/src/cli/executeCommand.ts` — flags and
+  serialization only.
+- `test/support/skillpackFixtures.ts` — deterministic v1/v2/v3 fixtures with overlapping bundles,
+  transitive dependency, recommendation, conflict, and reusable candidate variants.
+- Focused core/application/CLI/golden/multi-skillpack tests and maintainer documentation.
 
 ## Implementation Sequence
 
-1. Define pure semantic update types and deterministic comparison for skills and bundles,
-   including version classification and canonical signatures.
-2. Derive selected-bundle impact reasons from active/candidate bundle composition and effective
-   member changes, retaining direct bundle/member identities and breaking-risk flags.
-3. Extend inactive revision preview output with semantic deltas and affected bundles while
-   preserving added/removed/changed skill IDs and changed files.
-4. Gather selected bundle roots from normalized manager config in the application use case and
-   direct wizard flow, then include semantic data in newly persisted update plans.
-5. Extend the update plan schema additively without rewriting old schema-v3 artifacts or changing
-   confirmation/fingerprint behavior.
-6. Render skill/bundle deltas, major-risk warnings, and affected bundles in both TUI update
-   previews; machine JSON receives the same plan payload automatically.
-7. Add focused unit/application/TUI/CLI coverage, update authoritative docs/checklists, then run
-   the repository-wide verification gate.
+1. Extend the pure revision comparison model with structured version-discipline issue/report
+   types derived only from changed existing skill/bundle deltas whose version classification is
+   `same`.
+2. Add deterministic read-only skill-directory fingerprints so non-registry files participate in
+   the check without following symlinks or mutating either checkout.
+3. Implement the shared application use case with explicit base/candidate paths, Registry v3
+   validity preconditions, configurable warning/error severity, stable structured findings, and
+   no manager-context loading.
+4. Register `skills.check-version-discipline` in the protocol, application, capabilities, and CLI
+   transport with required base/candidate flags and optional severity.
+5. Add a shared Registry v1 fixture; deepen the v3 fixture to cover overlapping bundle members,
+   a transitive dependency, a recommendation, and a non-selected conflict while retaining v2.
+6. Add pure comparison, application no-write, CLI envelope/exit-code, capability/golden, fixture,
+   and multi-skillpack qualification tests.
+7. Document the maintainer command and recommended CI policy, mark `CSM-BND-038` and
+   `CSM-BND-039` complete after verification, and run the full repository gate.
 
 ## Data, API, or Contract Changes
 
-- `SkillpackUpdatePreview` gains deterministic `skillDeltas`, `bundleDeltas`, and
-  `affectedBundles` arrays.
-- Newly created `SkillpackUpdatePlanPayload` values expose the same structured arrays. Their Zod
-  fields are optional for backward readability of existing plan schema v3 artifacts.
-- No config, manifest, lock, request, registry, envelope, or plan schema version changes.
-- No update apply semantics change: candidate activation still requires a persisted plan, exact
-  confirmation token, and fresh state fingerprint.
+- Machine protocol v1 adds command `skills.check-version-discipline` with CLI spelling
+  `skills check-version-discipline`.
+- Required inputs are `--base <path>` and `--candidate <path>`; optional
+  `--severity <error|warning>` defaults to `error`.
+- Output reports `valid`, input paths/registry versions, semantic skill/bundle deltas, and
+  deterministic issues with entity kind/id/version. Error severity returns a `VERSION_MISMATCH`
+  failure envelope carrying the same report; warning severity returns a success envelope with
+  warnings.
+- No write-capable contract, persisted plan, config, lock, manifest, or registry schema changes.
 
 ## Testing Strategy
 
-- Pure comparison: added/removed, same/patch/minor/major, prerelease, legacy unknown, bundle
-  membership/metadata changes, and deterministic reordered inputs.
-- Impact analysis: unrelated changes, direct selected-bundle change, member/dependency change,
-  removed member, and major breaking risk.
-- Git/application: active/candidate immutable reads, preserved changed files, selected roots from
-  normalized config, payload persistence, exact apply gate, and no active-link movement.
-- TUI: both preview surfaces render versions, unknown legacy state, affected bundles, and major
-  risk without enabling implicit apply.
-- Machine: JSON update-preview exposes the same structured plan fields deterministically.
+- Pure comparison: unchanged content/version passes, changed skill or bundle with unchanged
+  version is detected, any precedence-changing version passes, build-metadata-only changes fail,
+  and results are deterministic.
+- Content fingerprinting: nested regular-file changes are detected; symlinks are compared by
+  target and never followed.
+- Application: valid Registry v3 pair, invalid/legacy input rejection, warning/error severity,
+  unchanged filesystem tree, and no manager-state creation.
+- Machine: schema-valid canonical JSON, required flags, configurable exit behavior, capability
+  advertisement, and golden output.
+- Fixtures: shared v1/v2/v3 construction, overlapping v3 members, transitive dependency,
+  recommendation/conflict, and duplicate local IDs qualified across skillpacks.
 
 ## Verification Commands
 
 ```sh
-pnpm vitest run packages/core/src/versioning/revisionComparison.test.ts packages/core/src/git/skillpackSetup.test.ts
-pnpm vitest run packages/core/src/application/skillpack.test.ts packages/core/src/application/plans/planSchema.test.ts
-pnpm vitest run packages/tui/src/screens/SkillpackSetupScreen.test.tsx packages/tui/src/screens/WizardScreen.test.tsx
-pnpm vitest run packages/cli/src/cli/runCli.test.ts packages/cli/src/cli/golden.test.ts
+pnpm vitest run packages/core/src/versioning/revisionComparison.test.ts
+pnpm vitest run packages/core/src/application/application.test.ts packages/core/src/application/multiSkillpack.test.ts
+pnpm vitest run packages/cli/src/cli/runCli.test.ts packages/cli/src/cli/golden.test.ts packages/cli/src/cli/help.test.ts
 pnpm typecheck
 pnpm test
 pnpm build
@@ -109,41 +116,45 @@ git diff --check
 
 ## Documentation Updates
 
-- Document semantic update comparison and adapter equivalence in `architecture.md` and
-  `docs/agent-native-architecture.md`.
-- Document machine update-preview fields and the non-approval meaning of breaking risk in
-  `docs/agent-interface.md`.
-- Mark `CSM-BND-035` through `CSM-BND-037` complete only after verification.
-- Record verification results and safe deviations here before commit.
+- Add focused version-discipline authoring/CI guidance to `docs/semantic-registry.md`.
+- Document the read-only machine command in `docs/agent-interface.md` and
+  `docs/agent-protocol-v1.md` without completing the broader Phase 10 public-doc task.
+- Mark `CSM-BND-038` and `CSM-BND-039` complete only after all acceptance checks pass.
+- Record exact verification results and any safe deviation here before commit.
 
 ## Risks and Stop Conditions
 
-- Stop if comparison requires mutating either active or candidate snapshot.
-- Stop if a semantic classification would automatically reject, approve, or activate an update.
-- Stop if adapter code would need to recompute versions, bundle membership, or impact reasons.
-- Stop if compatibility requires changing an existing plan artifact's digest interpretation.
-- Do not add Phase 9 version-discipline validation or Phase 10 fixture/docs completion work.
+- Stop if comparison would need to write, format, repair, clone, or otherwise mutate either
+  supplied checkout.
+- Stop if the checker would infer or recommend a patch/minor/major bump.
+- Stop if CLI transport would need to own directory traversal, version classification, or policy.
+- Stop if adding the read-only command would require a plan/confirmation flow or protocol
+  envelope version change.
+- Do not begin `CSM-BND-040` through `CSM-BND-042` broad documentation/release work.
 
 ## Rollback Notes
 
-Revert the Phase 8 commit. Existing update plans and activation behavior remain valid; update
-previews return to changed-file/skill-ID summaries without any manager-state or skillpack data
-migration.
+Revert the Phase 9 commit. The new read-only command disappears and tests return to the earlier
+fixtures; no manager state, skillpack checkout, persisted plan, or migration needs rollback.
 
 ## Verification Result
 
-- Focused Phase 8 verification passed: 10 test files, 100 tests.
-- Full regression suite passed: 48 test files, 451 tests.
+- Focused core verification passed: 7 test files, 110 tests.
+- Focused CLI verification passed: 3 test files, 47 tests.
+- Full regression suite passed: 50 test files, 464 tests.
 - `pnpm typecheck` passed.
 - `pnpm build` passed.
 - `git diff --check` passed.
-- Self-review refinement: dependency-graph membership changes now report explicit
-  `effective-skill-added` / `effective-skill-removed` reasons even when the affected helper's
-  registry entity is otherwise unchanged.
-- No skillpack checkout, revision snapshot, or active `current` link was mutated.
+- Safe refinement from self-review: version text changes are separated from content changes, so
+  build-metadata-only changes pass when content is identical but do not satisfy the bump check
+  when skill or bundle content actually changed.
+- Fixture expectation updates were limited to the new representative member, recommendation,
+  conflict, and duplicate-ID coverage required by `CSM-BND-039`.
+- No manager state or skillpack checkout/revision snapshot was mutated; all filesystem behavior
+  tests used temporary fixtures.
 
 ## Commit Message Draft
 
 ```text
-✨ feat(core): add semantic update intelligence
+✨ feat(core): add version discipline checks
 ```

@@ -53,6 +53,19 @@ These fields do not change envelope schema v1 or persisted plan schema v3. They 
 data only; `skillpack.update-apply` still requires the plan id as an exact confirmation token and
 revalidates the state fingerprint before activation.
 
+### Version-discipline check
+
+`skills.check-version-discipline` compares explicit `--base` and `--candidate` Registry v3
+checkout roots. Its data contains absolute input paths, both registry versions, configured
+severity, `valid`, semantic `skillDeltas` / `bundleDeltas`, and structured `issues`. An issue has
+`code`, `entityKind`, `entityId`, `declaredVersion`, and `message`.
+
+The default `error` severity returns a failure envelope with `VERSION_MISMATCH` errors when
+issues exist; `--severity warning` returns a success envelope with the same `valid: false` data
+and non-blocking warnings. In both modes `changed` is `false`. The command reads complete skill
+directories without following symlinks, performs no manager-context writes, and never infers a
+patch/minor/major bump. This adds a command identity without changing envelope schema v1.
+
 ## Warnings
 
 ```json

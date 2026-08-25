@@ -91,6 +91,20 @@ Activation remains a separate exact-confirmation command:
 corvus-skills skillpack update-apply --plan-id <id> --confirm <id> --json
 ```
 
+## Checking maintainer version discipline
+
+For skillpack CI, compare two explicit Registry v3 checkout roots without manager setup:
+
+```bash
+corvus-skills skills check-version-discipline \
+  --base <base-checkout> --candidate <candidate-checkout> --json
+```
+
+Inspect `data.skillDeltas`, `data.bundleDeltas`, and `data.issues`. By default, unchanged-version
+findings return `VERSION_MISMATCH` and a non-zero conflict exit; `--severity warning` returns the
+same `valid: false` report as a successful advisory result. This command is read-only and never
+selects a bump, writes manager state, or changes either checkout.
+
 ## Authorization behaviour
 
 An explicit user request to install skills authorizes the normal path: creating manager-owned

@@ -224,6 +224,20 @@ export function createProgram(options: {
     async () => options.executor.skillsValidateRegistry()
   );
 
+  register(
+    skills
+      .command('check-version-discipline')
+      .description('Compare Registry v3 checkouts for changed entities without SemVer bumps.')
+      .requiredOption('--base <path>', 'Base Registry v3 checkout root.')
+      .requiredOption('--candidate <path>', 'Candidate Registry v3 checkout root.')
+      .option('--severity <error|warning>', 'Fail on findings (default) or report warnings.'),
+    async (opts) => options.executor.skillsCheckVersionDiscipline({
+      basePath: String(opts.base),
+      candidatePath: String(opts.candidate),
+      ...(typeof opts.severity === 'string' ? {severity: opts.severity} : {})
+    })
+  );
+
   const bundles = program.command('bundles').description('Bundle catalog commands.');
 
   register(

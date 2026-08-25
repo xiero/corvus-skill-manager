@@ -131,11 +131,16 @@ export {
   type RevisionEntityDelta,
   type RevisionVersionChangeKind,
   type SkillpackRevisionComparison,
+  type VersionDisciplineIssue,
+  type VersionDisciplineIssueCode,
   affectedBundleReasonKinds,
   compareSkillpackRevisions,
+  findVersionDisciplineIssues,
   revisionEntityChangeKinds,
-  revisionVersionChangeKinds
+  revisionVersionChangeKinds,
+  versionDisciplineIssueCodes
 } from './versioning/revisionComparison.js';
+export {findChangedSkillContentIds} from './versioning/skillContentFingerprint.js';
 export {
   type DiscoveredBundle,
   type DiscoveredBundleMember,
@@ -432,6 +437,8 @@ export {
   type BundlesListOptions,
   type BundlesSearchData,
   type BundlesSearchOptions,
+  type CheckVersionDisciplineData,
+  type CheckVersionDisciplineOptions,
   type DiscoverSkillsData,
   type InspectedBundle,
   type InspectedSkill,
@@ -442,7 +449,9 @@ export {
   type SkillsListOptions,
   type SkillsSearchData,
   type SkillsSearchOptions,
-  type ValidateRegistryData
+  type ValidateRegistryData,
+  type VersionDisciplineSeverity,
+  versionDisciplineSeverities
 } from './application/useCases/skillsUseCases.js';
 export {
   type InstallApplyData,

@@ -10,7 +10,9 @@ import {
 } from '../../../../test/support/appHarness.js';
 import {
   v2SkillpackFixture,
-  v3BundleSkillpackFixture
+  v3BundleSkillpackFixture,
+  v3BundleSkillpackUpdateFixture,
+  writeSkillpack
 } from '../../../../test/support/skillpackFixtures.js';
 import {createCorvusApplication} from './createCorvusApplication.js';
 import {machineCommands} from './protocol/envelope.js';
@@ -505,6 +507,12 @@ describe('bundle catalog', () => {
           ref: 'corvus-skillpack:test-helper',
           versionRange: '>=3.0.0-beta.1 <4.0.0',
           actualVersion: '3.0.0-beta.1'
+        },
+        {
+          id: 'docs-helper',
+          ref: 'corvus-skillpack:docs-helper',
+          versionRange: '^1.0.0',
+          actualVersion: '1.0.0'
         }
       ]
     });
@@ -727,6 +735,97 @@ describe('validate-registry', () => {
       versionRange: '^3.0.0',
       actualVersion: '2.0.0'
     });
+  });
+});
+
+describe('check-version-discipline', () => {
+  it('detects unchanged skill and bundle versions and writes nothing', async () => {
+    const home = await newHome();
+    const basePath = path.join(home.homeDir, 'base');
+    const candidatePath = path.join(home.homeDir, 'candidate');
+    const candidateFixture = structuredClone(v3BundleSkillpackFixture);
+    const registry = candidateFixture.registry as {
+      skills: Array<{id: string; description: string}>;
+      bundles: Array<{id: string; skills: Array<{id: string; version: string}>}>;
+    };
+    const review = registry.skills.find((skill) => skill.id === 'review-helper');
+    if (review !== undefined) review.description = 'Changed registry metadata without a bump.';
+    const bundle = registry.bundles.find((entry) => entry.id === 'default');
+    bundle?.skills.push({id: 'git-basics', version: '^1.5.0'});
+    await Promise.all([
+      writeSkillpack(basePath, v3BundleSkillpackFixture),
+      writeSkillpack(candidatePath, candidateFixture)
+    ]);
+    await fs.mkdir(path.join(basePath, 'skills', 'test-helper', 'scripts'), {recursive: true});
+    await fs.mkdir(path.join(candidatePath, 'skills', 'test-helper', 'scripts'), {recursive: true});
+    await fs.writeFile(path.join(basePath, 'skills', 'test-helper', 'scripts', 'check.ts'), 'one\n');
+    await fs.writeFile(path.join(candidatePath, 'skills', 'test-helper', 'scripts', 'check.ts'), 'two\n');
+    const before = await listTree(home.homeDir);
+    const result = await appFor(home).checkVersionDiscipline({basePath, candidatePath});
+
+    expect(await listTree(home.homeDir)).toEqual(before);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.every((error) => error.code === 'VERSION_MISMATCH')).toBe(true);
+    expect(result.data).toMatchObject({valid: false, severity: 'error'});
+    expect((result.data.issues as Array<{entityKind: string; entityId: string}>)).toEqual([
+      expect.objectContaining({entityKind: 'bundle', entityId: 'default'}),
+      expect.objectContaining({entityKind: 'skill', entityId: 'review-helper'}),
+      expect.objectContaining({entityKind: 'skill', entityId: 'test-helper'})
+    ]);
+  });
+
+  it('supports advisory severity and passes unchanged or bumped content', async () => {
+    const home = await newHome();
+    const basePath = path.join(home.homeDir, 'base');
+    const unchangedPath = path.join(home.homeDir, 'unchanged');
+    const bumpedPath = path.join(home.homeDir, 'bumped');
+    const advisoryPath = path.join(home.homeDir, 'advisory');
+    const advisoryFixture = structuredClone(v3BundleSkillpackFixture);
+    const advisoryRegistry = advisoryFixture.registry as {skills: Array<{id: string; description: string}>};
+    const review = advisoryRegistry.skills.find((skill) => skill.id === 'review-helper');
+    if (review !== undefined) review.description = 'Changed without a version bump.';
+    await Promise.all([
+      writeSkillpack(basePath, v3BundleSkillpackFixture),
+      writeSkillpack(unchangedPath, v3BundleSkillpackFixture),
+      writeSkillpack(bumpedPath, v3BundleSkillpackUpdateFixture),
+      writeSkillpack(advisoryPath, advisoryFixture)
+    ]);
+    const app = appFor(home);
+    const unchanged = await app.checkVersionDiscipline({basePath, candidatePath: unchangedPath});
+    const bumped = await app.checkVersionDiscipline({basePath, candidatePath: bumpedPath});
+    const advisory = await app.checkVersionDiscipline({
+      basePath,
+      candidatePath: advisoryPath,
+      severity: 'warning'
+    });
+
+    expect(unchanged.ok && bumped.ok && advisory.ok).toBe(true);
+    if (!unchanged.ok || !bumped.ok || !advisory.ok) return;
+    expect(unchanged.data).toMatchObject({valid: true, skillDeltas: [], bundleDeltas: []});
+    expect(bumped.data.valid).toBe(true);
+    expect(bumped.data.skillDeltas.length).toBeGreaterThan(0);
+    expect(advisory.data.valid).toBe(false);
+    expect(advisory.warnings).toEqual([
+      expect.objectContaining({code: 'skill-version-not-bumped', skillId: 'review-helper'})
+    ]);
+  });
+
+  it('rejects legacy or invalid inputs without creating manager state', async () => {
+    const home = await newHome();
+    const basePath = path.join(home.homeDir, 'base-v2');
+    const candidatePath = path.join(home.homeDir, 'candidate-v3');
+    await Promise.all([
+      writeSkillpack(basePath, v2SkillpackFixture),
+      writeSkillpack(candidatePath, v3BundleSkillpackFixture)
+    ]);
+    const before = await listTree(home.homeDir);
+    const result = await appFor(home).checkVersionDiscipline({basePath, candidatePath});
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors[0]).toMatchObject({code: 'INVALID_REQUEST', field: 'basePath'});
+    expect(await listTree(home.homeDir)).toEqual(before);
+    await expect(fs.stat(home.managerStateDir)).rejects.toMatchObject({code: 'ENOENT'});
   });
 });
 
