@@ -125,6 +125,13 @@ A v1 registry stays valid with no edits. To adopt v2:
 While a registry still declares `version: 1` but an entry uses v2 fields, discovery accepts the
 entry and emits a `semantic-metadata-in-v1-registry` warning asking for the version bump.
 
+To adopt v3 from v1 or v2, maintainers must add canonical versions to every skill, convert hard
+dependencies to versioned `{id, version}` references, and add a `bundles` array (which may be
+empty). Bundle roots and explicit skill roots are kept separately in Manager Config v3; the
+effective skills derived from members and dependencies are never persisted as semantic intent.
+SemVer expresses compatibility while the immutable skillpack commit remains the exact file lock.
+Bundles are compositions only and never execute workflows.
+
 **The manager never writes to `registry.json` or to skill files.** Migration happens in the
 skillpack repository, by its maintainers. See
 [`skillpack-registry-migration.md`](skillpack-registry-migration.md) for the checklist.

@@ -123,7 +123,7 @@ directories.
 | A plan's warnings include skill risk findings (`scripts-directory`, `suspicious-*`) | The user should decide whether to install a skill that ships scripts. |
 
 **Never** bypass a safety block. Corvus refuses to overwrite unmanaged files, to remove links it
-does not own, and to mutate the active skillpack checkout. If a command refuses, relay the
+does not own, and to mutate the active immutable skillpack snapshot or checkout. If a command refuses, relay the
 reason and the `nextActions`; do not look for another route to the same effect.
 
 ## Error handling
@@ -226,7 +226,11 @@ JSON
 ```
 
 The plan persists the bundle as a root, lists its members and dependencies as effective skills,
-and links only skills. `allCompatible` never chooses bundles.
+and links only skills. `allCompatible` never chooses bundles. To remove a bundle root, submit
+the complete desired skill and bundle root sets with `replaceSelection: true`, review every
+derived link removal in the persisted plan, and apply only with the exact confirmation token.
+Shared members and dependencies remain effective when another retained root still implies them;
+there is no bundle runtime or workflow to uninstall.
 
 ### 5. Broad intent: React and Node web development
 

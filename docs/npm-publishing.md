@@ -28,6 +28,10 @@ Because all three carry the same version and depend on each other with `workspac
 pnpm rewrites to `^<version>` at pack time — a release must publish all three together. Shipping
 a new CLI against an older published core would resolve to a core without the application layer.
 
+The Registry v3/bundles feature series is prepared as `0.5.0` in all three public package
+manifests. The private root workspace version is not published and is intentionally independent.
+Do not tag or publish a release when the three public versions differ.
+
 ## Prepublish Checklist
 
 ```bash

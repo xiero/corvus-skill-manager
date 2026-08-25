@@ -78,7 +78,7 @@ For every task:
 | 7 — TUI | CSM-BND-031 – CSM-BND-034 | TUI |
 | 8 — Update intelligence | CSM-BND-035 – CSM-BND-037 | Update intelligence |
 | 9 — Maintainer tooling | CSM-BND-038 – CSM-BND-039 | Maintainer tooling |
-| 9 — Documentation & release | CSM-BND-040 – CSM-BND-042 | Documentation & release |
+| 10 — Documentation & release | CSM-BND-040 – CSM-BND-042 | Documentation & release |
 
 ## Tasks
 
@@ -1255,7 +1255,7 @@ For every task:
 
 ---
 
-# 9 — Documentation & release
+# 10 — Documentation & release
 
 ## CSM-BND-040 — Update public architecture and contracts
 
@@ -1282,14 +1282,16 @@ For every task:
 - State explicitly that bundles do not execute workflows and skillpacks remain immutable.
 
 **Acceptance criteria:**
-- [ ] Docs match implemented schemas and command capabilities.
-- [ ] Documentation contract tests are updated.
-- [ ] No stale v2-only statements remain where v3 is now current.
+- [x] Docs match implemented schemas and command capabilities.
+- [x] Documentation contract tests are updated.
+- [x] No stale v2-only statements remain where v3 is now current.
 
 **Required tests / verification:**
 - Run documentation tests plus full test suite.
 
-**Completion report:** Codex must summarize changed files, tests executed, result, and any deviation/open issue before moving to the next task.
+**Completion report:** Public contracts now distinguish Registry v3, Config v3, request v2,
+plan v3, and envelope v1; document bundle install/removal and root/effective semantics; and retain
+explicit v1/v2 compatibility. Documentation contract tests pass. No deviation or open issue.
 
 ---
 
@@ -1315,16 +1317,19 @@ For every task:
 - Test Windows junction and POSIX symlink paths where existing harness supports them.
 
 **Acceptance criteria:**
-- [ ] `pnpm typecheck` passes.
-- [ ] `pnpm test` passes.
-- [ ] No read-only command creates config/cache/manifest side effects beyond existing explicit contracts.
-- [ ] No bundle path bypasses plan-then-apply.
-- [ ] No test mutates an active skillpack checkout.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] No read-only command creates config/cache/manifest side effects beyond existing explicit contracts.
+- [x] No bundle path bypasses plan-then-apply.
+- [x] No test mutates an active skillpack checkout.
 
 **Required tests / verification:**
 - Full repository typecheck and test suite; add focused regression tests for every discovered gap.
 
-**Completion report:** Codex must summarize changed files, tests executed, result, and any deviation/open issue before moving to the next task.
+**Completion report:** Bundle-specific confirmation/tamper tests and reordered mixed-root digest
+coverage close the discovered gaps. Existing suites cover stale fingerprints, unmanaged and
+manifest-owned targets, legacy config/registry reads, and POSIX/Windows link decisions. The full
+50-file, 466-test suite and typecheck pass. Tests use temporary harness fixtures only.
 
 ---
 
@@ -1348,14 +1353,17 @@ For every task:
 - Produce a concise final implementation report including files changed, tests run, known follow-ups and explicit statement about skillpack mutation.
 
 **Acceptance criteria:**
-- [ ] Final report states: no mutable skillpack checkout touch occurred.
-- [ ] All public packages that share a release version remain coherent.
-- [ ] The task series can be considered complete without undocumented architectural debt.
+- [x] Final report states: no mutable skillpack checkout touch occurred.
+- [x] All public packages that share a release version remain coherent.
+- [x] The task series can be considered complete without undocumented architectural debt.
 
 **Required tests / verification:**
 - Final `pnpm typecheck` and `pnpm test` from a clean working tree.
 
-**Completion report:** Codex must summarize changed files, tests executed, result, and any deviation/open issue before moving to the next task.
+**Completion report:** The spec and changelog carry the final implementation/migration mirror,
+and all three public packages are prepared coherently at `0.5.0`. Typecheck, build, and all 466
+tests pass before and after the version bump. No active/existing skillpack checkout or revision
+was mutated; no publish, tag, push, or commit was performed.
 
 ---
 

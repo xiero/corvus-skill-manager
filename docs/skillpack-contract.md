@@ -199,6 +199,18 @@ Registry v3 rules:
 - bundle members are unqualified local skill IDs. Cross-skillpack members, bundle-to-bundle
   members, and nested bundles are unsupported and require a future registry version.
 
+The declared SemVer and the skillpack revision have different jobs. SemVer communicates the
+maintainer's compatibility and upgrade intent for a logical skill or bundle. The immutable Git
+commit remains the exact physical lock for every file in the active snapshot. Corvus is not a
+multi-version package solver and SemVer never replaces that commit lock.
+
+Selecting a bundle stores a qualified bundle **root** in Manager Config v3. Corvus derives the
+effective linkable skills from explicit skill roots, bundle members, and transitive hard
+dependencies. It links only skill directories; a bundle has no runtime and does not execute a
+workflow. Removing a bundle root recomputes effective skills instead of decrementing persisted
+reference counts, so shared members and dependencies remain while another root still implies
+them. The manifest records only manager-owned links, never bundle provenance.
+
 **Case-normalization rule.** Classification tokens (`tags`, `domains`, `tasks`, `languages`,
 `technologies`, `platforms`, `keywords`) are trimmed, lowercased, and have internal whitespace
 runs collapsed to a single space. Duplicates after normalization are removed, keeping the first
@@ -206,7 +218,7 @@ occurrence. `useCases` and `nonGoals` keep their authored casing but are dedupli
 case-insensitively. Skill IDs are compared exactly. Omitted arrays normalize to `[]`, so
 consumers never have to handle `undefined`.
 
-### Migrating v1 to v2
+### Migrating legacy registries
 
 1. Change `"version": 1` to `"version": 2`. Nothing else is required — v2 with no semantic
    fields behaves exactly like v1.
@@ -231,6 +243,19 @@ consumers never have to handle `undefined`.
 
 While a registry still declares `version: 1` but an entry uses v2 fields, discovery accepts the
 entry and emits a `semantic-metadata-in-v1-registry` warning asking for the version bump.
+
+To adopt Registry v3 from either v1 or v2:
+
+1. Give every skill a canonical full `version` chosen by the skillpack maintainer.
+2. Convert every hard dependency to `{ "id": "<local-skill-id>", "version": "<range>" }`.
+   `recommends` and `conflictsWith` remain arrays of local skill IDs.
+3. Add a `bundles` array, using `[]` when the skillpack has no maintained compositions. Give
+   every bundle a canonical version and at least one version-ranged skill member.
+4. Change the registry discriminator to `"version": 3`, validate, and compare the candidate
+   against the previous Registry v3 revision with `skills check-version-discipline` in CI.
+
+Registry v1/v2 remain supported and are never rewritten by Corvus. The complete checklist and
+CI examples are in [`skillpack-registry-migration.md`](skillpack-registry-migration.md).
 
 The manager never writes to `registry.json` or to skill files. Migration happens in the
 skillpack repository, by its maintainers.

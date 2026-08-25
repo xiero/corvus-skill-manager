@@ -1,113 +1,101 @@
-Timestamp: 2026-08-25T06:07:02Z
-Version: v1.9.0
+Timestamp: 2026-08-25T06:33:15Z
+Version: v1.10.0
 
-# Implementation Plan: Registry v3 Bundles and Versioning — Phase 9
+# Implementation Plan: Registry v3 Bundles and Versioning — Phase 10
 
 ## Context
 
-Phases 1–8 established Registry v3, bundle-aware selection, and semantic update intelligence.
-Phase 9 implements maintainer tooling tasks `CSM-BND-038` and `CSM-BND-039`: a read-only,
-CI-suitable version-discipline check between two local Registry v3 revisions, plus representative
-shared v1/v2/v3 fixtures that exercise the complete bundle relationship model.
+Phases 1–9 implemented the frozen Registry v3 contract, bundle discovery and selection,
+bundle-aware plan/apply/verify, TUI and machine workflows, semantic update intelligence, and
+maintainer version-discipline tooling. Phase 10 closes tasks `CSM-BND-040` through
+`CSM-BND-042`: align every public contract, prove the final safety/determinism matrix, record the
+implementation mirror, and prepare the coherent `0.5.0` package release.
 
 Source spec: `_specs/registry-v3-bundles-and-versioning.md`
 
 ## Open Question Status
 
-- Answered: expose a dedicated machine command, `skills check-version-discipline`, because this
-  is maintainer/CI tooling rather than an end-user mutation workflow.
-- Answered: require explicit `--base <path>` and `--candidate <path>` checkout roots. The check
-  reads those roots directly and does not require or create manager config.
-- Answered: default CI severity is `error`; `--severity warning` returns the same structured
-  findings as warnings with a successful exit for advisory adoption.
-- Answered: a violation means an existing skill's complete directory content or normalized
-  registry metadata changed while SemVer precedence stayed the same, or an existing bundle's
-  metadata/membership changed while SemVer precedence stayed the same.
-- Answered: added/removed entities are reported as deltas but do not require a bump check, and
-  Corvus never recommends patch/minor/major.
+- Answered: this is Phase 10. The task list's repeated `# 9` heading is a numbering typo because
+  maintainer tooling already occupied Phase 9.
+- Answered: Registry v3 is the current authoring contract. Registry v1/v2 remain supported legacy
+  inputs and must not be described as removed or rewritten.
+- Answered: the publishable core, TUI, and CLI packages advance together from `0.4.0` to `0.5.0`.
+  The root workspace package remains private at `0.2.0`, matching the established release policy.
+- Answered: existing focused tests already cover read-only behavior, stale bundle semantics,
+  unmanaged targets, manifest ownership, config/registry compatibility, and platform link
+  decisions. This phase adds the missing bundle-specific confirmation/tamper and reordered-root
+  digest regression.
 - Still blocked: none.
 
 ## Assumptions
 
-- Both inputs must be valid Registry v3 checkout roots. Legacy v1/v2 fixtures remain supported by
-  normal discovery, but version discipline cannot be proven when declared versions are absent.
-- Build-metadata-only version changes have identical SemVer precedence and therefore do not
-  satisfy the bump check.
-- Skill content includes every regular file and symlink entry below the registered skill
-  directory, compared deterministically without following symlinks.
-- The existing Phase 8 semantic comparison remains the single owner of entity signature and
-  version-change classification.
-- No runtime dependency, plan artifact, state fingerprint, or protocol-envelope version change
-  is required.
+- Registry, config, install request, persisted plan, and machine envelope versions remain
+  independent: Registry v3, Config v3, request v2, plan v3, and envelope v1.
+- Package `0.5.0` is a feature release, not a declaration that Registry v1/v2 inputs are breaking.
+- Release preparation does not publish, tag, or push and does not mutate any skillpack checkout.
+- A final no-commit working tree is acceptable: it started clean and will contain only the
+  reviewed Phase 10 changes.
 
 ## Critical Files
 
-- `packages/core/src/versioning/revisionComparison.ts` — expose version-discipline findings from
-  the existing deterministic semantic delta model.
-- `packages/core/src/application/useCases/skillsUseCases.ts` — read and validate both revisions,
-  fingerprint skill directory content, and produce the read-only application result.
-- `packages/core/src/application/CorvusApplication.ts` and
-  `packages/core/src/application/createCorvusApplication.ts` — shared use-case surface.
-- `packages/core/src/application/protocol/envelope.ts` and
-  `packages/core/src/application/useCases/capabilitiesUseCase.ts` — public machine command and
-  capability declaration.
-- `packages/cli/src/cli/createProgram.ts` and `packages/cli/src/cli/executeCommand.ts` — flags and
-  serialization only.
-- `test/support/skillpackFixtures.ts` — deterministic v1/v2/v3 fixtures with overlapping bundles,
-  transitive dependency, recommendation, conflict, and reusable candidate variants.
-- Focused core/application/CLI/golden/multi-skillpack tests and maintainer documentation.
+- `README.md`, `architecture.md`, `docs/skillpack-contract.md`, and
+  `docs/semantic-registry.md` — public product, architecture, and Registry v3 contracts.
+- `docs/agent-interface.md`, `docs/agent-protocol-v1.md`, and
+  `docs/examples/agent-install-requests.json` — coding-agent bundle workflow and versioned
+  protocol examples.
+- `docs/skillpack-registry-migration.md` — v1/v2-to-v3 migration, SemVer, bundle, validation, and
+  version-discipline guidance.
+- `CHANGELOG.md` and `docs/npm-publishing.md` — release summary and coherent package policy.
+- `packages/core/src/application/documentation.test.ts` and focused safety tests — executable
+  documentation and final regression matrix.
+- `_specs/registry-v3-bundles-and-versioning.md` and
+  `docs/CORVUS_BUNDLES_VERSIONING_IMPLEMENTATION_TASKS.md` — final implementation mirror.
+- `packages/{core,tui,cli}/package.json` — coherent public package release version.
 
 ## Implementation Sequence
 
-1. Extend the pure revision comparison model with structured version-discipline issue/report
-   types derived only from changed existing skill/bundle deltas whose version classification is
-   `same`.
-2. Add deterministic read-only skill-directory fingerprints so non-registry files participate in
-   the check without following symlinks or mutating either checkout.
-3. Implement the shared application use case with explicit base/candidate paths, Registry v3
-   validity preconditions, configurable warning/error severity, stable structured findings, and
-   no manager-context loading.
-4. Register `skills.check-version-discipline` in the protocol, application, capabilities, and CLI
-   transport with required base/candidate flags and optional severity.
-5. Add a shared Registry v1 fixture; deepen the v3 fixture to cover overlapping bundle members,
-   a transitive dependency, a recommendation, and a non-selected conflict while retaining v2.
-6. Add pure comparison, application no-write, CLI envelope/exit-code, capability/golden, fixture,
-   and multi-skillpack qualification tests.
-7. Document the maintainer command and recommended CI policy, mark `CSM-BND-038` and
-   `CSM-BND-039` complete after verification, and run the full repository gate.
+1. Replace stale v2-only top-level language with Registry v3 plus explicit legacy compatibility,
+   and expose bundle discovery/install/removal and the root/effective selection model.
+2. Expand the migration guide from v1-to-v2-only into a complete v1/v2-to-v3 maintainer path,
+   including canonical SemVer, versioned dependency/member ranges, immutable commit locking,
+   bundle boundaries, validation, and version-discipline CI.
+3. Add documentation contract assertions for current schema-version boundaries, bundle commands,
+   immutable skillpacks, and the no-workflow-execution boundary.
+4. Convert the confirmation/tamper regressions to bundle plans and add a deterministic mixed-root
+   plan-id/digest test across reordered skills, bundles, and agents.
+5. Run focused documentation/application tests, then the full typecheck, test, and build gates.
+6. After those gates pass, bump all three public packages to `0.5.0`, update release notes and the
+   implementation mirror, then rerun the full gates.
+7. Mark `CSM-BND-040` through `CSM-BND-042` and the Phase 10 acceptance criteria complete only
+   after verification; leave the result unstaged and commit-ready.
 
 ## Data, API, or Contract Changes
 
-- Machine protocol v1 adds command `skills.check-version-discipline` with CLI spelling
-  `skills check-version-discipline`.
-- Required inputs are `--base <path>` and `--candidate <path>`; optional
-  `--severity <error|warning>` defaults to `error`.
-- Output reports `valid`, input paths/registry versions, semantic skill/bundle deltas, and
-  deterministic issues with entity kind/id/version. Error severity returns a `VERSION_MISMATCH`
-  failure envelope carrying the same report; warning severity returns a success envelope with
-  warnings.
-- No write-capable contract, persisted plan, config, lock, manifest, or registry schema changes.
+- No new runtime API or protocol behavior is introduced in Phase 10.
+- Public docs explicitly identify Registry v3, Config v3, install request v2, persisted plan v3,
+  and machine envelope v1 as separate current contracts.
+- Public package versions become `0.5.0` together; workspace dependencies remain `workspace:^`.
+- Registry v1/v2 and Config v1/v2 reads remain backward compatible and side-effect free.
 
 ## Testing Strategy
 
-- Pure comparison: unchanged content/version passes, changed skill or bundle with unchanged
-  version is detected, any precedence-changing version passes, build-metadata-only changes fail,
-  and results are deterministic.
-- Content fingerprinting: nested regular-file changes are detected; symlinks are compared by
-  target and never followed.
-- Application: valid Registry v3 pair, invalid/legacy input rejection, warning/error severity,
-  unchanged filesystem tree, and no manager-state creation.
-- Machine: schema-valid canonical JSON, required flags, configurable exit behavior, capability
-  advertisement, and golden output.
-- Fixtures: shared v1/v2/v3 construction, overlapping v3 members, transitive dependency,
-  recommendation/conflict, and duplicate local IDs qualified across skillpacks.
+- Documentation: every documented `corvus-skills` command/flag remains registered; request
+  examples parse; every protocol error is documented; current schema boundaries and safety
+  statements are asserted.
+- Confirmation: a bundle plan cannot apply without the exact token and a tampered bundle plan
+  fails digest validation.
+- Determinism: equivalent mixed skill/bundle roots and agent order produce identical normalized
+  requests, plan payloads, digests, and plan IDs.
+- Existing matrix: read-only tree snapshots, stale bundle fingerprints, unmanaged conflicts,
+  manager-owned removal, v1/v2 config migration, v1/v2/v3 fixtures, POSIX symlinks, and injected
+  Windows junction choices remain green.
+- Full repository: `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`.
 
 ## Verification Commands
 
 ```sh
-pnpm vitest run packages/core/src/versioning/revisionComparison.test.ts
-pnpm vitest run packages/core/src/application/application.test.ts packages/core/src/application/multiSkillpack.test.ts
-pnpm vitest run packages/cli/src/cli/runCli.test.ts packages/cli/src/cli/golden.test.ts packages/cli/src/cli/help.test.ts
+pnpm vitest run packages/core/src/application/documentation.test.ts
+pnpm vitest run packages/core/src/application/install.test.ts packages/core/src/links/applyEngine.test.ts packages/core/src/links/platformLinks.test.ts
 pnpm typecheck
 pnpm test
 pnpm build
@@ -116,45 +104,51 @@ git diff --check
 
 ## Documentation Updates
 
-- Add focused version-discipline authoring/CI guidance to `docs/semantic-registry.md`.
-- Document the read-only machine command in `docs/agent-interface.md` and
-  `docs/agent-protocol-v1.md` without completing the broader Phase 10 public-doc task.
-- Mark `CSM-BND-038` and `CSM-BND-039` complete only after all acceptance checks pass.
-- Record exact verification results and any safe deviation here before commit.
+- Present Registry v3 bundles and versions in README and architecture without hiding legacy
+  support.
+- Keep the complete Registry v3 JSON example and add direct migration links in the skillpack
+  contract and semantic-registry guide.
+- Preserve the implemented bundle install examples and schema-version distinctions in the agent
+  interface/protocol docs.
+- Record the whole feature series under a new Registry v3 changelog section and note the
+  backward-compatible input migrations plus new request/plan schema versions.
+- Add final implementation status, decisions, deviations, verification, and package version to
+  the frozen feature spec.
 
 ## Risks and Stop Conditions
 
-- Stop if comparison would need to write, format, repair, clone, or otherwise mutate either
-  supplied checkout.
-- Stop if the checker would infer or recommend a patch/minor/major bump.
-- Stop if CLI transport would need to own directory traversal, version classification, or policy.
-- Stop if adding the read-only command would require a plan/confirmation flow or protocol
-  envelope version change.
-- Do not begin `CSM-BND-040` through `CSM-BND-042` broad documentation/release work.
+- Stop if docs imply SemVer replaces the immutable Git commit/revision lock.
+- Stop if any example suggests bundles execute workflows, nested/cross-pack membership works, or
+  recommendations install automatically.
+- Stop if release work requires publishing, tagging, pushing, or touching an active skillpack.
+- Stop if a regression reveals adapter-owned resolution logic, a no-confirmation mutation path,
+  or an unmanaged-target overwrite.
 
 ## Rollback Notes
 
-Revert the Phase 9 commit. The new read-only command disappears and tests return to the earlier
-fixtures; no manager state, skillpack checkout, persisted plan, or migration needs rollback.
+Revert the Phase 10 documentation/test/version commit. No data migration or skillpack rollback is
+required because this phase adds no runtime mutation and performs no publish/tag/push action.
 
 ## Verification Result
 
-- Focused core verification passed: 7 test files, 110 tests.
-- Focused CLI verification passed: 3 test files, 47 tests.
-- Full regression suite passed: 50 test files, 464 tests.
-- `pnpm typecheck` passed.
-- `pnpm build` passed.
-- `git diff --check` passed.
-- Safe refinement from self-review: version text changes are separated from content changes, so
-  build-metadata-only changes pass when content is identical but do not satisfy the bump check
-  when skill or bundle content actually changed.
-- Fixture expectation updates were limited to the new representative member, recommendation,
-  conflict, and duplicate-ID coverage required by `CSM-BND-039`.
-- No manager state or skillpack checkout/revision snapshot was mutated; all filesystem behavior
-  tests used temporary fixtures.
+- Focused Phase 10 verification passed: 4 files, 74 tests (documentation, install application,
+  apply engine, and platform link decisions).
+- Documentation contract verification passed: 10 tests, including every documented command/flag,
+  error-code coverage, schema boundaries, immutable snapshots, and non-executable bundles.
+- The full release gate passed both before and after the public package bump: 50 files, 466 tests.
+- `pnpm typecheck` passed before and after the version bump.
+- `pnpm build` passed before and after the version bump.
+- `pnpm --filter @corvus-tools/skill-manager pack --dry-run` passed for `0.5.0`; the package
+  contains runtime declarations/maps/JavaScript plus its README and manifest, with no compiled
+  test artifacts and no tarball left in the working tree.
+- Public package versions are coherent at `0.5.0`; the established private root version remains
+  `0.2.0`.
+- `git diff --check` passed after the final implementation/task mirror update.
+- No manager state or active/existing skillpack checkout/revision was mutated. All filesystem
+  tests used temporary harness fixtures; no publish, tag, push, stage, or commit occurred.
 
 ## Commit Message Draft
 
 ```text
-✨ feat(core): add version discipline checks
+📝 docs: finalize registry v3 release readiness
 ```
