@@ -1,6 +1,7 @@
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
+import {loadConfig, saveConfig} from '@corvus-tools/skill-manager-core';
 import {
   type TestHome,
   createStubGit,
@@ -10,6 +11,7 @@ import {
 import {
   v2SkillpackFixture,
   v3BundleSkillpackFixture,
+  v3BundleSkillpackUpdateFixture,
   writeSkillpack
 } from '../../../../test/support/skillpackFixtures.js';
 import {aiQuickStartLine} from './createProgram.js';
@@ -325,6 +327,45 @@ describe('catalog commands', () => {
     );
     expect((inspected.json as {data: {bundles: Array<{members: unknown[]}>}}).data.bundles[0]?.members).toHaveLength(2);
     expect(await listTree(home.homeDir)).toEqual(before);
+  });
+
+  it('exposes semantic update intelligence in machine JSON without activating the revision', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const config = await loadConfig(home.configPath);
+    await saveConfig({
+      ...config,
+      agents: {
+        codex: {
+          enabled: true,
+          selectedSkillIds: [],
+          selectedBundleIds: ['corvus-skillpack:default']
+        }
+      }
+    }, {configPath: home.configPath});
+    const activeBefore = await fs.readlink(home.checkoutPath);
+    const result = await run(['skillpack', 'update-preview', '--json'], {
+      home,
+      remoteCommitHash: 'b'.repeat(40),
+      onClone: async (targetPath) => writeSkillpack(targetPath, v3BundleSkillpackUpdateFixture)
+    });
+
+    expectCleanJsonOutput(result);
+    expect(result.exitCode).toBe(0);
+    expect(result.json).toMatchObject({
+      data: {
+        requiresConfirmation: true,
+        plan: {
+          skillDeltas: expect.arrayContaining([
+            expect.objectContaining({id: 'review-helper', versionChange: 'major', breakingRisk: true})
+          ]),
+          bundleDeltas: expect.arrayContaining([
+            expect.objectContaining({id: 'default', versionChange: 'major', breakingRisk: true})
+          ]),
+          affectedBundles: [expect.objectContaining({bundleId: 'default', breakingRisk: true})]
+        }
+      }
+    });
+    expect(await fs.readlink(home.checkoutPath)).toBe(activeBefore);
   });
 
   it('plans, applies, and verifies a bundle selected by flag', async () => {

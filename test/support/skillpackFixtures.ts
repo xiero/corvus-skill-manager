@@ -292,6 +292,35 @@ export const v3BundleSkillpackFixture: SkillpackFixture = {
   ]
 };
 
+/** Candidate revision with representative semantic and selected-bundle changes. */
+export const v3BundleSkillpackUpdateFixture: SkillpackFixture = (() => {
+  const fixture = structuredClone(v3BundleSkillpackFixture);
+  const registry = fixture.registry as {
+    skills: Array<{id: string; version: string; description: string}>;
+    bundles: Array<{
+      id: string;
+      version: string;
+      skills: Array<{id: string; version: string}>;
+    }>;
+  };
+
+  for (const skill of registry.skills) {
+    if (skill.id === 'review-helper') skill.version = '3.0.0';
+    if (skill.id === 'git-basics') skill.version = '1.6.0';
+    if (skill.id === 'docs-helper') skill.version = '1.0.1';
+  }
+
+  const defaultBundle = registry.bundles.find((bundle) => bundle.id === 'default');
+  if (defaultBundle !== undefined) {
+    defaultBundle.version = '2.0.0';
+    const reviewMember = defaultBundle.skills.find((member) => member.id === 'review-helper');
+    if (reviewMember !== undefined) reviewMember.version = '^3.0.0';
+    defaultBundle.skills.push({id: 'docs-helper', version: '^1.0.0'});
+  }
+
+  return fixture;
+})();
+
 function skillFile(relativePath: string, name: string, description: string): SkillFixture {
   return {
     relativePath,

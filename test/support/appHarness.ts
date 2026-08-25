@@ -139,7 +139,12 @@ export interface CreateTestHomeOptions {
   writeConfig?: boolean;
   /** Include the skillpack block in config.json. */
   configureSkillpack?: boolean;
-  agents?: Record<string, {enabled: boolean; targetPath?: string; selectedSkillIds: string[]}>;
+  agents?: Record<string, {
+    enabled: boolean;
+    targetPath?: string;
+    selectedSkillIds: string[];
+    selectedBundleIds?: string[];
+  }>;
 }
 
 export async function createTestHome(options: CreateTestHomeOptions = {}): Promise<TestHome> {

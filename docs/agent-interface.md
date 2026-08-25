@@ -71,6 +71,26 @@ learn the workflow.
     Report `data.status` to the user: `verified`, `verified-no-op`, `partially-applied`,
     `drift-detected`, or `blocked`.
 
+## Reviewing skillpack updates
+
+Run `corvus-skills skillpack update-preview --json` only when the user has asked to review or
+perform an update. When an update exists, inspect `data.plan` before requesting activation:
+
+- `skillDeltas` and `bundleDeltas` contain `id`, `change` (`added`, `removed`, or `changed`),
+  optional `previousVersion` / `nextVersion`, `versionChange` (`major`, `minor`, `patch`, `same`,
+  or `unknown`), and `breakingRisk`.
+- `affectedBundles` contains configured bundle roots affected by their own definition or by a
+  changed direct/transitive effective skill. Each entry includes deterministic human-readable
+  reasons and an aggregate `breakingRisk` flag.
+- Registry v1/v2 or registryless comparisons use `unknown`; do not infer a semantic version.
+- A major change is an advisory breaking risk. It does not approve, reject, or apply the update.
+
+Activation remains a separate exact-confirmation command:
+
+```bash
+corvus-skills skillpack update-apply --plan-id <id> --confirm <id> --json
+```
+
 ## Authorization behaviour
 
 An explicit user request to install skills authorizes the normal path: creating manager-owned

@@ -3,6 +3,7 @@ import {
   type ManagerConfig,
   type SkillpackConfig,
   createDefaultManagerConfig,
+  getSelectedBundleIdsForSkillpack,
   getSkillpack
 } from '../../config/configSchema.js';
 import {saveConfig} from '../../config/configStore.js';
@@ -371,7 +372,8 @@ export async function skillpackUpdatePreviewUseCase(
     managerStateDir: context.config?.managerStateDir ?? environment.managerStateDir,
     homeDir: environment.homeDir,
     git: environment.git,
-    now: environment.now()
+    now: environment.now(),
+    selectedBundleIds: getSelectedBundleIdsForSkillpack(context.config, skillpack.id)
   });
 
   if (preview.status === 'preview-failed') {
@@ -407,6 +409,9 @@ export async function skillpackUpdatePreviewUseCase(
     removedSkillIds: preview.removedSkillIds,
     changedSkillIds: preview.changedSkillIds,
     changedFiles: preview.changedFiles,
+    skillDeltas: preview.skillDeltas,
+    bundleDeltas: preview.bundleDeltas,
+    affectedBundles: preview.affectedBundles,
     managerStateDir: context.config?.managerStateDir ?? environment.managerStateDir,
     stateFingerprint: computeStateFingerprint({
       active: {commitHash: preview.activeCommitHash, checkoutPath: preview.checkoutPath},

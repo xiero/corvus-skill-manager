@@ -158,6 +158,24 @@ export function getSkillpack(config: ManagerConfig | undefined, id = defaultSkil
   return config?.skillpacks[id] ?? (config?.skillpack?.id === id ? config.skillpack : undefined);
 }
 
+/** Returns canonical local bundle roots selected by enabled agents for one skillpack. */
+export function getSelectedBundleIdsForSkillpack(
+  config: ManagerConfig | undefined,
+  skillpackId: string
+): string[] {
+  const selected = new Set<string>();
+
+  for (const agent of Object.values(config?.agents ?? {})) {
+    if (agent?.enabled !== true) continue;
+    for (const bundleRef of agent?.selectedBundleIds ?? []) {
+      const parsed = parseBundleReference(bundleRef);
+      if (parsed?.skillpackId === skillpackId) selected.add(parsed.bundleId);
+    }
+  }
+
+  return [...selected].sort((left, right) => left.localeCompare(right));
+}
+
 export function parseManagerConfig(value: unknown): ManagerConfig {
   const parsed = persistedManagerConfigSchema.parse(value);
 

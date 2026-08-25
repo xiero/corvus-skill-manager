@@ -4,6 +4,7 @@ import {ZodError} from 'zod';
 import {defaultSkillpackId} from '../skillpackDefaults.js';
 import {
   createDefaultManagerConfig,
+  getSelectedBundleIdsForSkillpack,
   parseBundleReference,
   parseManagerConfig,
   qualifyBundleId,
@@ -63,6 +64,33 @@ describe('Manager Config v3 schema', () => {
         }
       })
     ).toThrow(ZodError);
+  });
+
+  it('collects selected local bundle roots for one skillpack deterministically', () => {
+    const base = createDefaultManagerConfig({managerStateDir, homeDir: '/tmp/corvus-config-schema'});
+    const parsed = parseManagerConfig({
+      ...base,
+      agents: {
+        codex: {
+          enabled: true,
+          selectedSkillIds: [],
+          selectedBundleIds: ['team:z-flow', 'corvus-skillpack:default']
+        },
+        claude: {
+          enabled: true,
+          selectedSkillIds: [],
+          selectedBundleIds: ['team:a-flow', 'team:z-flow']
+        },
+        gemini: {
+          enabled: false,
+          selectedSkillIds: [],
+          selectedBundleIds: ['team:disabled-flow']
+        }
+      }
+    });
+
+    expect(getSelectedBundleIdsForSkillpack(parsed, 'team')).toEqual(['a-flow', 'z-flow']);
+    expect(getSelectedBundleIdsForSkillpack(parsed, 'corvus-skillpack')).toEqual(['default']);
   });
 });
 

@@ -16,6 +16,7 @@ export {
   createDefaultSkillpackConfig,
   getSkillpack,
   getSkillpacks,
+  getSelectedBundleIdsForSkillpack,
   managerConfigSchema,
   parseBundleReference,
   parseManagerConfig,
@@ -122,6 +123,19 @@ export {
   semanticVersionChangeKinds,
   semanticVersionValidationErrorCodes
 } from './versioning/semver.js';
+export {
+  type AffectedBundleReason,
+  type AffectedBundleReasonKind,
+  type AffectedBundleUpdate,
+  type RevisionEntityChangeKind,
+  type RevisionEntityDelta,
+  type RevisionVersionChangeKind,
+  type SkillpackRevisionComparison,
+  affectedBundleReasonKinds,
+  compareSkillpackRevisions,
+  revisionEntityChangeKinds,
+  revisionVersionChangeKinds
+} from './versioning/revisionComparison.js';
 export {
   type DiscoveredBundle,
   type DiscoveredBundleMember,

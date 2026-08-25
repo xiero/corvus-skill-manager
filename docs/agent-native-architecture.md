@@ -83,6 +83,12 @@ deterministic lexical scoring, whole-bundle compatibility, qualified-reference r
 install expansion all remain in core/application code. A repeatable `install plan --bundle`
 flag is equivalent to request-v2 `selectedBundles`; it cannot apply directly.
 
+`skillpack.updatePreview` also owns semantic revision comparison. It classifies v3 skill and
+bundle changes from declared versions, reports legacy/unversioned comparisons as `unknown`, and
+cross-references configured bundle roots with changed effective members. The persisted update
+plan, machine envelope, Guided Flow, and Manage Skillpacks UI all consume that same core read
+model. A `major`/`breakingRisk` result is a warning for review, never authorization or rejection.
+
 ### 3. Ink TUI adapter — `packages/tui/`
 
 Owns navigation, the Guided Flow wizard, previews, confirmations, and draft selection state.
@@ -97,6 +103,10 @@ the shared effective-selection resolver for bundle members, dependencies, confli
 recommendations. The plan preview renders those roots and provenance separately from link
 operations. No selection toggle writes config or links; only the existing final `a` approval
 persists Config v3 roots and applies manager-owned operations.
+
+Both TUI update-preview surfaces render the application/core-provided `skillDeltas`,
+`bundleDeltas`, and `affectedBundles` arrays. They do not compare versions or traverse bundle
+membership in React, and neither preview activates the candidate revision.
 
 Screens on shared use cases today: Status (`status`), Doctor (`doctor`), Skill Discovery
 (`discoverSkills`), and Manage Skillpacks (`skillpack.setup-*`, `skillpack.update-*`, and

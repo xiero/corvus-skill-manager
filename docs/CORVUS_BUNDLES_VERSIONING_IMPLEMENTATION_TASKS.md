@@ -1124,9 +1124,9 @@ For every task:
 - Preserve existing changed-files information.
 
 **Acceptance criteria:**
-- [ ] Update plan includes semantic version deltas for skills and bundles.
-- [ ] v1/v2 registries degrade gracefully to unknown/unversioned semantic delta.
-- [ ] Comparison is deterministic.
+- [x] Update plan includes semantic version deltas for skills and bundles.
+- [x] v1/v2 registries degrade gracefully to unknown/unversioned semantic delta.
+- [x] Comparison is deterministic.
 
 **Required tests / verification:**
 - Unit/application tests for add/remove, patch/minor/major and legacy registry comparisons.
@@ -1153,9 +1153,9 @@ For every task:
 - Do not make semantic release decisions beyond SemVer classification.
 
 **Acceptance criteria:**
-- [ ] Update preview can say which selected bundles are affected and why.
-- [ ] Major changes are visually/machine distinguishable.
-- [ ] No update is auto-approved or auto-applied.
+- [x] Update preview can say which selected bundles are affected and why.
+- [x] Major changes are visually/machine distinguishable.
+- [x] No update is auto-approved or auto-applied.
 
 **Required tests / verification:**
 - Tests for unrelated updates, affected bundle, direct bundle version change and major member upgrade.
@@ -1183,8 +1183,8 @@ For every task:
 - Keep actual revision activation behind the existing confirmed update plan/apply.
 
 **Acceptance criteria:**
-- [ ] Human and machine adapters report the same underlying comparison.
-- [ ] No duplicate update-diff business logic exists in adapters.
+- [x] Human and machine adapters report the same underlying comparison.
+- [x] No duplicate update-diff business logic exists in adapters.
 
 **Required tests / verification:**
 - TUI render tests and machine protocol contract tests.

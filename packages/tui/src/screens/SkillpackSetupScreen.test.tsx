@@ -135,6 +135,60 @@ describe('SkillpackSetupScreen repository manager', () => {
     expect(collectText(renderer.toJSON())).toContain('Repository ID "team-skills" is already configured.');
     expect(application.skillpackSetupPlan).not.toHaveBeenCalled();
   });
+
+  it('renders core semantic update intelligence without applying from preview', async () => {
+    const application = fakeApplication();
+    application.skillpackUpdatePreview.mockResolvedValue({
+      ok: true,
+      changed: true,
+      data: {
+        planId: 'skillpack-update-plan-1',
+        requiresConfirmation: true,
+        status: 'update-preview-ready',
+        message: 'Downloaded update preview snapshot.',
+        plan: {
+          addedSkillIds: [],
+          changedSkillIds: ['review-helper'],
+          removedSkillIds: [],
+          skillDeltas: [{
+            id: 'review-helper',
+            change: 'changed',
+            previousVersion: '1.4.0',
+            nextVersion: '2.0.0',
+            versionChange: 'major',
+            breakingRisk: true
+          }],
+          bundleDeltas: [],
+          affectedBundles: [{
+            bundleId: 'default',
+            breakingRisk: true,
+            reasons: [{
+              kind: 'effective-skill-changed',
+              entityId: 'review-helper',
+              versionChange: 'major',
+              breakingRisk: true,
+              message: 'Selected bundle "default" has a major review-helper update.'
+            }]
+          }]
+        }
+      },
+      warnings: [],
+      errors: [],
+      nextActions: []
+    });
+    const renderer = await renderScreen(application);
+
+    press('', {return: true});
+    press('u');
+    await flushPromises();
+
+    const text = collectText(renderer.toJSON());
+    expect(text).toContain('UPDATE PREVIEW');
+    expect(text).toContain('MAJOR VERSION RISK');
+    expect(text).toContain('review-helper: changed, 1.4.0 -> 2.0.0');
+    expect(text).toContain('default [MAJOR RISK]');
+    expect(application.skillpackUpdateApply).not.toHaveBeenCalled();
+  });
 });
 
 describe('suggestSkillpackId', () => {
@@ -168,6 +222,8 @@ async function renderScreen(
 function fakeApplication(): CorvusApplication & {
   skillpackSetupPlan: ReturnType<typeof vi.fn>;
   skillpackSetupApply: ReturnType<typeof vi.fn>;
+  skillpackUpdatePreview: ReturnType<typeof vi.fn>;
+  skillpackUpdateApply: ReturnType<typeof vi.fn>;
 } {
   const application = {
     skillpackStatus: vi.fn(async () => ({
@@ -222,6 +278,8 @@ function fakeApplication(): CorvusApplication & {
   return application as unknown as CorvusApplication & {
     skillpackSetupPlan: ReturnType<typeof vi.fn>;
     skillpackSetupApply: ReturnType<typeof vi.fn>;
+    skillpackUpdatePreview: ReturnType<typeof vi.fn>;
+    skillpackUpdateApply: ReturnType<typeof vi.fn>;
   };
 }
 

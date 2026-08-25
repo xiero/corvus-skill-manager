@@ -38,6 +38,21 @@ Serialization is canonical: object keys are sorted and optional fields are omitt
 emitted as `null` or `undefined`. Equivalent results are byte-identical, so output is safe to
 diff and to snapshot.
 
+### Semantic skillpack update preview
+
+Successful `skillpack.update-preview` responses with an available update include a persisted
+plan under `data.plan`. Alongside commit paths, changed files, and legacy added/removed/changed
+skill IDs, new plans expose:
+
+- `skillDeltas` and `bundleDeltas`: deterministic entity/version changes with
+  `versionChange` = `major | minor | patch | same | unknown` and advisory `breakingRisk`;
+- `affectedBundles`: configured bundle roots affected directly or through effective members,
+  with structured reasons.
+
+These fields do not change envelope schema v1 or persisted plan schema v3. They are comparison
+data only; `skillpack.update-apply` still requires the plan id as an exact confirmation token and
+revalidates the state fingerprint before activation.
+
 ## Warnings
 
 ```json

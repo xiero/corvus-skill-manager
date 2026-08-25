@@ -150,6 +150,13 @@ boundaries.
   and recognized before/after root state. Confirmed apply persists Config v3 roots while the
   manifest remains link-only, and verify reports roots, effective skills, actual managed links,
   missing derived links, and stale owned links without repair.
+- Skillpack update preview reads the active and inactive candidate snapshots and produces one
+  deterministic semantic comparison in core. `skillDeltas` and `bundleDeltas` identify
+  add/remove/change status, declared versions, and major/minor/patch/same/unknown classification;
+  `affectedBundles` explains which configured bundle roots have changed effective members.
+  Major changes are advisory breaking risks only. Both TUI surfaces and machine JSON present this
+  shared model, and revision activation still requires the persisted update plan plus explicit
+  confirmation.
 
 ## Link Planning And Apply
 

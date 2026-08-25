@@ -11,6 +11,11 @@ import {
 } from '../lock/lockStore.js';
 import {resolveUserPath} from '../paths.js';
 import {type DiscoveredSkill, discoverSkillsFromCheckout} from '../skills/skillDiscovery.js';
+import {
+  type AffectedBundleUpdate,
+  type RevisionEntityDelta,
+  compareSkillpackRevisions
+} from '../versioning/revisionComparison.js';
 import {type GitRunner, runGit} from './gitRunner.js';
 
 export type CheckoutStatus =
@@ -53,6 +58,8 @@ export interface SkillpackSetupOptions {
   homeDir?: string;
   git?: GitRunner;
   now?: Date;
+  /** Local bundle roots selected for this skillpack, used only for read-only update impact. */
+  selectedBundleIds?: string[];
 }
 
 export interface SkillpackSnapshotLayout {
@@ -92,6 +99,9 @@ export interface SkillpackUpdatePreview {
   removedSkillIds: string[];
   changedSkillIds: string[];
   changedFiles: string[];
+  skillDeltas: RevisionEntityDelta[];
+  bundleDeltas: RevisionEntityDelta[];
+  affectedBundles: AffectedBundleUpdate[];
   message: string;
 }
 
@@ -284,6 +294,9 @@ export async function prepareSkillpackUpdatePreview(
       removedSkillIds: [],
       changedSkillIds: [],
       changedFiles: [],
+      skillDeltas: [],
+      bundleDeltas: [],
+      affectedBundles: [],
       message: updateInspection.message
     };
   }
@@ -309,6 +322,14 @@ export async function prepareSkillpackUpdatePreview(
       candidateSkills: candidateDiscovery.skills,
       changedFiles
     });
+    const comparison = compareSkillpackRevisions({
+      currentSkills: currentDiscovery.skills,
+      candidateSkills: candidateDiscovery.skills,
+      currentBundles: currentDiscovery.bundles,
+      candidateBundles: candidateDiscovery.bundles,
+      changedSkillIds: summary.changedSkillIds,
+      selectedBundleIds: options.selectedBundleIds ?? []
+    });
 
     return {
       status: 'update-preview-ready',
@@ -320,6 +341,9 @@ export async function prepareSkillpackUpdatePreview(
       removedSkillIds: summary.removedSkillIds,
       changedSkillIds: summary.changedSkillIds,
       changedFiles,
+      skillDeltas: comparison.skillDeltas,
+      bundleDeltas: comparison.bundleDeltas,
+      affectedBundles: comparison.affectedBundles,
       message: snapshot.created ? 'Downloaded update preview snapshot.' : 'Loaded existing update preview snapshot.'
     };
   } catch (error) {
@@ -332,6 +356,9 @@ export async function prepareSkillpackUpdatePreview(
       removedSkillIds: [],
       changedSkillIds: [],
       changedFiles: [],
+      skillDeltas: [],
+      bundleDeltas: [],
+      affectedBundles: [],
       message: error instanceof Error ? error.message : String(error)
     };
   }
@@ -764,6 +791,7 @@ function summarizeSkillChanges(options: {
 function skillSignature(skill: DiscoveredSkill): string {
   return JSON.stringify({
     id: skill.id,
+    version: skill.version,
     title: skill.title,
     description: skill.description,
     supportedAgents: [...skill.supportedAgents].sort(),

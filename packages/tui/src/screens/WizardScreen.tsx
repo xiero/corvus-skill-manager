@@ -30,6 +30,7 @@ import {
   discoverSkillsFromCheckout,
   generateLinkPlan,
   getAgentAdapters,
+  getSelectedBundleIdsForSkillpack,
   getSkillpacks,
   qualifyBundleId,
   qualifySkillId,
@@ -55,6 +56,7 @@ import {
 } from '../wizard/wizardSelection.js';
 import {BundleCatalogView, type RootSelectionState} from './BundleCatalogView.js';
 import {CommandBar, type CommandHint} from './CommandBar.js';
+import {SemanticUpdateSummaryView} from './SemanticUpdatePreview.js';
 
 type SkillpackField = 'id' | 'repositoryUrl' | 'branch' | 'checkoutPath';
 type DiscoveryState = 'idle' | 'loading' | 'loaded' | 'error';
@@ -915,7 +917,8 @@ export function WizardScreen({
     try {
       const preview = await operations.prepareSkillpackUpdatePreview({
         config: skillpackConfig,
-        managerStateDir: workingConfig.managerStateDir
+        managerStateDir: workingConfig.managerStateDir,
+        selectedBundleIds: getSelectedBundleIdsForSkillpack(workingConfig, skillpackConfig.id)
       });
 
       setUpdatePreview(preview);
@@ -1340,6 +1343,11 @@ function UpdatePreviewView({preview}: {preview: SkillpackUpdatePreview}): React.
       <Text>Added skills: {formatList(preview.addedSkillIds)}</Text>
       <Text>Changed skills: {formatList(preview.changedSkillIds)}</Text>
       <Text>Removed skills: {formatList(preview.removedSkillIds)}</Text>
+      <SemanticUpdateSummaryView
+        skillDeltas={preview.skillDeltas ?? []}
+        bundleDeltas={preview.bundleDeltas ?? []}
+        affectedBundles={preview.affectedBundles ?? []}
+      />
     </Box>
   );
 }

@@ -1,7 +1,9 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 import {
+  type AffectedBundleUpdate,
   type ManagerConfig,
+  type RevisionEntityDelta,
   type SkillpackConfig,
   defaultSkillpackBranch,
   defaultSkillpackCheckoutPath,
@@ -14,6 +16,7 @@ import {
 import {useCorvusApplication} from '../application/applicationContext.js';
 import {describeMachineErrors} from '../application/errorMessages.js';
 import {CommandBar, type CommandHint} from './CommandBar.js';
+import {SemanticUpdateSummaryView} from './SemanticUpdatePreview.js';
 
 type ScreenMode =
   | 'list'
@@ -69,6 +72,9 @@ interface UpdatePreviewState {
   addedSkillIds: string[];
   changedSkillIds: string[];
   removedSkillIds: string[];
+  skillDeltas: RevisionEntityDelta[];
+  bundleDeltas: RevisionEntityDelta[];
+  affectedBundles: AffectedBundleUpdate[];
 }
 
 export interface SkillpackSetupScreenProps {
@@ -403,7 +409,10 @@ export function SkillpackSetupScreen({
       message: result.data.message,
       addedSkillIds: result.data.plan?.addedSkillIds ?? [],
       changedSkillIds: result.data.plan?.changedSkillIds ?? [],
-      removedSkillIds: result.data.plan?.removedSkillIds ?? []
+      removedSkillIds: result.data.plan?.removedSkillIds ?? [],
+      skillDeltas: result.data.plan?.skillDeltas ?? [],
+      bundleDeltas: result.data.plan?.bundleDeltas ?? [],
+      affectedBundles: result.data.plan?.affectedBundles ?? []
     });
     setMode('update-preview');
   }
@@ -713,6 +722,11 @@ function UpdatePreview({preview}: {preview: UpdatePreviewState}): React.ReactEle
       <Text>Added skills: {formatList(preview.addedSkillIds)}</Text>
       <Text>Changed skills: {formatList(preview.changedSkillIds)}</Text>
       <Text>Removed skills: {formatList(preview.removedSkillIds)}</Text>
+      <SemanticUpdateSummaryView
+        skillDeltas={preview.skillDeltas}
+        bundleDeltas={preview.bundleDeltas}
+        affectedBundles={preview.affectedBundles}
+      />
       {preview.planId === undefined ? <Text dimColor>No activation is required.</Text> : null}
     </Box>
   );

@@ -6,7 +6,8 @@ import {
   createPlanArtifact,
   parsePersistedPlan,
   planSchemaVersion,
-  resolvedSkillSelectionSchema
+  resolvedSkillSelectionSchema,
+  skillpackUpdatePlanPayloadSchema
 } from './planSchema.js';
 
 describe('plan schema v3 root and effective selections', () => {
@@ -90,6 +91,52 @@ describe('plan schema v3 root and effective selections', () => {
         {kind: 'explicit', reason: 'explicit'},
         {kind: 'bundle-member', reason: 'bundle:team:workflow'}
       ]
+    });
+  });
+
+  it('keeps Phase 8 semantic update fields additive for schema-v3 plan compatibility', () => {
+    const base = {
+      skillpackId: 'team',
+      repositoryUrl: 'https://example.test/team.git',
+      branch: 'main',
+      activePath: '/tmp/team/current',
+      activeCommitHash: 'a'.repeat(40),
+      remoteCommitHash: 'b'.repeat(40),
+      candidateRevisionPath: '/tmp/team/revisions/b/repo',
+      addedSkillIds: [],
+      removedSkillIds: [],
+      changedSkillIds: ['review'],
+      changedFiles: ['registry.json'],
+      managerStateDir: '/tmp/manager',
+      stateFingerprint: computeStateFingerprint({active: 'a', remote: 'b'})
+    };
+
+    expect(skillpackUpdatePlanPayloadSchema.parse(base)).toEqual(base);
+    expect(skillpackUpdatePlanPayloadSchema.parse({
+      ...base,
+      skillDeltas: [{
+        id: 'review',
+        change: 'changed',
+        previousVersion: '1.0.0',
+        nextVersion: '2.0.0',
+        versionChange: 'major',
+        breakingRisk: true
+      }],
+      bundleDeltas: [],
+      affectedBundles: [{
+        bundleId: 'default',
+        breakingRisk: true,
+        reasons: [{
+          kind: 'effective-skill-changed',
+          entityId: 'review',
+          versionChange: 'major',
+          breakingRisk: true,
+          message: 'Selected bundle has a major review update.'
+        }]
+      }]
+    })).toMatchObject({
+      skillDeltas: [expect.objectContaining({id: 'review', versionChange: 'major'})],
+      affectedBundles: [expect.objectContaining({bundleId: 'default', breakingRisk: true})]
     });
   });
 });

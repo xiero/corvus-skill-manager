@@ -9,7 +9,13 @@ import {
   createTestHome,
   listTree
 } from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture, writeSkillpack} from '../../../../test/support/skillpackFixtures.js';
+import {
+  v2SkillpackFixture,
+  v3BundleSkillpackFixture,
+  v3BundleSkillpackUpdateFixture,
+  writeSkillpack
+} from '../../../../test/support/skillpackFixtures.js';
+import {loadConfig, saveConfig} from '../config/configStore.js';
 import {createCorvusApplication} from './createCorvusApplication.js';
 
 const homes: TestHome[] = [];
@@ -370,6 +376,45 @@ describe('skillpack update', () => {
     expect(
       (await fs.stat(path.join(home.homeDir, '.agents', 'skillpacks', 'corvus-skillpack', 'revisions', remoteCommit, 'repo'))).isDirectory()
     ).toBe(true);
+    assertNoMutatingGitCalls(stubGit);
+  });
+
+  it('includes semantic deltas and affected selected bundles in the update plan', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const config = await loadConfig(home.configPath);
+    await saveConfig({
+      ...config,
+      agents: {
+        codex: {
+          enabled: true,
+          selectedSkillIds: [],
+          selectedBundleIds: ['corvus-skillpack:default']
+        }
+      }
+    }, {configPath: home.configPath});
+    const stubGit = createStubGit({
+      commitHash: home.commitHash,
+      remoteCommitHash: remoteCommit,
+      onClone: async (targetPath) => writeSkillpack(targetPath, v3BundleSkillpackUpdateFixture)
+    });
+    const activeBefore = await fs.readlink(home.checkoutPath);
+    const preview = await appFor(home, stubGit).skillpackUpdatePreview();
+
+    expect(preview.ok).toBe(true);
+    if (!preview.ok || preview.data.plan === undefined) return;
+
+    expect(preview.data.plan.skillDeltas).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'review-helper', versionChange: 'major', breakingRisk: true}),
+      expect.objectContaining({id: 'git-basics', versionChange: 'minor'}),
+      expect.objectContaining({id: 'docs-helper', versionChange: 'patch'})
+    ]));
+    expect(preview.data.plan.bundleDeltas).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'default', versionChange: 'major', breakingRisk: true})
+    ]));
+    expect(preview.data.plan.affectedBundles).toEqual([
+      expect.objectContaining({bundleId: 'default', breakingRisk: true})
+    ]);
+    expect(await fs.readlink(home.checkoutPath)).toBe(activeBefore);
     assertNoMutatingGitCalls(stubGit);
   });
 

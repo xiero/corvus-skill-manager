@@ -227,6 +227,44 @@ export const skillpackSetupPlanPayloadSchema = z
 
 export type SkillpackSetupPlanPayload = z.infer<typeof skillpackSetupPlanPayloadSchema>;
 
+export const revisionEntityDeltaSchema = z
+  .object({
+    id: z.string().min(1),
+    change: z.enum(['added', 'removed', 'changed']),
+    previousVersion: z.string().min(1).optional(),
+    nextVersion: z.string().min(1).optional(),
+    versionChange: z.enum(['major', 'minor', 'patch', 'same', 'unknown']),
+    breakingRisk: z.boolean()
+  })
+  .strict();
+
+export const affectedBundleReasonSchema = z
+  .object({
+    kind: z.enum([
+      'bundle-added',
+      'bundle-removed',
+      'bundle-changed',
+      'member-added',
+      'member-removed',
+      'effective-skill-added',
+      'effective-skill-removed',
+      'effective-skill-changed'
+    ]),
+    entityId: z.string().min(1),
+    versionChange: z.enum(['major', 'minor', 'patch', 'same', 'unknown']),
+    breakingRisk: z.boolean(),
+    message: z.string().min(1)
+  })
+  .strict();
+
+export const affectedBundleUpdateSchema = z
+  .object({
+    bundleId: z.string().min(1),
+    breakingRisk: z.boolean(),
+    reasons: z.array(affectedBundleReasonSchema)
+  })
+  .strict();
+
 export const skillpackUpdatePlanPayloadSchema = z
   .object({
     skillpackId: z.string().min(1),
@@ -240,6 +278,10 @@ export const skillpackUpdatePlanPayloadSchema = z
     removedSkillIds: z.array(z.string().min(1)),
     changedSkillIds: z.array(z.string().min(1)),
     changedFiles: z.array(z.string().min(1)),
+    /** Optional only so pre-Phase-8 plan-schema-v3 artifacts retain byte-identical payloads. */
+    skillDeltas: z.array(revisionEntityDeltaSchema).optional(),
+    bundleDeltas: z.array(revisionEntityDeltaSchema).optional(),
+    affectedBundles: z.array(affectedBundleUpdateSchema).optional(),
     managerStateDir: z.string().min(1),
     stateFingerprint: stateFingerprintSchema
   })
