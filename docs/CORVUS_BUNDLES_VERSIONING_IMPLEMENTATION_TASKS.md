@@ -1006,8 +1006,8 @@ For every task:
 - Keep raw protocol JSON out of the TUI.
 
 **Acceptance criteria:**
-- [ ] Users can inspect what a bundle contains before selecting it.
-- [ ] Bundle UI remains read-only until the existing planning/apply step.
+- [x] Users can inspect what a bundle contains before selecting it.
+- [x] Bundle UI remains read-only until the existing planning/apply step.
 
 **Required tests / verification:**
 - Ink rendering tests for compatible and incompatible bundles.
@@ -1035,9 +1035,9 @@ For every task:
 - Do not directly expand bundles in UI code; call the shared core resolver/use case.
 
 **Acceptance criteria:**
-- [ ] Selecting a bundle does not write config or links.
-- [ ] Cancel/back behavior discards draft changes as existing UX promises.
-- [ ] No duplicate business logic exists between TUI and core.
+- [x] Selecting a bundle does not write config or links.
+- [x] Cancel/back behavior discards draft changes as existing UX promises.
+- [x] No duplicate business logic exists between TUI and core.
 
 **Required tests / verification:**
 - Wizard flow and editing-cancel tests.
@@ -1064,9 +1064,9 @@ For every task:
 - Do not auto-select recommendations.
 
 **Acceptance criteria:**
-- [ ] A user can install Spec Unleashed without knowing its dependencies.
-- [ ] An advanced user can still select only individual skills.
-- [ ] Incompatible bundle selection cannot proceed to a misleading successful plan.
+- [x] A user can install Spec Unleashed without knowing its dependencies.
+- [x] An advanced user can still select only individual skills.
+- [x] Incompatible bundle selection cannot proceed to a misleading successful plan.
 
 **Required tests / verification:**
 - TUI interaction tests for bundle toggle, mixed selection and multi-agent partial state.
@@ -1093,8 +1093,8 @@ For every task:
 - Map machine/core errors to human-readable TUI text.
 
 **Acceptance criteria:**
-- [ ] The user can answer 'what did I ask for?' and 'what else will Corvus link because of it?' before pressing apply.
-- [ ] No apply occurs from the preview itself without the existing explicit approval.
+- [x] The user can answer 'what did I ask for?' and 'what else will Corvus link because of it?' before pressing apply.
+- [x] No apply occurs from the preview itself without the existing explicit approval.
 
 **Required tests / verification:**
 - Snapshot/render tests for a representative bundle install and conflict case.

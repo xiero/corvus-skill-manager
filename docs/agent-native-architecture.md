@@ -63,7 +63,7 @@ High-level use cases that compose domain primitives into complete workflows:
 - `skills.list`, `skills.search`, `skills.inspect`, `skills.validateRegistry`;
 - read-only `bundles.list`, `bundles.search`, and `bundles.inspect` workflows, exposed by the
   machine adapter through `listBundles`, `searchBundles`, and `inspectBundles` application
-  methods (TUI presentation remains a later phase);
+  methods and rendered by the TUI through the same bundle catalog read models;
 - `install.plan`, `install.apply`, `install.verify`.
 
 Rules:
@@ -91,6 +91,13 @@ call use cases instead of orchestrating core primitives. Protocol error codes ar
 human-readable sentences in `application/errorMessages.ts`; the TUI never renders raw protocol
 JSON.
 
+Guided Flow keeps explicit bundle and skill roots in unsaved per-agent drafts. Its combined
+Bundles + Individual Skills step derives catalog compatibility from core read models and calls
+the shared effective-selection resolver for bundle members, dependencies, conflicts, and
+recommendations. The plan preview renders those roots and provenance separately from link
+operations. No selection toggle writes config or links; only the existing final `a` approval
+persists Config v3 roots and applies manager-owned operations.
+
 Screens on shared use cases today: Status (`status`), Doctor (`doctor`), Skill Discovery
 (`discoverSkills`), and Manage Skillpacks (`skillpack.setup-*`, `skillpack.update-*`, and
 `skillpack.remove-*`).
@@ -99,10 +106,12 @@ Screens on shared use cases today: Status (`status`), Doctor (`doctor`), Skill D
 operates on an *unsaved, user-edited* skillpack form before it reaches `config.json`. There is no
 equivalent use case for "inspect this hypothetical wizard draft", so that screen calls
 `inspectSkillpackCheckout` / `inspectSkillpackRemoteUpdate` / `prepareSkillpackUpdatePreview` /
-`applyInitialSkillpackSetup` / `applySkillpackUpdate` directly. Likewise the wizard's link
-preview calls `generateLinkPlan` / `applyLinkPlan` directly, because the wizard expresses
-per-agent *enable and disable* in one pass and the install request contract only expresses
-installing for target agents.
+`applyInitialSkillpackSetup` / `applySkillpackUpdate` directly. Likewise the wizard's
+selection/link preview calls `resolveEffectiveSelection`, `generateLinkPlan`, and `applyLinkPlan`
+directly, because the wizard expresses per-agent *enable and disable* plus unsaved skill and
+bundle roots in one pass while the install request contract only expresses installing for target
+agents. A TUI-only pure composition helper feeds core resolver output into the shared link
+planner; React components do not duplicate bundle or dependency traversal.
 
 This is not a second implementation. Those are the same shared engines the application layer
 itself calls — `install.plan` delegates to `generateLinkPlan`, `install.apply` to

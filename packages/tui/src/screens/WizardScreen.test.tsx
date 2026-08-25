@@ -117,7 +117,8 @@ function createDraftAgents(): Record<AgentId, WizardDraftAgent> {
       {
         enabled: false,
         targetPath: adapter.defaultTargetPath ?? '',
-        selectedSkillIds: []
+        selectedSkillIds: [],
+        selectedBundleIds: []
       }
     ])
   ) as Record<AgentId, WizardDraftAgent>;

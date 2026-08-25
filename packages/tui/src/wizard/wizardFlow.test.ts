@@ -145,7 +145,7 @@ describe('deriveWizardFlow', () => {
       inspection: readableInspection,
       remoteUpdate: upToDateRemote,
       draftAgents: {
-        codex: {enabled: false, targetPath: '/tmp/codex', selectedSkillIds: []}
+        codex: {enabled: false, targetPath: '/tmp/codex', selectedSkillIds: [], selectedBundleIds: []}
       }
     });
 
@@ -160,12 +160,33 @@ describe('deriveWizardFlow', () => {
       remoteUpdate: upToDateRemote,
       discoveredSkills: [discoveredSkill],
       draftAgents: {
-        codex: {enabled: true, targetPath: '/tmp/codex', selectedSkillIds: []}
+        codex: {enabled: true, targetPath: '/tmp/codex', selectedSkillIds: [], selectedBundleIds: []}
       }
     });
 
     expect(stepStatus(flow, 'skills')).toBe('active');
     expect(flow.recommendedStepId).toBe('skills');
+  });
+
+  it('marks bundle-only root selection ready for planning', () => {
+    const flow = deriveWizardFlow({
+      config,
+      inspection: readableInspection,
+      remoteUpdate: upToDateRemote,
+      discoveredSkills: [discoveredSkill],
+      draftAgents: {
+        codex: {
+          enabled: true,
+          targetPath: '/tmp/codex',
+          selectedSkillIds: [],
+          selectedBundleIds: ['corvus:review-flow']
+        }
+      }
+    });
+
+    expect(stepStatus(flow, 'skills')).toBe('complete');
+    expect(flow.steps.find((step) => step.id === 'skills')?.detail).toContain('1 bundle, 0 skill');
+    expect(flow.recommendedStepId).toBe('plan');
   });
 
   it('explains no-op plans', () => {
@@ -175,7 +196,7 @@ describe('deriveWizardFlow', () => {
       remoteUpdate: upToDateRemote,
       discoveredSkills: [discoveredSkill],
       draftAgents: {
-        codex: {enabled: true, targetPath: '/tmp/codex', selectedSkillIds: ['review-helper']}
+        codex: {enabled: true, targetPath: '/tmp/codex', selectedSkillIds: ['review-helper'], selectedBundleIds: []}
       },
       plan: emptyPlan()
     });
@@ -191,7 +212,7 @@ describe('deriveWizardFlow', () => {
       remoteUpdate: upToDateRemote,
       discoveredSkills: [discoveredSkill],
       draftAgents: {
-        codex: {enabled: true, targetPath: '/tmp/codex', selectedSkillIds: ['review-helper']}
+        codex: {enabled: true, targetPath: '/tmp/codex', selectedSkillIds: ['review-helper'], selectedBundleIds: []}
       },
       plan: {
         operations: [],

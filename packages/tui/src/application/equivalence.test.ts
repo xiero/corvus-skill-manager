@@ -4,12 +4,14 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {
   type CorvusApplication,
   createCorvusApplication,
-  generateLinkPlan,
   getAgentAdapters,
+  loadConfig,
+  resolveBundleReference,
   resolveSkillReference
 } from '@corvus-tools/skill-manager-core';
 import {type TestHome, createStubGit, createTestHome} from '../../../../test/support/appHarness.js';
-import {v2SkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
+import {v2SkillpackFixture, v3BundleSkillpackFixture} from '../../../../test/support/skillpackFixtures.js';
+import {createWizardSelectionPlan} from '../wizard/wizardSelection.js';
 import {describeMachineError, describeMachineErrors} from './errorMessages.js';
 
 const homes: TestHome[] = [];
@@ -40,7 +42,13 @@ function appFor(home: TestHome): CorvusApplication {
 async function wizardLinkPlan(
   app: CorvusApplication,
   home: TestHome,
-  draft: {agentId: string; enabled: boolean; targetPath: string; selectedSkillIds: string[]}[]
+  draft: Array<{
+    agentId: string;
+    enabled: boolean;
+    targetPath: string;
+    selectedSkillIds: string[];
+    selectedBundleIds?: string[];
+  }>
 ) {
   const discovery = await app.discoverSkills();
 
@@ -52,29 +60,25 @@ async function wizardLinkPlan(
   const sortedSkills = [...discovery.data.discovery.skills].sort((left, right) =>
     left.id.localeCompare(right.id)
   );
+  const config = await loadConfig(home.configPath);
+  const skillpackId = config.skillpack?.id ?? 'corvus-skillpack';
 
-  return generateLinkPlan({
+  return createWizardSelectionPlan({
     adapters,
-    homeDir: home.homeDir,
-    skills: sortedSkills.map((skill) => ({
-      id: skill.ref ?? skill.id,
-      targetName: skill.id,
-      absolutePath: skill.absolutePath
-    })),
-    selections: adapters.map((adapter) => {
+    skills: sortedSkills,
+    bundles: discovery.data.discovery.bundles,
+    config,
+    draftAgents: Object.fromEntries(adapters.map((adapter) => {
       const draftAgent = draft.find((entry) => entry.agentId === adapter.id);
 
-      return {
-        agentId: adapter.id,
+      return [adapter.id, {
         enabled: draftAgent?.enabled ?? false,
-        ...(draftAgent?.targetPath === undefined || draftAgent.targetPath === ''
-          ? {}
-          : {targetPath: draftAgent.targetPath}),
-        selectedSkillIds: (draftAgent?.selectedSkillIds ?? []).map((id) => resolveSkillReference(id)),
-        previousSelectedSkillIds: []
-      };
-    })
-  });
+        targetPath: draftAgent?.targetPath ?? '',
+        selectedSkillIds: (draftAgent?.selectedSkillIds ?? []).map((id) => resolveSkillReference(id, skillpackId)),
+        selectedBundleIds: (draftAgent?.selectedBundleIds ?? []).map((id) => resolveBundleReference(id, skillpackId))
+      }];
+    }))
+  }).linkPlan;
 }
 
 describe('TUI and CLI equivalence', () => {
@@ -127,6 +131,33 @@ describe('TUI and CLI equivalence', () => {
 
     if (cliPlan.ok) {
       expect(cliPlan.data.plan.operations).toEqual(tuiPlan.operations);
+    }
+  });
+
+  it('produces the same effective operations for a Registry v3 bundle root', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const app = appFor(home);
+    const targetPath = path.join(home.homeDir, '.agents', 'skills');
+    const tuiPlan = await wizardLinkPlan(app, home, [{
+      agentId: 'codex',
+      enabled: true,
+      targetPath,
+      selectedSkillIds: [],
+      selectedBundleIds: ['default']
+    }]);
+    const cliPlan = await app.installPlan({
+      schemaVersion: 2,
+      targetAgents: ['codex'],
+      selectedSkills: [],
+      selectedBundles: [{id: 'default'}],
+      replaceSelection: true,
+      agentTargetPaths: {codex: targetPath}
+    });
+
+    expect(cliPlan.ok).toBe(true);
+    if (cliPlan.ok) {
+      expect(cliPlan.data.plan.operations).toEqual(tuiPlan.operations);
+      expect(cliPlan.data.plan.conflicts).toEqual(tuiPlan.conflicts);
     }
   });
 

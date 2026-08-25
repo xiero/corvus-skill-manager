@@ -5,6 +5,8 @@ import {
   type AgentConfig,
   type AgentId,
   type ApplyLinkPlanResult,
+  type BundleCatalogEntry,
+  type DiscoveredBundle,
   type DiscoveredSkill,
   type GenerateLinkPlanInput,
   type LinkPlan,
@@ -29,13 +31,15 @@ import {
   generateLinkPlan,
   getAgentAdapters,
   getSkillpacks,
+  qualifyBundleId,
   qualifySkillId,
   resolveSkillReference,
   inspectSkillpackCheckout,
   inspectSkillpackRemoteUpdate,
   parseSkillpackConfig,
   prepareSkillpackUpdatePreview,
-  saveConfig
+  saveConfig,
+  toBundleCatalogEntry
 } from '@corvus-tools/skill-manager-core';
 import {
   type WizardDraftAgent,
@@ -44,11 +48,17 @@ import {
   isWizardAgentSelectable,
   wizardStepIds
 } from '../wizard/wizardFlow.js';
+import {
+  type WizardSelectionPreview,
+  createWizardSelectionPlan,
+  deriveWizardBundleDependencies
+} from '../wizard/wizardSelection.js';
+import {BundleCatalogView, type RootSelectionState} from './BundleCatalogView.js';
 import {CommandBar, type CommandHint} from './CommandBar.js';
 
 type SkillpackField = 'id' | 'repositoryUrl' | 'branch' | 'checkoutPath';
 type DiscoveryState = 'idle' | 'loading' | 'loaded' | 'error';
-type SkillSelectionState = 'all' | 'some' | 'none';
+type SkillSelectionState = RootSelectionState;
 
 interface SkillpackFormState {
   id: string;
@@ -71,6 +81,7 @@ interface TargetEditSession {
   agentId: AgentId;
   originalTargetPath: string;
   originalPlan: LinkPlan | undefined;
+  originalPlanPreview: WizardSelectionPreview | undefined;
 }
 
 export interface WizardOperations {
@@ -144,12 +155,14 @@ export function WizardScreen({
   );
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
   const [targetEditSession, setTargetEditSession] = useState<TargetEditSession | undefined>();
-  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
+  const [selectedSelectionIndex, setSelectedSelectionIndex] = useState(0);
   const [skills, setSkills] = useState<DiscoveredSkill[]>([]);
+  const [bundles, setBundles] = useState<DiscoveredBundle[]>([]);
   const [discoveryWarnings, setDiscoveryWarnings] = useState<SkillRiskWarning[]>([]);
   const [discoveryErrors, setDiscoveryErrors] = useState<SkillDiscoveryIssue[]>([]);
   const [discoveryState, setDiscoveryState] = useState<DiscoveryState>('idle');
   const [plan, setPlan] = useState<LinkPlan | undefined>();
+  const [planPreview, setPlanPreview] = useState<WizardSelectionPreview | undefined>();
   const [applyResult, setApplyResult] = useState<ApplyLinkPlanResult | undefined>();
   const [busyMessage, setBusyMessage] = useState<string | undefined>();
   const [message, setMessage] = useState<string | undefined>();
@@ -164,6 +177,19 @@ export function WizardScreen({
     () => adapters.filter((adapter) => draftAgents[adapter.id]?.enabled === true),
     [adapters, draftAgents]
   );
+  const bundleCatalog = useMemo<BundleCatalogEntry[]>(
+    () =>
+      [...bundles]
+        .sort((left, right) => (left.ref ?? left.id).localeCompare(right.ref ?? right.id))
+        .map((bundle) =>
+          toBundleCatalogEntry(
+            bundle,
+            sortedSkills,
+            enabledAdapters.map((adapter) => adapter.id)
+          )
+        ),
+    [bundles, enabledAdapters, sortedSkills]
+  );
   const skillSelectionStates = useMemo(() => {
     const states = new Map<string, SkillSelectionState>();
 
@@ -173,16 +199,33 @@ export function WizardScreen({
 
     return states;
   }, [sortedSkills, enabledAdapters, draftAgents]);
+  const bundleSelectionStates = useMemo(() => {
+    const states = new Map<string, RootSelectionState>();
+
+    for (const bundle of bundleCatalog) {
+      const ref = bundle.ref ?? bundle.id;
+      states.set(ref, selectionStateForBundle(ref, enabledAdapters, draftAgents));
+    }
+
+    return states;
+  }, [bundleCatalog, enabledAdapters, draftAgents]);
+  const bundleDependencies = useMemo(
+    () => deriveWizardBundleDependencies(bundles, sortedSkills),
+    [bundles, sortedSkills]
+  );
   const flow = deriveWizardFlow({
     config: workingConfig,
     ...(inspection === undefined ? {} : {inspection}),
     ...(remoteUpdate === undefined ? {} : {remoteUpdate}),
     discoveredSkills: sortedSkills,
+    discoveredBundles: bundles,
     draftAgents,
     ...(plan === undefined ? {} : {plan}),
     ...(applyResult === undefined ? {} : {applyResult})
   });
-  const currentPlan = plan ?? createLinkPlan();
+  const derivedSelectionPlan = plan === undefined || planPreview === undefined ? createSelectionPlan() : undefined;
+  const currentPlan = plan ?? derivedSelectionPlan?.linkPlan ?? createLinkPlan();
+  const currentPreview = planPreview ?? derivedSelectionPlan?.preview ?? createSelectionPlan().preview;
   const busy = busyMessage !== undefined;
   const editingSkillpackField = skillpackEditSession?.field;
   const editingTarget = targetEditSession !== undefined;
@@ -193,6 +236,7 @@ export function WizardScreen({
     setForm(createInitialSkillpackForm(config));
     setSkillpackEditSession(undefined);
     setTargetEditSession(undefined);
+    setPlanPreview(undefined);
   }, [adapters, config]);
 
   useEffect(() => {
@@ -204,6 +248,7 @@ export function WizardScreen({
   useEffect(() => {
     if (workingConfig.skillpack === undefined) {
       setSkills([]);
+      setBundles([]);
       setDiscoveryWarnings([]);
       setDiscoveryErrors([]);
       setDiscoveryState('idle');
@@ -228,6 +273,15 @@ export function WizardScreen({
           recommends: (skill.recommends ?? []).map((id) => qualifySkillId(skillpackId, id)),
           conflictsWith: (skill.conflictsWith ?? []).map((id) => qualifySkillId(skillpackId, id))
         })));
+        setBundles((result.bundles ?? []).map((bundle) => ({
+          ...bundle,
+          skillpackId,
+          ref: qualifyBundleId(skillpackId, bundle.id),
+          members: bundle.members.map((member) => ({
+            ...member,
+            ref: qualifySkillId(skillpackId, member.id)
+          }))
+        })));
         setDiscoveryWarnings(result.warnings);
         setDiscoveryErrors(result.errors);
         setDiscoveryState('loaded');
@@ -238,6 +292,7 @@ export function WizardScreen({
         }
 
         setSkills([]);
+        setBundles([]);
         setDiscoveryWarnings([]);
         setDiscoveryErrors([
           {
@@ -313,6 +368,7 @@ export function WizardScreen({
       setCurrentStep('agents');
       setApplyResult(undefined);
       setPlan(undefined);
+      setPlanPreview(undefined);
     }
   });
 
@@ -364,6 +420,7 @@ export function WizardScreen({
         }
       }));
       setPlan(targetEditSession.originalPlan);
+      setPlanPreview(targetEditSession.originalPlanPreview);
       setTargetEditSession(undefined);
       return;
     }
@@ -482,7 +539,8 @@ export function WizardScreen({
         setTargetEditSession({
           agentId: selectedAdapter.id,
           originalTargetPath: draftAgents[selectedAdapter.id].targetPath,
-          originalPlan: plan
+          originalPlan: plan,
+          originalPlanPreview: planPreview
         });
       }
 
@@ -491,10 +549,10 @@ export function WizardScreen({
 
     if (key.return) {
       if (selectedAgentDraft?.enabled === true) {
-        setSelectedSkillIndex(0);
+        setSelectedSelectionIndex(0);
         setCurrentStep('skills');
       } else {
-        setMessage('Enable a supported agent before selecting skills.');
+        setMessage('Enable a supported agent before selecting bundles or skills.');
       }
 
       return;
@@ -512,21 +570,52 @@ export function WizardScreen({
     }
 
     if (key.upArrow || input === 'k') {
-      setSelectedSkillIndex((index) => Math.max(0, index - 1));
+      setSelectedSelectionIndex((index) => Math.max(0, index - 1));
       return;
     }
 
     if (key.downArrow || input === 'j') {
-      setSelectedSkillIndex((index) => Math.min(sortedSkills.length - 1, index + 1));
+      const selectionCount = bundleCatalog.length + sortedSkills.length;
+      setSelectedSelectionIndex((index) => Math.min(Math.max(0, selectionCount - 1), index + 1));
       return;
     }
 
     if (input === ' ') {
-      const skill = sortedSkills[selectedSkillIndex];
+      if (selectedSelectionIndex < bundleCatalog.length) {
+        const bundle = bundleCatalog[selectedSelectionIndex];
+        const incompatibilities = bundle?.compatibility?.filter((entry) => !entry.compatible) ?? [];
+        const bundleRef = bundle === undefined ? undefined : bundle.ref ?? bundle.id;
+        const selectionState = bundleRef === undefined ? 'none' : bundleSelectionStates.get(bundleRef) ?? 'none';
+
+        if (bundle !== undefined && incompatibilities.length > 0 && selectionState === 'none') {
+          setMessage(
+            `Bundle ${bundle.ref ?? bundle.id} is incompatible with ${incompatibilities.map((entry) => entry.agentId).join(', ')}; review the bundle detail.`
+          );
+          return;
+        }
+
+        if (bundleRef !== undefined) {
+          if (incompatibilities.length > 0) {
+            removeBundleAcrossEnabledAgents(bundleRef);
+            setMessage(`Removed incompatible bundle ${bundleRef} from all enabled agents.`);
+          } else {
+            toggleBundleAcrossEnabledAgents(bundleRef);
+            setMessage(undefined);
+          }
+          setPlan(undefined);
+          setPlanPreview(undefined);
+        }
+
+        return;
+      }
+
+      const skill = sortedSkills[selectedSelectionIndex - bundleCatalog.length];
 
       if (skill !== undefined) {
         toggleSkillAcrossEnabledAgents(skillRef(skill));
         setPlan(undefined);
+        setPlanPreview(undefined);
+        setMessage(undefined);
       }
 
       return;
@@ -598,6 +687,7 @@ export function WizardScreen({
       [selectedAdapter.id]: updater(currentDrafts[selectedAdapter.id])
     }));
     setPlan(undefined);
+    setPlanPreview(undefined);
   }
 
   function toggleSelectedAgent(): void {
@@ -638,6 +728,51 @@ export function WizardScreen({
             [...draft.selectedSkillIds, skillId].sort((left, right) => left.localeCompare(right));
 
         nextDrafts[id] = {...draft, selectedSkillIds};
+      }
+
+      return nextDrafts;
+    });
+  }
+
+  function toggleBundleAcrossEnabledAgents(bundleId: string): void {
+    setDraftAgents((currentDrafts) => {
+      const enabledIds = adapters
+        .filter((adapter) => currentDrafts[adapter.id]?.enabled === true)
+        .map((adapter) => adapter.id);
+
+      if (enabledIds.length === 0) {
+        return currentDrafts;
+      }
+
+      const fullySelected = enabledIds.every((id) => currentDrafts[id].selectedBundleIds.includes(bundleId));
+      const nextDrafts = {...currentDrafts};
+
+      for (const id of enabledIds) {
+        const draft = currentDrafts[id];
+        const selectedBundleIds = fullySelected ?
+          draft.selectedBundleIds.filter((candidate) => candidate !== bundleId) :
+          draft.selectedBundleIds.includes(bundleId) ?
+            draft.selectedBundleIds :
+            [...draft.selectedBundleIds, bundleId].sort((left, right) => left.localeCompare(right));
+
+        nextDrafts[id] = {...draft, selectedBundleIds};
+      }
+
+      return nextDrafts;
+    });
+  }
+
+  function removeBundleAcrossEnabledAgents(bundleId: string): void {
+    setDraftAgents((currentDrafts) => {
+      const nextDrafts = {...currentDrafts};
+
+      for (const adapter of adapters) {
+        const draft = currentDrafts[adapter.id];
+        if (!draft.enabled || !draft.selectedBundleIds.includes(bundleId)) continue;
+        nextDrafts[adapter.id] = {
+          ...draft,
+          selectedBundleIds: draft.selectedBundleIds.filter((candidate) => candidate !== bundleId)
+        };
       }
 
       return nextDrafts;
@@ -843,22 +978,24 @@ export function WizardScreen({
   }
 
   function enterPlanStep(): void {
-    const nextPlan = createLinkPlan();
-    setPlan(nextPlan);
+    const selectionPlan = createSelectionPlan();
+    setPlan(selectionPlan.linkPlan);
+    setPlanPreview(selectionPlan.preview);
     setCurrentStep('plan');
 
-    if (nextPlan.operations.length === 0 && nextPlan.conflicts.length === 0) {
-      setMessage('No-op plan: enable an agent and select skills if you expected link changes.');
+    if (selectionPlan.linkPlan.operations.length === 0 && selectionPlan.linkPlan.conflicts.length === 0) {
+      setMessage('No-op plan: enable an agent and select bundles or skills if you expected link changes.');
     } else {
       setMessage(undefined);
     }
   }
 
   function openApplyStep(): void {
-    const nextPlan = plan ?? createLinkPlan();
+    const selectionPlan = plan === undefined ? createSelectionPlan() : undefined;
+    const nextPlan = plan ?? selectionPlan?.linkPlan ?? createLinkPlan();
 
     if (nextPlan.conflicts.length > 0) {
-      setMessage('Apply is blocked until conflicts are resolved outside the manager.');
+      setMessage('Apply is blocked until selection or target conflicts are resolved.');
       return;
     }
 
@@ -868,25 +1005,23 @@ export function WizardScreen({
     }
 
     setPlan(nextPlan);
+    if (selectionPlan !== undefined) setPlanPreview(selectionPlan.preview);
     setCurrentStep('confirm');
     setMessage('Review the apply gate, then press a to apply manager-owned link changes.');
   }
 
   function createLinkPlan(): LinkPlan {
-    return operations.generateLinkPlan({
+    return createSelectionPlan().linkPlan;
+  }
+
+  function createSelectionPlan(): ReturnType<typeof createWizardSelectionPlan> {
+    return createWizardSelectionPlan({
       adapters,
-      skills: sortedSkills.map((skill) => ({
-        id: skillRef(skill),
-        targetName: skill.id,
-        absolutePath: skill.absolutePath
-      })),
-      selections: adapters.map((adapter) => ({
-        agentId: adapter.id,
-        enabled: draftAgents[adapter.id].enabled,
-        targetPath: draftAgents[adapter.id].targetPath,
-        selectedSkillIds: draftAgents[adapter.id].selectedSkillIds,
-        previousSelectedSkillIds: workingConfig.agents?.[adapter.id]?.selectedSkillIds ?? []
-      }))
+      skills: sortedSkills,
+      bundles,
+      draftAgents,
+      config: workingConfig,
+      generatePlan: operations.generateLinkPlan
     });
   }
 
@@ -910,7 +1045,10 @@ export function WizardScreen({
   }
 
   async function applyConfirmedPlan(): Promise<void> {
-    const nextPlan = plan ?? createLinkPlan();
+    const selectionPlan = plan === undefined ? createSelectionPlan() : undefined;
+    const nextPlan = plan ?? selectionPlan?.linkPlan ?? createLinkPlan();
+
+    if (selectionPlan !== undefined) setPlanPreview(selectionPlan.preview);
 
     if (workingConfig.skillpack === undefined) {
       setMessage('Apply blocked: skillpack is not configured.');
@@ -996,17 +1134,20 @@ export function WizardScreen({
             />
           ) : null}
           {currentStep === 'skills' ? (
-            <WizardSkillSelectionView
+            <WizardSelectionView
               enabledAdapters={enabledAdapters}
+              bundles={bundleCatalog}
               skills={sortedSkills}
-              selectedSkillIndex={selectedSkillIndex}
+              selectedSelectionIndex={selectedSelectionIndex}
+              bundleSelectionStates={bundleSelectionStates}
+              bundleDependencies={bundleDependencies}
               skillSelectionStates={skillSelectionStates}
               discoveryState={discoveryState}
               discoveryErrors={discoveryErrors}
             />
           ) : null}
-          {currentStep === 'plan' ? <WizardPlanView plan={currentPlan} /> : null}
-          {currentStep === 'confirm' ? <ApplyStepView plan={currentPlan} /> : null}
+          {currentStep === 'plan' ? <WizardPlanView plan={currentPlan} preview={currentPreview} /> : null}
+          {currentStep === 'confirm' ? <ApplyStepView plan={currentPlan} preview={currentPreview} /> : null}
           {currentStep === 'complete' && applyResult !== undefined ? <CompleteStepView result={applyResult} /> : null}
         </Box>
       </Box>
@@ -1266,6 +1407,73 @@ export function WizardAgentListView({
   );
 }
 
+export function WizardSelectionView({
+  enabledAdapters,
+  bundles,
+  skills,
+  selectedSelectionIndex,
+  bundleSelectionStates,
+  bundleDependencies,
+  skillSelectionStates,
+  discoveryState,
+  discoveryErrors
+}: {
+  enabledAdapters: AgentAdapter[];
+  bundles: BundleCatalogEntry[];
+  skills: DiscoveredSkill[];
+  selectedSelectionIndex: number;
+  bundleSelectionStates: ReadonlyMap<string, RootSelectionState>;
+  bundleDependencies: Readonly<Record<string, string[]>>;
+  skillSelectionStates: ReadonlyMap<string, SkillSelectionState>;
+  discoveryState: DiscoveryState;
+  discoveryErrors: SkillDiscoveryIssue[];
+}): React.ReactElement {
+  const agentCount = enabledAdapters.length;
+  const agentNames = enabledAdapters.map((adapter) => adapter.displayName).join(', ');
+  const heading =
+    agentCount === 1 ?
+      `4. Bundles + Individual Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
+      `4. Bundles + Individual Skills for ${agentCount} agents`;
+  const anyMixed =
+    [...bundleSelectionStates.values(), ...skillSelectionStates.values()].some((state) => state === 'some');
+  const selectedSkillIndex = selectedSelectionIndex - bundles.length;
+
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
+        <Text bold>{heading}</Text>
+        {agentCount > 1 ? (
+          <Text dimColor>Each toggle applies to all {agentCount} enabled agents: {agentNames}.</Text>
+        ) : null}
+        {discoveryState === 'loading' ? <Text>Discovering bundles and skills from the active snapshot...</Text> : null}
+        {anyMixed ? <Text dimColor>[~] selected for some, not all enabled agents.</Text> : null}
+        <Text dimColor>[!] visible but incompatible with at least one enabled agent.</Text>
+      </Box>
+      <BundleCatalogView
+        bundles={bundles}
+        selectedIndex={selectedSelectionIndex < bundles.length ? selectedSelectionIndex : -1}
+        selectionStates={bundleSelectionStates}
+        dependenciesByBundle={bundleDependencies}
+      />
+      <Box flexDirection="column">
+        <Text bold>Individual Skills</Text>
+        {skills.length === 0 ? <Text color="yellow">No valid skills discovered yet.</Text> : null}
+        {skills.map((skill, index) => {
+          const selected = index === selectedSkillIndex;
+          const ref = skillRef(skill);
+          const state = skillSelectionStates.get(ref) ?? 'none';
+          const marker = state === 'all' ? '[x]' : state === 'some' ? '[~]' : '[ ]';
+          const version = skill.version === undefined ? '' : `@${skill.version}`;
+          const line = `${selected ? '>' : ' '} ${marker} ${ref}${version} - ${skill.title}`;
+
+          return selected ? <Text key={ref} color="cyan">{line}</Text> : <Text key={ref}>{line}</Text>;
+        })}
+      </Box>
+      <IssuePreview title="Discovery errors" color="red" issues={discoveryErrors.map((issue) => issue.message)} />
+    </Box>
+  );
+}
+
 export function WizardSkillSelectionView({
   enabledAdapters,
   skills,
@@ -1342,7 +1550,31 @@ function selectionStateForSkill(
   return 'some';
 }
 
-export function WizardPlanView({plan}: {plan: LinkPlan}): React.ReactElement {
+function selectionStateForBundle(
+  bundleId: string,
+  enabledAdapters: AgentAdapter[],
+  draftAgents: Record<AgentId, WizardDraftAgent>
+): RootSelectionState {
+  if (enabledAdapters.length === 0) {
+    return 'none';
+  }
+
+  const selectedCount = enabledAdapters.filter((adapter) =>
+    draftAgents[adapter.id].selectedBundleIds.includes(bundleId)
+  ).length;
+
+  if (selectedCount === 0) return 'none';
+  if (selectedCount === enabledAdapters.length) return 'all';
+  return 'some';
+}
+
+export function WizardPlanView({
+  plan,
+  preview
+}: {
+  plan: LinkPlan;
+  preview?: WizardSelectionPreview;
+}): React.ReactElement {
   const createCount = plan.operations.filter((operation) => operation.type === 'create-link').length;
   const removeCount = plan.operations.filter((operation) => operation.type === 'remove-link').length;
 
@@ -1356,12 +1588,32 @@ export function WizardPlanView({plan}: {plan: LinkPlan}): React.ReactElement {
           <Text color="yellow">Nothing to apply. Go back to agents or skills if links were expected.</Text>
         ) : null}
         {plan.conflicts.length > 0 ? (
-          <Text color="red">Apply is blocked. Resolve unmanaged target conflicts outside the manager.</Text>
+          <Text color="red">Apply is blocked. Resolve unmanaged target conflicts or adjust the selected roots.</Text>
         ) : null}
         {plan.operations.length > 0 && plan.conflicts.length === 0 ? (
           <Text color="cyan">Press Enter to open the Apply step.</Text>
         ) : null}
       </Box>
+      {preview === undefined ? null : (
+        <Box flexDirection="column" gap={1}>
+          {preview.agents.map((agent) => (
+            <Box key={agent.agentId} flexDirection="column">
+              <Text bold>Selection for {agent.agentId}</Text>
+              <Text>Explicit bundles: {formatBundleRoots(agent.rootBundleIds, preview.bundleVersions)}</Text>
+              <Text>Explicit skills: {formatSkillRoots(agent.rootSkillIds, agent.effectiveSkills)}</Text>
+              <Text>Bundle members: {formatList(agent.bundleMemberIds)}</Text>
+              <Text>Dependencies: {formatList(agent.dependencyIds)}</Text>
+              <Text>Effective skills ({agent.effectiveSkills.length})</Text>
+              {agent.effectiveSkills.length === 0 ? <Text dimColor>None.</Text> : null}
+              {agent.effectiveSkills.map((skill) => (
+                <Text key={`${agent.agentId}-${skill.skillId}`}>
+                  - {skill.skillId}{skill.version === undefined ? '' : `@${skill.version}`} via {skill.origins.map(formatOrigin).join(', ')}
+                </Text>
+              ))}
+            </Box>
+          ))}
+        </Box>
+      )}
       <Box flexDirection="column">
         <Text>Operations ({plan.operations.length})</Text>
         {plan.operations.length === 0 ? <Text dimColor>None.</Text> : null}
@@ -1377,7 +1629,13 @@ export function WizardPlanView({plan}: {plan: LinkPlan}): React.ReactElement {
   );
 }
 
-function ApplyStepView({plan}: {plan: LinkPlan}): React.ReactElement {
+function ApplyStepView({
+  plan,
+  preview
+}: {
+  plan: LinkPlan;
+  preview: WizardSelectionPreview;
+}): React.ReactElement {
   const createCount = plan.operations.filter((operation) => operation.type === 'create-link').length;
   const removeCount = plan.operations.filter((operation) => operation.type === 'remove-link').length;
 
@@ -1389,7 +1647,7 @@ function ApplyStepView({plan}: {plan: LinkPlan}): React.ReactElement {
         <Text>Creates: {createCount}, removals: {removeCount}</Text>
         <Text color="yellow">Press a to apply, or b to return to the dry-run plan.</Text>
       </Box>
-      <WizardPlanView plan={plan} />
+      <WizardPlanView plan={plan} preview={preview} />
     </Box>
   );
 }
@@ -1633,6 +1891,32 @@ function formatList(values: string[]): string {
   return values.length === 0 ? '(none)' : values.join(', ');
 }
 
+function formatBundleRoots(values: string[], versions: Readonly<Record<string, string>>): string {
+  return values.length === 0
+    ? '(none)'
+    : values.map((value) => `${value}@${versions[value] ?? 'unknown'}`).join(', ');
+}
+
+function formatSkillRoots(
+  values: string[],
+  effectiveSkills: WizardSelectionPreview['agents'][number]['effectiveSkills']
+): string {
+  const versions = new Map(effectiveSkills.map((skill) => [skill.skillId, skill.version]));
+  return values.length === 0
+    ? '(none)'
+    : values.map((value) => {
+      const version = versions.get(value);
+      return version === undefined ? value : `${value}@${version}`;
+    }).join(', ');
+}
+
+function formatOrigin(origin: {kind: string; reason: string}): string {
+  if (origin.kind === 'explicit') return 'explicit';
+  if (origin.kind === 'bundle-member') return origin.reason.replace(/^bundle:/, 'bundle ');
+  if (origin.kind === 'dependency-of') return origin.reason.replace(/^dependency-of:/, 'dependency of ');
+  return origin.reason;
+}
+
 function previewRevisionPath(checkoutPath: string, commitHash: string | undefined): string {
   const commit = commitHash ?? '<resolved-commit>';
 
@@ -1708,7 +1992,7 @@ function commandHints(
     return [
       {key: 'up/down', label: 'move'},
       {key: 'space', label: 'toggle'},
-      {key: 'enter', label: 'skills'},
+      {key: 'enter', label: 'selections'},
       {key: 't', label: 'target'},
       {key: 'p', label: 'plan'},
       {key: 'b', label: 'update'},
@@ -1720,7 +2004,7 @@ function commandHints(
   if (step === 'skills') {
     return [
       {key: 'up/down', label: 'move'},
-      {key: 'space', label: 'toggle skill'},
+      {key: 'space', label: 'toggle root'},
       {key: 'b', label: 'agents'},
       {key: 'p', label: 'plan'},
       {key: 'enter', label: 'plan'},

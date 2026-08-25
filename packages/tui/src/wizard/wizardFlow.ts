@@ -2,6 +2,7 @@ import type {
   AgentAdapter,
   AgentId,
   ApplyLinkPlanResult,
+  DiscoveredBundle,
   DiscoveredSkill,
   LinkPlan,
   ManagerConfig,
@@ -17,8 +18,7 @@ export interface WizardDraftAgent {
   enabled: boolean;
   targetPath: string;
   selectedSkillIds: string[];
-  /** Preserved until bundle selection is exposed in the Phase 7 TUI. */
-  selectedBundleIds?: string[];
+  selectedBundleIds: string[];
 }
 
 export interface WizardStepState {
@@ -39,6 +39,7 @@ export interface WizardSnapshot {
   inspection?: SkillpackInspection;
   remoteUpdate?: SkillpackRemoteUpdateInspection;
   discoveredSkills?: DiscoveredSkill[];
+  discoveredBundles?: DiscoveredBundle[];
   draftAgents?: Partial<Record<AgentId, WizardDraftAgent>>;
   plan?: LinkPlan;
   applyResult?: ApplyLinkPlanResult;
@@ -54,7 +55,7 @@ const stepLabels: Record<WizardStepId, string> = {
   skillpack: 'Skillpack',
   update: 'Update',
   agents: 'Agents',
-  skills: 'Skills',
+  skills: 'Selections',
   plan: 'Plan',
   confirm: 'Apply',
   complete: 'Complete'
@@ -76,10 +77,19 @@ export function deriveWizardFlow(snapshot: WizardSnapshot): WizardDerivation {
     (count, agent) => count + (agent?.selectedSkillIds.length ?? 0),
     0
   );
+  const selectedBundleCount = enabledAgents.reduce(
+    (count, agent) => count + (agent?.selectedBundleIds.length ?? 0),
+    0
+  );
   const skillpackState = deriveSkillpackState(snapshot);
   const updateState = deriveUpdateState(snapshot, skillpackState.status);
   const agentsState = deriveAgentsState(snapshot, skillpackState.status, enabledAgents.length);
-  const skillsState = deriveSkillsState(snapshot, agentsState.status, selectedSkillCount);
+  const skillsState = deriveSkillsState(
+    snapshot,
+    agentsState.status,
+    selectedSkillCount,
+    selectedBundleCount
+  );
   const planState = derivePlanState(snapshot, skillsState.status);
   const confirmState = deriveConfirmState(snapshot, planState.status);
   const completeState = deriveCompleteState(snapshot);
@@ -179,25 +189,35 @@ function deriveAgentsState(
 function deriveSkillsState(
   snapshot: WizardSnapshot,
   agentsStatus: WizardStepStatus,
-  selectedSkillCount: number
+  selectedSkillCount: number,
+  selectedBundleCount: number
 ): WizardStepState {
   if (snapshot.applyResult !== undefined) {
-    return step('skills', 'complete', 'Skill selections were saved before apply.');
+    return step('skills', 'complete', 'Bundle and skill root selections were saved before apply.');
   }
 
   if (agentsStatus === 'pending' || agentsStatus === 'active' || agentsStatus === 'blocked') {
-    return step('skills', 'pending', 'Select an agent before choosing skills.');
+    return step('skills', 'pending', 'Select an agent before choosing bundles or skills.');
   }
 
-  if (snapshot.discoveredSkills !== undefined && snapshot.discoveredSkills.length === 0) {
-    return step('skills', 'blocked', 'No valid skills were discovered in the active skillpack.');
+  if (
+    snapshot.discoveredSkills !== undefined &&
+    snapshot.discoveredSkills.length === 0 &&
+    (snapshot.discoveredBundles?.length ?? 0) === 0
+  ) {
+    return step('skills', 'blocked', 'No valid bundles or skills were discovered in the active skillpack.');
   }
 
-  if (selectedSkillCount === 0) {
-    return step('skills', 'active', 'Select at least one skill for an enabled agent.');
+  if (selectedSkillCount + selectedBundleCount === 0) {
+    return step('skills', 'active', 'Select at least one bundle or individual skill for an enabled agent.');
   }
 
-  return step('skills', 'complete', `${selectedSkillCount} skill selection${selectedSkillCount === 1 ? '' : 's'} ready.`);
+  const rootCount = selectedSkillCount + selectedBundleCount;
+  return step(
+    'skills',
+    'complete',
+    `${rootCount} root selection${rootCount === 1 ? '' : 's'} ready (${selectedBundleCount} bundle, ${selectedSkillCount} skill).`
+  );
 }
 
 function derivePlanState(snapshot: WizardSnapshot, skillsStatus: WizardStepStatus): WizardStepState {
@@ -206,7 +226,7 @@ function derivePlanState(snapshot: WizardSnapshot, skillsStatus: WizardStepStatu
   }
 
   if (skillsStatus === 'pending' || skillsStatus === 'active' || skillsStatus === 'blocked') {
-    return step('plan', 'pending', 'Agent and skill selections are needed before planning.');
+    return step('plan', 'pending', 'Agent and root selections are needed before planning.');
   }
 
   if (snapshot.plan === undefined) {
@@ -214,7 +234,7 @@ function derivePlanState(snapshot: WizardSnapshot, skillsStatus: WizardStepStatu
   }
 
   if (snapshot.plan.conflicts.length > 0) {
-    return step('plan', 'blocked', 'The plan has unmanaged target conflicts.');
+    return step('plan', 'blocked', 'The plan has blocking selection or target conflicts.');
   }
 
   if (snapshot.plan.operations.length === 0) {

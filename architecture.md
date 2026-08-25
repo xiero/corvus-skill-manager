@@ -23,10 +23,12 @@ the machine-interface invariants.
    - Keeps Home, Status, Doctor, Help, and manual advanced setup/configuration screens available.
    - Receives a `CorvusApplication` through React context and calls shared use cases rather
      than reproducing workflow logic. Status, Doctor, and Skill Discovery are on use cases.
-   - The skillpack screens and the wizard's link preview still call core primitives directly,
-     because they operate on an unsaved, user-edited config and express per-agent enable and
-     disable in one pass — neither has an equivalent use case. These are the same engines the
-     application layer calls, not a second implementation; see
+   - The skillpack screens and the wizard's selection/link preview still call core primitives
+     directly because they operate on an unsaved, user-edited config and express per-agent
+     enable, disable, explicit skill roots, and bundle roots in one pass — neither has an
+     equivalent use case. Bundle/dependency expansion remains in the shared pure resolver; the
+     TUI only presents its roots, provenance, compatibility, and link-plan output. These are the
+     same engines the application layer calls, not a second implementation; see
      `docs/agent-native-architecture.md`.
    - May trigger write-capable operations only after rendering the relevant preview and
      receiving explicit user confirmation.
@@ -135,6 +137,12 @@ boundaries.
   deterministic read-only views over the shared bundle catalog. `install plan --bundle <ref>`
   transports exact bundle roots into request v2 and still requires the persisted plan plus exact
   confirmation before any write.
+- Guided Flow presents Bundles before Individual Skills, keeps both as unsaved per-agent roots,
+  and derives `[x]`/`[~]`/incompatible states across enabled agents. Bundle details expose
+  versions, direct member ranges, actual snapshot versions, and compatibility reasons before
+  selection. The dry-run plan groups explicit roots, derived members/dependencies, provenance,
+  warnings/conflicts, and link operations; only the later explicit `a` approval persists Config
+  v3 roots and applies manager-owned links.
 - Install request v2 accepts explicit skill and bundle roots while preserving v1 skill-only
   reads. Persisted plan schema v3 shows final roots, effective provenance, and link operations
   independently; replacement recomputes the effective set instead of maintaining refcounts.
@@ -145,7 +153,10 @@ boundaries.
 
 ## Link Planning And Apply
 
-In the TUI, agent and skill selections are draft state until saved. In the machine CLI there is no draft state: a selection arrives as one request and is planned in a single step. Either way, link creation/removal is always planned first with `generateLinkPlan`.
+In the TUI, agent, bundle-root, and skill-root selections are draft state until confirmed apply.
+The shared effective-selection resolver expands those roots before `generateLinkPlan`; React does
+not own expansion rules. In the machine CLI there is no draft state: a selection arrives as one
+request and is planned in a single step. Either way, link creation/removal is always planned first.
 
 For the machine CLI, plan-then-apply is additionally made explicit and durable: `install plan`
 persists a digest-identified plan artifact plus a fingerprint of the state it was computed
