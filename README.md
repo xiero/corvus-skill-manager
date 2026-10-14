@@ -94,11 +94,14 @@ Publish them in that order after a clean build/typecheck/test run. The CLI packa
 4. Skillpack: inspect the protected default source, then press `a` only for the safe setup/config action shown. Use **Manage Skillpacks** to add further repositories alongside it.
 5. Update: if a remote update is available, preview the inactive revision snapshot before pressing `a` to activate it. You can continue without updating.
 6. Agents: enable one or more supported agents with Space. Gemini CLI is supported through Agent Skills links.
-7. Skills: press Enter on an enabled agent, then select skills with Space. When more than one agent is enabled, a skill toggle applies to every enabled agent at once; a `[~]` marker means a skill is selected for some but not all of them.
-8. Plan: review the dry-run link plan. A no-op plan means no links will be created.
-9. Apply: open the final apply step from the plan, then press `a` to save selections and apply manager-owned link changes.
+7. Repositories: press Enter after enabling agents, then choose which configured repositories appear in the skill list. All start checked; use Up/Down and Space to toggle individual repositories, or `a` to select all. Press Enter with at least one repository selected.
+8. Skills: select bundles or individual skills with Space. The list combines the checked repositories and shows qualified `repository:skill` names. Press `b` to change repositories. When more than one agent is enabled, a skill toggle applies to every enabled agent at once; a `[~]` marker means a skill is selected for some but not all of them.
+9. Plan: review the dry-run link plan. A no-op plan means no links will be created.
+10. Apply: open the final apply step from the plan, then press `a` to save selections and apply manager-owned link changes.
 
-The guided wizard uses one approval key consistently: `a` applies or approves the write-capable action on the current step.
+The repository checkboxes filter the catalog for this wizard session. Hiding a repository retains its saved and staged skill/bundle selections, which remain visible in the plan; it does not uninstall skills. Diagnostics in the skill list are scoped to the checked repositories. Choosing skills with the same target name from different repositories produces a blocking plan conflict.
+
+The guided wizard uses `a` to approve write-capable actions. On the read-only Repositories step, `a` only checks all repositories; it performs no writes.
 
 If no skills are selected, the plan has no create-link operations and no links are created. **Manage Skillpacks** and **Configure Agents** remain available from Home as manual advanced screens.
 

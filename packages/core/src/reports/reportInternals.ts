@@ -3,12 +3,12 @@ import path from 'node:path';
 import {ZodError} from 'zod';
 import type {AgentAdapter, AgentId} from '../agents/AgentAdapter.js';
 import {getAgentAdapters} from '../agents/adapters.js';
+import {aggregateSkillpackDiscoveries, qualifySkillpackDiscovery} from '../application/catalogDiscovery.js';
 import {
   type ManagerConfig,
   type SkillpackConfig,
   getSkillpacks,
-  parseSkillReference,
-  qualifySkillId
+  parseSkillReference
 } from '../config/configSchema.js';
 import {loadConfig} from '../config/configStore.js';
 import type {GitRunner} from '../git/gitRunner.js';
@@ -121,7 +121,7 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
     }
 
     if (checkout.exists && checkout.readable) {
-      packContext.discovery = qualifyDiscovery(
+      packContext.discovery = qualifySkillpackDiscovery(
         skillpack.id,
         await discoverSkillsFromCheckout(skillpack.checkoutPath)
       );
@@ -135,8 +135,13 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
     context.checkout = primary.checkout;
     if (primary.remoteUpdate !== undefined) context.remoteUpdate = primary.remoteUpdate;
   }
-  const aggregateDiscovery = aggregateDiscoveries(context.skillpacks);
-  if (aggregateDiscovery !== undefined) context.discovery = aggregateDiscovery;
+  if (context.skillpacks.some((item) => item.discovery !== undefined)) {
+    context.discovery = aggregateSkillpackDiscoveries(context.skillpacks.map((item) => ({
+      config: item.config,
+      ...(item.discovery === undefined ? {} : {discovery: item.discovery}),
+      ...(!item.checkout.readable ? {unavailableMessage: item.checkout.message} : {})
+    })));
+  }
 
   context.targetStates = await buildTargetStates({
     config: context.config!,
@@ -263,92 +268,6 @@ async function buildTargetStates(options: {
   }
 
   return states;
-}
-
-function qualifyDiscovery(skillpackId: string, discovery: SkillDiscoveryResult): SkillDiscoveryResult {
-  return {
-    ...discovery,
-    skills: discovery.skills.map((skill) => ({
-      ...skill,
-      skillpackId,
-      ref: qualifySkillId(skillpackId, skill.id),
-      requires: skill.requires.map((id) => qualifySkillId(skillpackId, id)),
-      recommends: skill.recommends.map((id) => qualifySkillId(skillpackId, id)),
-      conflictsWith: skill.conflictsWith.map((id) => qualifySkillId(skillpackId, id))
-    })),
-    bundles: discovery.bundles.map((bundle) => ({
-      ...bundle,
-      skillpackId,
-      ref: qualifySkillId(skillpackId, bundle.id),
-      members: bundle.members.map((member) => ({
-        ...member,
-        ref: qualifySkillId(skillpackId, member.id)
-      }))
-    }))
-  };
-}
-
-function aggregateDiscoveries(skillpacks: readonly SkillpackReportContext[]): SkillDiscoveryResult | undefined {
-  const ready = skillpacks.filter((item) => item.discovery !== undefined);
-
-  if (ready.length === 0) return undefined;
-
-  return {
-    skillpackRoot: ready.length === 1 ? ready[0]!.discovery!.skillpackRoot : '(multiple skillpacks)',
-    registryPath: ready.length === 1 ? ready[0]!.discovery!.registryPath : '(multiple registries)',
-    source: ready.every((item) => item.discovery?.source === 'registry') ? 'registry' : 'registryless',
-    ...(ready.length === 1 && ready[0]!.discovery!.registryVersion !== undefined
-      ? {registryVersion: ready[0]!.discovery!.registryVersion}
-      : {}),
-    registryCounts: {
-      skillCount: ready.reduce(
-        (total, item) =>
-          total + (item.discovery?.registryCounts?.skillCount ?? item.discovery?.skills.length ?? 0),
-        0
-      ),
-      versionedSkillCount: ready.reduce(
-        (total, item) => total + (item.discovery?.registryCounts?.versionedSkillCount ?? 0),
-        0
-      ),
-      bundleCount: ready.reduce(
-        (total, item) => total + (item.discovery?.registryCounts?.bundleCount ?? 0),
-        0
-      ),
-      validBundleMembershipCount: ready.reduce(
-        (total, item) => total + (item.discovery?.registryCounts?.validBundleMembershipCount ?? 0),
-        0
-      )
-    },
-    skills: ready.flatMap((item) => item.discovery?.skills ?? []).sort((left, right) =>
-      (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
-    ),
-    bundles: ready.flatMap((item) => item.discovery?.bundles ?? []).sort((left, right) =>
-      (left.ref ?? left.id).localeCompare(right.ref ?? right.id)
-    ),
-    warnings: [
-      ...ready.flatMap((item) => item.discovery?.warnings ?? []),
-      ...skillpacks
-        .filter((item) => !item.checkout.readable || item.discovery === undefined)
-        .map((item) => ({
-          severity: 'warning' as const,
-          code: 'skillpack-not-ready',
-          message: `Skillpack "${item.config.id}" is not available to the aggregate catalog: ${item.checkout.message}.`,
-          path: item.config.checkoutPath
-        }))
-    ],
-    errors: ready.flatMap((item) => item.discovery?.errors ?? []),
-    skillpacks: skillpacks.map((item) => ({
-      id: item.config.id,
-      checkoutPath: item.config.checkoutPath,
-      ready: item.checkout.readable && item.discovery !== undefined,
-      ...(item.discovery?.registryPath === undefined ? {} : {registryPath: item.discovery.registryPath}),
-      skillCount: item.discovery?.skills.length ?? 0,
-      bundleCount: item.discovery?.bundles.length ?? 0,
-      warningCount: item.discovery?.warnings.length ?? 0,
-      errorCount: item.discovery?.errors.length ?? 0,
-      ...(!item.checkout.readable ? {message: item.checkout.message} : {})
-    }))
-  };
 }
 
 async function inspectTargetState(targetPath: string, manifest: ManagerManifest): Promise<TargetState> {

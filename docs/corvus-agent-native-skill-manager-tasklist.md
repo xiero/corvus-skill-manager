@@ -610,7 +610,7 @@ Extend discovery so semantic search and safe installation receive complete, vali
 1. Extend `DiscoveredSkill` with every normalized semantic field.
 2. Preserve registryless fallback:
    - title/name/description from frontmatter;
-   - default Codex support;
+   - default support for all built-in adapters marked `supported` when no registry declares restrictions;
    - `registryless` tag;
    - empty semantic/relationship arrays.
 3. After loading all skills, validate relationships:

@@ -16,6 +16,65 @@ describe('multiple skillpacks', () => {
 
   afterEach(async () => home?.cleanup());
 
+  test('plans skills from two registryless repositories for all selected built-in agents', async () => {
+    const targetAgents = ['codex', 'claude', 'opencode', 'gemini'] as const;
+    home = await createTestHome({
+      skillpack: registrylessFixture('primary-helper'),
+      agents: Object.fromEntries(targetAgents.map((agentId) => [agentId, {enabled: true, selectedSkillIds: []}]))
+    });
+    const secondary = await addSecondarySkillpack(home, registrylessFixture('private-review'));
+    const app = createCorvusApplication({homeDir: home.homeDir, configPath: home.configPath, git: createStubGit().runner});
+
+    const plan = await app.installPlan({
+      schemaVersion: 1,
+      targetAgents: [...targetAgents],
+      selectedSkills: [{id: 'corvus-skillpack:primary-helper'}, {id: 'team-pack:private-review'}]
+    });
+
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.data.planId).toBeDefined();
+    expect(plan.data.plan.operations).toHaveLength(8);
+    for (const agentId of targetAgents) {
+      expect(plan.data.plan.operations).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'create-link',
+          agentId,
+          skillId: 'corvus-skillpack:primary-helper',
+          sourcePath: path.join(home.checkoutPath, 'skills', 'primary-helper')
+        }),
+        expect.objectContaining({
+          type: 'create-link',
+          agentId,
+          skillId: 'team-pack:private-review',
+          sourcePath: path.join(secondary.checkoutPath, 'skills', 'private-review')
+        })
+      ]));
+    }
+  });
+
+  test('retains explicit registry agent restrictions beside a registryless repository', async () => {
+    home = await createTestHome({skillpack: registrylessFixture('primary-helper')});
+    await addSecondarySkillpack(home, secondaryFixture());
+    const app = createCorvusApplication({homeDir: home.homeDir, configPath: home.configPath, git: createStubGit().runner});
+
+    const plan = await app.installPlan({
+      schemaVersion: 1,
+      targetAgents: ['claude'],
+      selectedSkills: [{id: 'corvus-skillpack:primary-helper'}, {id: 'team-pack:private-review'}]
+    });
+
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.errors).toEqual([
+      expect.objectContaining({
+        code: 'SKILL_NOT_SUPPORTED_BY_AGENT',
+        agentId: 'claude',
+        skillId: 'team-pack:private-review'
+      })
+    ]);
+  });
+
   test('aggregates qualified catalog entries and installs from a secondary repository', async () => {
     home = await createTestHome({skillpack: v2SkillpackFixture});
     const secondary = await addSecondarySkillpack(home, secondaryFixture());
@@ -161,6 +220,16 @@ describe('multiple skillpacks', () => {
     ]);
   });
 });
+
+function registrylessFixture(id: string): SkillpackFixture {
+  return {
+    skills: [{
+      relativePath: `skills/${id}`,
+      frontmatter: {name: id, description: `Use the ${id} skill.`},
+      body: `# ${id}`
+    }]
+  };
+}
 
 function secondaryFixture(includeCollision = false) {
   const ids = ['private-review', ...(includeCollision ? ['git-commit'] : [])];

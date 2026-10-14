@@ -54,7 +54,7 @@ describe('Skills step broadcast selection', () => {
     });
 
     // Header reflects that more than one agent is targeted.
-    expect(collectText(renderer!.toJSON())).toContain('4. Bundles + Individual Skills for 2 agents');
+    expect(collectText(renderer!.toJSON())).toContain('5. Bundles + Individual Skills for 2 agents');
 
     // Toggle the first skill on, then open the dry-run plan.
     press(' ');
@@ -117,7 +117,7 @@ describe('WizardSkillSelectionView', () => {
 
     const text = collectText(tree);
 
-    expect(text).toContain('4. Skills for 2 agents');
+    expect(text).toContain('5. Skills for 2 agents');
     expect(text).toContain('applies it to all 2 enabled agents');
     expect(text).toContain('[~] review-helper');
     expect(text).toContain('selected for some, not all');
@@ -139,7 +139,7 @@ describe('WizardSkillSelectionView', () => {
 
     const text = collectText(tree);
 
-    expect(text).toContain('4. Skills for');
+    expect(text).toContain('5. Skills for');
     expect(text).not.toContain('agents');
     expect(text).toContain('[x] review-helper');
   });

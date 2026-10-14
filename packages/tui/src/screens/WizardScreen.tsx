@@ -6,12 +6,12 @@ import {
   type AgentId,
   type ApplyLinkPlanResult,
   type BundleCatalogEntry,
-  type DiscoveredBundle,
   type DiscoveredSkill,
   type GenerateLinkPlanInput,
   type LinkPlan,
   type ManagerConfig,
   type SkillDiscoveryIssue,
+  type SkillDiscoveryResult,
   type SkillRiskWarning,
   type SkillpackConfig,
   type SkillpackInspection,
@@ -28,12 +28,13 @@ import {
   defaultSkillpackId,
   defaultSkillpackRepositoryUrl,
   discoverSkillsFromCheckout,
+  discoverSkillpacks,
+  filterSkillpackDiscovery,
   generateLinkPlan,
   getAgentAdapters,
   getSelectedBundleIdsForSkillpack,
   getSkillpacks,
-  qualifyBundleId,
-  qualifySkillId,
+  parseSkillReference,
   resolveSkillReference,
   inspectSkillpackCheckout,
   inspectSkillpackRemoteUpdate,
@@ -143,6 +144,15 @@ export function WizardScreen({
   );
   const adapters = useMemo(() => providedAdapters ?? getAgentAdapters(), [providedAdapters]);
   const [workingConfig, setWorkingConfig] = useState(config);
+  const configuredSkillpacks = useMemo(() => wizardSkillpacks(workingConfig), [workingConfig.skillpacks, workingConfig.skillpack]);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const catalogKey = JSON.stringify([configuredSkillpacks, catalogRevision]);
+  const [excludedSkillpackIds, setExcludedSkillpackIds] = useState<string[]>([]);
+  const selectedSkillpackIds = useMemo(
+    () => configuredSkillpacks.filter((pack) => !excludedSkillpackIds.includes(pack.id)).map((pack) => pack.id),
+    [configuredSkillpacks, excludedSkillpackIds]
+  );
+  const [selectedRepositoryIndex, setSelectedRepositoryIndex] = useState(0);
   const [currentStep, setCurrentStep] = useState<WizardStepId>(initialStep);
   const [form, setForm] = useState<SkillpackFormState>(() => createInitialSkillpackForm(config));
   const [selectedSkillpackIndex, setSelectedSkillpackIndex] = useState(0);
@@ -158,27 +168,43 @@ export function WizardScreen({
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
   const [targetEditSession, setTargetEditSession] = useState<TargetEditSession | undefined>();
   const [selectedSelectionIndex, setSelectedSelectionIndex] = useState(0);
-  const [skills, setSkills] = useState<DiscoveredSkill[]>([]);
-  const [bundles, setBundles] = useState<DiscoveredBundle[]>([]);
-  const [discoveryWarnings, setDiscoveryWarnings] = useState<SkillRiskWarning[]>([]);
-  const [discoveryErrors, setDiscoveryErrors] = useState<SkillDiscoveryIssue[]>([]);
+  const [catalog, setCatalog] = useState<SkillDiscoveryResult | undefined>();
+  const [loadedCatalogKey, setLoadedCatalogKey] = useState<string | undefined>();
   const [discoveryState, setDiscoveryState] = useState<DiscoveryState>('idle');
   const [plan, setPlan] = useState<LinkPlan | undefined>();
   const [planPreview, setPlanPreview] = useState<WizardSelectionPreview | undefined>();
   const [applyResult, setApplyResult] = useState<ApplyLinkPlanResult | undefined>();
   const [busyMessage, setBusyMessage] = useState<string | undefined>();
   const [message, setMessage] = useState<string | undefined>();
+  const fullCatalog = loadedCatalogKey === catalogKey ? catalog : undefined;
+  const visibleCatalog = useMemo(
+    () => fullCatalog === undefined ? undefined : filterSkillpackDiscovery(fullCatalog, selectedSkillpackIds),
+    [fullCatalog, selectedSkillpackIds]
+  );
+  const skills = visibleCatalog?.skills ?? [];
+  const bundles = visibleCatalog?.bundles ?? [];
+  const discoveryWarnings = visibleCatalog?.warnings ?? [];
+  const discoveryErrors = visibleCatalog?.errors ?? [];
 
   const sortedSkills = useMemo(
-    () => [...skills].sort((left, right) => left.id.localeCompare(right.id)),
+    () => [...skills].sort((left, right) => skillRef(left).localeCompare(skillRef(right))),
     [skills]
   );
   const selectedAdapter = adapters[selectedAgentIndex] ?? adapters[0];
-  const selectedAgentDraft = selectedAdapter === undefined ? undefined : draftAgents[selectedAdapter.id];
   const enabledAdapters = useMemo(
     () => adapters.filter((adapter) => draftAgents[adapter.id]?.enabled === true),
     [adapters, draftAgents]
   );
+  const hiddenSelectionCount = new Set(enabledAdapters.flatMap((adapter) => {
+    const draft = draftAgents[adapter.id];
+    return [
+      ...draft.selectedSkillIds.map((ref) => ({kind: 'skill', ref})),
+      ...draft.selectedBundleIds.map((ref) => ({kind: 'bundle', ref}))
+    ].filter(({ref}) => {
+      const owner = parseSkillReference(ref)?.skillpackId;
+      return owner !== undefined && !selectedSkillpackIds.includes(owner);
+    }).map(({kind, ref}) => `${kind}:${ref}`);
+  })).size;
   const bundleCatalog = useMemo<BundleCatalogEntry[]>(
     () =>
       [...bundles]
@@ -222,6 +248,7 @@ export function WizardScreen({
     discoveredSkills: sortedSkills,
     discoveredBundles: bundles,
     draftAgents,
+    selectedSkillpackIds,
     ...(plan === undefined ? {} : {plan}),
     ...(applyResult === undefined ? {} : {applyResult})
   });
@@ -248,44 +275,22 @@ export function WizardScreen({
   }, []);
 
   useEffect(() => {
-    if (workingConfig.skillpack === undefined) {
-      setSkills([]);
-      setBundles([]);
-      setDiscoveryWarnings([]);
-      setDiscoveryErrors([]);
-      setDiscoveryState('idle');
-      return;
-    }
-
     let active = true;
     setDiscoveryState('loading');
+    setCatalog(undefined);
+    setLoadedCatalogKey(undefined);
+    setPlan(undefined);
+    setPlanPreview(undefined);
+    setSelectedSelectionIndex(0);
 
-    operations.discoverSkillsFromCheckout(workingConfig.skillpack.checkoutPath)
+    discoverSkillpacks(configuredSkillpacks, operations.discoverSkillsFromCheckout)
       .then((result) => {
         if (!active) {
           return;
         }
 
-        const skillpackId = workingConfig.skillpack?.id ?? defaultSkillpackId;
-        setSkills(result.skills.map((skill) => ({
-          ...skill,
-          skillpackId,
-          ref: qualifySkillId(skillpackId, skill.id),
-          requires: (skill.requires ?? []).map((id) => qualifySkillId(skillpackId, id)),
-          recommends: (skill.recommends ?? []).map((id) => qualifySkillId(skillpackId, id)),
-          conflictsWith: (skill.conflictsWith ?? []).map((id) => qualifySkillId(skillpackId, id))
-        })));
-        setBundles((result.bundles ?? []).map((bundle) => ({
-          ...bundle,
-          skillpackId,
-          ref: qualifyBundleId(skillpackId, bundle.id),
-          members: bundle.members.map((member) => ({
-            ...member,
-            ref: qualifySkillId(skillpackId, member.id)
-          }))
-        })));
-        setDiscoveryWarnings(result.warnings);
-        setDiscoveryErrors(result.errors);
+        setCatalog(result);
+        setLoadedCatalogKey(catalogKey);
         setDiscoveryState('loaded');
       })
       .catch((error: unknown) => {
@@ -293,23 +298,14 @@ export function WizardScreen({
           return;
         }
 
-        setSkills([]);
-        setBundles([]);
-        setDiscoveryWarnings([]);
-        setDiscoveryErrors([
-          {
-            severity: 'error',
-            code: 'discovery-failed',
-            message: error instanceof Error ? error.message : String(error)
-          }
-        ]);
+        setMessage(`Discovery failed: ${error instanceof Error ? error.message : String(error)}`);
         setDiscoveryState('error');
       });
 
     return () => {
       active = false;
     };
-  }, [operations, workingConfig.skillpack]);
+  }, [operations, catalogKey]);
 
   useInput((input, key) => {
     if (busy) {
@@ -348,6 +344,11 @@ export function WizardScreen({
 
     if (currentStep === 'agents') {
       handleAgentsInput(input, key);
+      return;
+    }
+
+    if (currentStep === 'repositories') {
+      handleRepositoriesInput(input, key);
       return;
     }
 
@@ -472,7 +473,7 @@ export function WizardScreen({
     }
 
     if (input === 'r') {
-      void inspectConfiguredSkillpack();
+      void inspectConfiguredSkillpack(true);
       return;
     }
 
@@ -494,7 +495,7 @@ export function WizardScreen({
     }
 
     if (input === 'r') {
-      void inspectConfiguredSkillpack();
+      void inspectConfiguredSkillpack(true);
       return;
     }
 
@@ -550,9 +551,10 @@ export function WizardScreen({
     }
 
     if (key.return) {
-      if (selectedAgentDraft?.enabled === true) {
+      if (enabledAdapters.length > 0) {
         setSelectedSelectionIndex(0);
-        setCurrentStep('skills');
+        setCurrentStep('repositories');
+        setMessage(undefined);
       } else {
         setMessage('Enable a supported agent before selecting bundles or skills.');
       }
@@ -565,9 +567,59 @@ export function WizardScreen({
     }
   }
 
-  function handleSkillsInput(input: string, key: {upArrow?: boolean; downArrow?: boolean; return?: boolean}): void {
+  function handleRepositoriesInput(input: string, key: {upArrow?: boolean; downArrow?: boolean; return?: boolean}): void {
     if (input === 'b') {
       setCurrentStep('agents');
+      setMessage(undefined);
+      return;
+    }
+    if (key.upArrow || input === 'k') {
+      setSelectedRepositoryIndex((index) => Math.max(0, index - 1));
+      return;
+    }
+    if (key.downArrow || input === 'j') {
+      setSelectedRepositoryIndex((index) => Math.min(Math.max(0, configuredSkillpacks.length - 1), index + 1));
+      return;
+    }
+    if (input === ' ' || input === 'a') {
+      const pack = configuredSkillpacks[selectedRepositoryIndex];
+      if (input === 'a') {
+        setExcludedSkillpackIds([]);
+      } else if (pack !== undefined) {
+        setExcludedSkillpackIds((excluded) => excluded.includes(pack.id)
+          ? excluded.filter((id) => id !== pack.id)
+          : [...excluded, pack.id]);
+      }
+      setPlan(undefined);
+      setPlanPreview(undefined);
+      setApplyResult(undefined);
+      setSelectedSelectionIndex(0);
+      setMessage(undefined);
+      return;
+    }
+    if (key.return && catalogReadyForSelection()) {
+      setCurrentStep('skills');
+      setSelectedSelectionIndex(0);
+      setMessage(undefined);
+    }
+  }
+
+  function catalogReadyForSelection(): boolean {
+    if (selectedSkillpackIds.length === 0) {
+      setMessage('Select at least one repository before continuing.');
+      return false;
+    }
+    if (discoveryState !== 'loaded' || fullCatalog === undefined) {
+      setMessage('Wait for repository discovery to finish before continuing.');
+      return false;
+    }
+    return true;
+  }
+
+  function handleSkillsInput(input: string, key: {upArrow?: boolean; downArrow?: boolean; return?: boolean}): void {
+    if (input === 'b') {
+      setCurrentStep('repositories');
+      setMessage(undefined);
       return;
     }
 
@@ -781,7 +833,7 @@ export function WizardScreen({
     });
   }
 
-  async function inspectConfiguredSkillpack(): Promise<void> {
+  async function inspectConfiguredSkillpack(refreshCatalog = false): Promise<void> {
     let skillpackConfig: SkillpackConfig;
 
     try {
@@ -802,6 +854,7 @@ export function WizardScreen({
     } catch (error) {
       setMessage(`Inspection failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      if (refreshCatalog) setCatalogRevision((revision) => revision + 1);
       setBusyMessage(undefined);
     }
   }
@@ -892,6 +945,7 @@ export function WizardScreen({
     } catch (error) {
       setMessage(`Initial setup failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      setCatalogRevision((revision) => revision + 1);
       setBusyMessage(undefined);
     }
   }
@@ -976,11 +1030,13 @@ export function WizardScreen({
     } catch (error) {
       setMessage(`Update activation failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      setCatalogRevision((revision) => revision + 1);
       setBusyMessage(undefined);
     }
   }
 
   function enterPlanStep(): void {
+    if (!catalogReadyForSelection()) return;
     const selectionPlan = createSelectionPlan();
     setPlan(selectionPlan.linkPlan);
     setPlanPreview(selectionPlan.preview);
@@ -994,6 +1050,7 @@ export function WizardScreen({
   }
 
   function openApplyStep(): void {
+    if (!catalogReadyForSelection()) return;
     const selectionPlan = plan === undefined ? createSelectionPlan() : undefined;
     const nextPlan = plan ?? selectionPlan?.linkPlan ?? createLinkPlan();
 
@@ -1020,8 +1077,10 @@ export function WizardScreen({
   function createSelectionPlan(): ReturnType<typeof createWizardSelectionPlan> {
     return createWizardSelectionPlan({
       adapters,
-      skills: sortedSkills,
-      bundles,
+      // The repository checkboxes filter the catalog, not saved or staged roots.
+      // Resolve both old and new selections against every source to preserve links.
+      skills: fullCatalog?.skills ?? [],
+      bundles: fullCatalog?.bundles ?? [],
       draftAgents,
       config: workingConfig,
       generatePlan: operations.generateLinkPlan
@@ -1048,12 +1107,13 @@ export function WizardScreen({
   }
 
   async function applyConfirmedPlan(): Promise<void> {
+    if (!catalogReadyForSelection()) return;
     const selectionPlan = plan === undefined ? createSelectionPlan() : undefined;
     const nextPlan = plan ?? selectionPlan?.linkPlan ?? createLinkPlan();
 
     if (selectionPlan !== undefined) setPlanPreview(selectionPlan.preview);
 
-    if (workingConfig.skillpack === undefined) {
+    if (configuredSkillpacks.length === 0) {
       setMessage('Apply blocked: skillpack is not configured.');
       setCurrentStep('plan');
       return;
@@ -1071,15 +1131,17 @@ export function WizardScreen({
     try {
       const updatedConfig = await saveDraftAgentConfig();
 
-      if (updatedConfig.skillpack === undefined) {
+      const applySkillpacks = wizardSkillpacks(updatedConfig);
+      const primarySkillpack = applySkillpacks[0];
+      if (primarySkillpack === undefined) {
         throw new Error('Skillpack is not configured.');
       }
 
       const result = await operations.applyLinkPlan({
         plan: nextPlan,
         managerStateDir: updatedConfig.managerStateDir,
-        skillpackCheckoutPath: updatedConfig.skillpack.checkoutPath,
-        skillpackCheckoutPaths: getSkillpacks(updatedConfig).map((skillpack) => skillpack.checkoutPath),
+        skillpackCheckoutPath: primarySkillpack.checkoutPath,
+        skillpackCheckoutPaths: applySkillpacks.map((skillpack) => skillpack.checkoutPath),
         confirmReplaceBrokenManagedLinks: true
       });
 
@@ -1136,18 +1198,33 @@ export function WizardScreen({
               discoveryErrors={discoveryErrors}
             />
           ) : null}
-          {currentStep === 'skills' ? (
-            <WizardSelectionView
-              enabledAdapters={enabledAdapters}
-              bundles={bundleCatalog}
-              skills={sortedSkills}
-              selectedSelectionIndex={selectedSelectionIndex}
-              bundleSelectionStates={bundleSelectionStates}
-              bundleDependencies={bundleDependencies}
-              skillSelectionStates={skillSelectionStates}
+          {currentStep === 'repositories' ? (
+            <WizardRepositoriesView
+              skillpacks={configuredSkillpacks}
+              selectedSkillpackIds={selectedSkillpackIds}
+              selectedIndex={selectedRepositoryIndex}
+              discovery={fullCatalog}
               discoveryState={discoveryState}
-              discoveryErrors={discoveryErrors}
             />
+          ) : null}
+          {currentStep === 'skills' ? (
+            <Box flexDirection="column" gap={1}>
+              <Text dimColor>Repositories: {selectedSkillpackIds.join(', ')}. Press b to change.</Text>
+              {hiddenSelectionCount > 0 ? (
+                <Text color="yellow">{hiddenSelectionCount} selections from hidden repositories are retained in the plan.</Text>
+              ) : null}
+              <WizardSelectionView
+                enabledAdapters={enabledAdapters}
+                bundles={bundleCatalog}
+                skills={sortedSkills}
+                selectedSelectionIndex={selectedSelectionIndex}
+                bundleSelectionStates={bundleSelectionStates}
+                bundleDependencies={bundleDependencies}
+                skillSelectionStates={skillSelectionStates}
+                discoveryState={discoveryState}
+                discoveryErrors={discoveryErrors}
+              />
+            </Box>
           ) : null}
           {currentStep === 'plan' ? <WizardPlanView plan={currentPlan} preview={currentPreview} /> : null}
           {currentStep === 'confirm' ? <ApplyStepView plan={currentPlan} preview={currentPreview} /> : null}
@@ -1206,6 +1283,52 @@ export function WizardProgressRail({
           </React.Fragment>
         );
         })}
+    </Box>
+  );
+}
+
+export function WizardRepositoriesView({
+  skillpacks,
+  selectedSkillpackIds,
+  selectedIndex,
+  discovery,
+  discoveryState
+}: {
+  skillpacks: SkillpackConfig[];
+  selectedSkillpackIds: string[];
+  selectedIndex: number;
+  discovery: SkillDiscoveryResult | undefined;
+  discoveryState: DiscoveryState;
+}): React.ReactElement {
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
+        <Text bold>4. Repositories</Text>
+        <Text>Select one or more repositories for the skill list.</Text>
+        <Text dimColor>Space toggles a repository; a selects all. Existing skill selections are retained.</Text>
+        <Text>Selected: {selectedSkillpackIds.length}/{skillpacks.length}</Text>
+      </Box>
+      <Box flexDirection="column">
+        {skillpacks.length === 0 ? <Text color="yellow">No repositories configured. Add one in Manage Skillpacks.</Text> : null}
+        {skillpacks.map((pack, index) => {
+          const selected = selectedSkillpackIds.includes(pack.id);
+          const status = discovery?.skillpacks?.find((entry) => entry.id === pack.id);
+          const summary = status === undefined
+            ? discoveryState === 'error' ? 'discovery failed' : 'loading...'
+            : !status.ready ? 'unavailable'
+            : `${status.skillCount} skills, ${status.bundleCount} bundles${status.errorCount > 0 ? `, ${status.errorCount} errors` : ''}`;
+          return (
+            <Box key={pack.id} flexDirection="column">
+              <Text {...(index === selectedIndex ? {color: 'cyan'} : {})}>
+                {index === selectedIndex ? '>' : ' '} {selected ? '[x]' : '[ ]'} {pack.id} - {summary}
+              </Text>
+              {index === selectedIndex ? <Text dimColor>    {pack.repositoryUrl}</Text> : null}
+            </Box>
+          );
+        })}
+      </Box>
+      {selectedSkillpackIds.length === 0 ? <Text color="yellow">Select at least one repository to continue.</Text> : null}
+      <Text dimColor>Repository selection filters the catalog; it does not remove installed skills.</Text>
     </Box>
   );
 }
@@ -1440,8 +1563,8 @@ export function WizardSelectionView({
   const agentNames = enabledAdapters.map((adapter) => adapter.displayName).join(', ');
   const heading =
     agentCount === 1 ?
-      `4. Bundles + Individual Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
-      `4. Bundles + Individual Skills for ${agentCount} agents`;
+      `5. Bundles + Individual Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
+      `5. Bundles + Individual Skills for ${agentCount} agents`;
   const anyMixed =
     [...bundleSelectionStates.values(), ...skillSelectionStates.values()].some((state) => state === 'some');
   const selectedSkillIndex = selectedSelectionIndex - bundles.length;
@@ -1453,7 +1576,7 @@ export function WizardSelectionView({
         {agentCount > 1 ? (
           <Text dimColor>Each toggle applies to all {agentCount} enabled agents: {agentNames}.</Text>
         ) : null}
-        {discoveryState === 'loading' ? <Text>Discovering bundles and skills from the active snapshot...</Text> : null}
+        {discoveryState === 'loading' ? <Text>Discovering bundles and skills from repository snapshots...</Text> : null}
         {anyMixed ? <Text dimColor>[~] selected for some, not all enabled agents.</Text> : null}
         <Text dimColor>[!] visible but incompatible with at least one enabled agent.</Text>
       </Box>
@@ -1501,8 +1624,8 @@ export function WizardSkillSelectionView({
   const agentNames = enabledAdapters.map((adapter) => adapter.displayName).join(', ');
   const heading =
     agentCount === 1 ?
-      `4. Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
-      `4. Skills for ${agentCount} agents`;
+      `5. Skills for ${enabledAdapters[0]?.displayName ?? 'the enabled agent'}` :
+      `5. Skills for ${agentCount} agents`;
   const anySelected = skills.some((skill) => (skillSelectionStates.get(skillRef(skill)) ?? 'none') !== 'none');
   const anyMixed = skills.some((skill) => skillSelectionStates.get(skillRef(skill)) === 'some');
 
@@ -1589,7 +1712,7 @@ export function WizardPlanView({
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
-        <Text bold>5. Plan</Text>
+        <Text bold>6. Plan</Text>
         <Text dimColor>Dry-run only. Nothing is applied from this step.</Text>
         <Text>Creates: {createCount}, removals: {removeCount}, conflicts: {plan.conflicts.length}</Text>
         {plan.operations.length === 0 ? (
@@ -1650,7 +1773,7 @@ function ApplyStepView({
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
-        <Text bold color="yellow">6. Apply</Text>
+        <Text bold color="yellow">7. Apply</Text>
         <Text>Final approval saves draft agent config, then applies only manager-owned link operations.</Text>
         <Text>Creates: {createCount}, removals: {removeCount}</Text>
         <Text color="yellow">Press a to apply, or b to return to the dry-run plan.</Text>
@@ -1670,7 +1793,7 @@ export function CompleteStepView({result}: {result: ApplyLinkPlanResult}): React
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1}>
-        <Text bold color="green">7. Complete</Text>
+        <Text bold color="green">8. Complete</Text>
         <Text>
           <Text color="green">🎺 </Text>
           <Text bold color="green">Wizard complete</Text>
@@ -1720,14 +1843,20 @@ function IssuePreview({
 }
 
 function createInitialSkillpackForm(config: ManagerConfig): SkillpackFormState {
-  const id = config.skillpack?.id ?? defaultSkillpackId;
+  const primary = config.skillpack ?? getSkillpacks(config)[0];
+  const id = primary?.id ?? defaultSkillpackId;
 
   return {
     id,
-    repositoryUrl: config.skillpack?.repositoryUrl ?? defaultSkillpackRepositoryUrl,
-    branch: config.skillpack?.branch ?? defaultSkillpackBranch,
-    checkoutPath: config.skillpack?.checkoutPath ?? defaultSkillpackCheckoutPath(id)
+    repositoryUrl: primary?.repositoryUrl ?? defaultSkillpackRepositoryUrl,
+    branch: primary?.branch ?? defaultSkillpackBranch,
+    checkoutPath: primary?.checkoutPath ?? defaultSkillpackCheckoutPath(id)
   };
+}
+
+function wizardSkillpacks(config: ManagerConfig): SkillpackConfig[] {
+  const packs = getSkillpacks(config);
+  return packs.length > 0 ? packs : config.skillpack === undefined ? [] : [config.skillpack];
 }
 
 function skillRef(skill: DiscoveredSkill): string {
@@ -2000,10 +2129,22 @@ function commandHints(
     return [
       {key: 'up/down', label: 'move'},
       {key: 'space', label: 'toggle'},
-      {key: 'enter', label: 'selections'},
+      {key: 'enter', label: 'repositories'},
       {key: 't', label: 'target'},
       {key: 'p', label: 'plan'},
       {key: 'b', label: 'update'},
+      {key: 'h', label: 'Home'},
+      {key: 'q', label: 'exit'}
+    ];
+  }
+
+  if (step === 'repositories') {
+    return [
+      {key: 'up/down', label: 'move'},
+      {key: 'space', label: 'toggle repo'},
+      {key: 'a', label: 'select all'},
+      {key: 'enter', label: 'skills'},
+      {key: 'b', label: 'agents'},
       {key: 'h', label: 'Home'},
       {key: 'q', label: 'exit'}
     ];
@@ -2013,7 +2154,7 @@ function commandHints(
     return [
       {key: 'up/down', label: 'move'},
       {key: 'space', label: 'toggle root'},
-      {key: 'b', label: 'agents'},
+      {key: 'b', label: 'repositories'},
       {key: 'p', label: 'plan'},
       {key: 'enter', label: 'plan'},
       {key: 'h', label: 'Home'},

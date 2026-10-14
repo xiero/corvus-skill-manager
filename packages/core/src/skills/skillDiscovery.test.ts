@@ -88,10 +88,11 @@ describe('skill discovery', () => {
     expect(result.skills[0]).toMatchObject({
       title: 'commit-message',
       description: 'Draft commit messages.',
-      supportedAgents: ['codex'],
+      supportedAgents: ['codex', 'claude', 'copilot', 'opencode', 'pi', 'gemini'],
       tags: ['registryless'],
       relativePath: path.join('commit-message-skill', 'commit-message')
     });
+    expect(result.skills.every((skill) => !skill.supportedAgents.includes('custom'))).toBe(true);
   });
 
   it('carries exact v3 skill versions and discovers normalized bundles separately', async () => {

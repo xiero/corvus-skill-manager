@@ -10,7 +10,7 @@ import type {
   SkillpackRemoteUpdateInspection
 } from '@corvus-tools/skill-manager-core';
 
-export type WizardStepId = 'skillpack' | 'update' | 'agents' | 'skills' | 'plan' | 'confirm' | 'complete';
+export type WizardStepId = 'skillpack' | 'update' | 'agents' | 'repositories' | 'skills' | 'plan' | 'confirm' | 'complete';
 
 export type WizardStepStatus = 'pending' | 'active' | 'complete' | 'warning' | 'blocked';
 
@@ -41,6 +41,7 @@ export interface WizardSnapshot {
   discoveredSkills?: DiscoveredSkill[];
   discoveredBundles?: DiscoveredBundle[];
   draftAgents?: Partial<Record<AgentId, WizardDraftAgent>>;
+  selectedSkillpackIds?: string[];
   plan?: LinkPlan;
   applyResult?: ApplyLinkPlanResult;
 }
@@ -55,6 +56,7 @@ const stepLabels: Record<WizardStepId, string> = {
   skillpack: 'Skillpack',
   update: 'Update',
   agents: 'Agents',
+  repositories: 'Repositories',
   skills: 'Selections',
   plan: 'Plan',
   confirm: 'Apply',
@@ -65,6 +67,7 @@ export const wizardStepIds: WizardStepId[] = [
   'skillpack',
   'update',
   'agents',
+  'repositories',
   'skills',
   'plan',
   'confirm',
@@ -84,9 +87,10 @@ export function deriveWizardFlow(snapshot: WizardSnapshot): WizardDerivation {
   const skillpackState = deriveSkillpackState(snapshot);
   const updateState = deriveUpdateState(snapshot, skillpackState.status);
   const agentsState = deriveAgentsState(snapshot, skillpackState.status, enabledAgents.length);
+  const repositoriesState = deriveRepositoriesState(snapshot, agentsState.status);
   const skillsState = deriveSkillsState(
     snapshot,
-    agentsState.status,
+    repositoriesState.status,
     selectedSkillCount,
     selectedBundleCount
   );
@@ -97,6 +101,7 @@ export function deriveWizardFlow(snapshot: WizardSnapshot): WizardDerivation {
     skillpack: skillpackState,
     update: updateState,
     agents: agentsState,
+    repositories: repositoriesState,
     skills: skillsState,
     plan: planState,
     confirm: confirmState,
@@ -186,6 +191,19 @@ function deriveAgentsState(
   return step('agents', 'complete', `${enabledAgentCount} agent${enabledAgentCount === 1 ? '' : 's'} enabled.`);
 }
 
+function deriveRepositoriesState(snapshot: WizardSnapshot, agentsStatus: WizardStepStatus): WizardStepState {
+  if (snapshot.applyResult !== undefined) {
+    return step('repositories', 'complete', 'Repository sources were selected before apply.');
+  }
+  if (agentsStatus === 'pending' || agentsStatus === 'active' || agentsStatus === 'blocked') {
+    return step('repositories', 'pending', 'Select an agent before choosing repositories.');
+  }
+  if (snapshot.selectedSkillpackIds?.length === 0) {
+    return step('repositories', 'active', 'Select at least one repository for the skill catalog.');
+  }
+  return step('repositories', 'complete', 'Repository sources selected for the skill catalog.');
+}
+
 function deriveSkillsState(
   snapshot: WizardSnapshot,
   agentsStatus: WizardStepStatus,
@@ -197,7 +215,7 @@ function deriveSkillsState(
   }
 
   if (agentsStatus === 'pending' || agentsStatus === 'active' || agentsStatus === 'blocked') {
-    return step('skills', 'pending', 'Select an agent before choosing bundles or skills.');
+    return step('skills', 'pending', 'Select agents and repositories before choosing bundles or skills.');
   }
 
   if (
@@ -205,7 +223,7 @@ function deriveSkillsState(
     snapshot.discoveredSkills.length === 0 &&
     (snapshot.discoveredBundles?.length ?? 0) === 0
   ) {
-    return step('skills', 'blocked', 'No valid bundles or skills were discovered in the active skillpack.');
+    return step('skills', 'blocked', 'No valid bundles or skills were discovered in the selected repositories.');
   }
 
   if (selectedSkillCount + selectedBundleCount === 0) {

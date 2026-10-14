@@ -2,6 +2,7 @@ import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
 import {z} from 'zod';
+import {getAgentAdapters} from '../agents/adapters.js';
 import {isPathInside, resolveUserPath} from '../paths.js';
 import {
   type RegistryBundleV3,
@@ -29,6 +30,8 @@ export interface SkillDiscoveryIssue {
   severity: SkillDiscoverySeverity;
   code: string;
   message: string;
+  /** Owning repository when diagnostics come from aggregate discovery. */
+  skillpackId?: string;
   skillId?: string;
   bundleId?: string;
   memberId?: string;
@@ -126,7 +129,11 @@ export interface SkillDiscoveryResult {
     id: string;
     checkoutPath: string;
     ready: boolean;
+    skillpackRoot?: string;
     registryPath?: string;
+    source?: SkillDiscoverySource;
+    registryVersion?: number;
+    registryCounts?: SkillDiscoveryResult['registryCounts'];
     skillCount: number;
     bundleCount: number;
     warningCount: number;
@@ -208,7 +215,7 @@ export async function discoverSkillsFromCheckout(skillpackRoot: string): Promise
     result.warnings.push({
       severity: 'warning',
       code: 'missing-registry',
-      message: `Missing registry.json at ${registryPath}; discovering SKILL.md files in read-only fallback mode.`,
+      message: `Missing registry.json at ${registryPath}; discovering SKILL.md files in read-only fallback mode. Agent targets default to the manager's supported built-in agents.`,
       path: registryPath
     });
     await discoverSkillsWithoutRegistry(resolvedRoot, result);
@@ -634,6 +641,11 @@ async function discoverSkillsWithoutRegistry(
 ): Promise<void> {
   const skillFilePaths = await findSkillFiles(skillpackRoot);
   const seenSkillIds = new Set<string>();
+  // Without registry metadata there is no authored agent restriction. Default
+  // link targets to the supported built-in Agent Skills adapters.
+  const supportedAgents = getAgentAdapters()
+    .filter((adapter) => adapter.supportStatus === 'supported')
+    .map((adapter) => adapter.id);
 
   if (skillFilePaths.length === 0) {
     result.errors.push({
@@ -671,7 +683,7 @@ async function discoverSkillsWithoutRegistry(
       path: relativePath,
       title: parsedFrontmatter.data.name,
       description: parsedFrontmatter.data.description,
-      supportedAgents: ['codex'],
+      supportedAgents,
       tags: ['registryless']
     });
 

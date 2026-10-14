@@ -4,8 +4,20 @@
 
 **Draft release notes. Nothing has been published.**
 
+### Guided repository selection
+
+Guided Flow now has a Repositories step between Agents and Selections. Choose one or more
+configured repositories with Space, or select all with `a`, then browse their combined skill
+and bundle catalog. Qualified names and repository-scoped diagnostics identify each source.
+Hiding a repository preserves its saved and staged selections; the plan resolves all sources
+and still blocks conflicting skill target names before explicit apply approval.
+
+Registryless `SKILL.md` discovery now permits all supported built-in Agent Skills targets,
+including Claude Code, OpenCode, and Gemini CLI, instead of inferring Codex-only support.
+The fallback warning states this default; authored registry agent restrictions remain enforced.
+
 Corvus Skill Manager becomes operable by a coding agent without the user knowing any Corvus
-commands, while the human TUI stays exactly as it was.
+commands, while retaining the human TUI.
 
 ### Preserved TUI
 

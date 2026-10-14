@@ -258,6 +258,13 @@ The manager parses frontmatter and scans for risk indicators, but it does not re
 
 If `registry.json` is missing, the manager can discover `SKILL.md` files in read-only fallback mode. This is useful for MVP compatibility, but Doctor reports it as a warning because the registry contract is more explicit.
 
-Fallback-discovered skills default to Codex support and receive the `registryless` tag. All v2
-semantic and relationship arrays are empty for fallback-discovered skills, so they are still
-listable and inspectable but rank low in intent-based search.
+Fallback-discovered skills default to every built-in adapter marked `supported`: Codex,
+Claude Code, GitHub Copilot CLI, OpenCode, Pi Agent, and Gemini CLI. This is the manager's
+link-target default when agent restrictions are absent, not a verification of each skill's
+agent-specific behavior. Custom, deferred, and unavailable adapters are not included in this
+default. The missing-registry warning makes the inferred support explicit. If a registry is
+present, its authored `supportedAgents` list remains authoritative and unsupported target
+agents still block planning.
+
+Fallback-discovered skills receive the `registryless` tag. All v2 semantic and relationship
+arrays are empty, so they are still listable and inspectable but rank low in intent-based search.

@@ -143,6 +143,13 @@ boundaries.
   selection. The dry-run plan groups explicit roots, derived members/dependencies, provenance,
   warnings/conflicts, and link operations; only the later explicit `a` approval persists Config
   v3 roots and applies manager-owned links.
+- The wizard's Repositories step filters the visible catalog across one or more configured
+  sources. Shared application-layer discovery assigns qualified refs and repository-owned
+  diagnostics. Planning retains the full catalog so hiding a source preserves saved and staged
+  roots, including bundle expansion and previous selections needed for link removal. The filter
+  is session-local and performs no writes; catalog reloads invalidate previews and block apply
+  until discovery finishes. Setup/update activation refreshes discovery even when `current`
+  retains the same configured path.
 - Install request v2 accepts explicit skill and bundle roots while preserving v1 skill-only
   reads. Persisted plan schema v3 shows final roots, effective provenance, and link operations
   independently; replacement recomputes the effective set instead of maintaining refcounts.

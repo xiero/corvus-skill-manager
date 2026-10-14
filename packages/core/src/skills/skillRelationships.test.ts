@@ -85,7 +85,7 @@ describe('normalized discovery model', () => {
     expect(result.registryVersion).toBeUndefined();
     expect(result.skills[0]).toMatchObject({
       id: 'solo',
-      supportedAgents: ['codex'],
+      supportedAgents: ['codex', 'claude', 'copilot', 'opencode', 'pi', 'gemini'],
       tags: ['registryless'],
       domains: [],
       tasks: [],

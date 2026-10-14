@@ -269,6 +269,7 @@ export {
 } from './skillpackDefaults.js';
 export {type CorvusApplication} from './application/CorvusApplication.js';
 export {createCorvusApplication} from './application/createCorvusApplication.js';
+export {discoverSkillpacks, filterSkillpackDiscovery} from './application/catalogDiscovery.js';
 export {
   type ApplicationEnvironment,
   type CorvusApplicationOptions,
