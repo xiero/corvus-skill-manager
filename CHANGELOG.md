@@ -1,10 +1,22 @@
 # Changelog
 
-## Unreleased — Registry v3 bundles and versioning
+## 0.6.0 — Project-scoped skill profiles
 
-**Draft release notes. Nothing has been published.**
+The three public packages are prepared for a coordinated `0.6.0` feature release.
 
-<<<<<<< HEAD
+- Configure skills, bundles, agent targets, and enabled agents separately for each project,
+  alongside global user settings. Project profiles stay in local manager state.
+- The TUI adds Global / Project selection, saved-project and directory selection, project
+  configuration, and confirmed project-profile removal.
+- The machine CLI adds project listing and removal plans, plus project scope for install,
+  Status, Doctor, and agent listing. Writes retain explicit plan/apply confirmation.
+- Skillpack revisions remain shared; update previews identify affected projects. Link ownership
+  and path validation prevent collisions between profiles and unmanaged overwrites.
+- Config v1–v3 migrates in memory to v4 without read-only writes. Persisted plans use schema v4;
+  older plans must be regenerated. Machine envelope v1 and install requests v1/v2 remain supported.
+
+## 0.5.0 — Registry v3 bundles and versioning
+
 ### Guided repository selection
 
 Guided Flow now has a Repositories step between Agents and Selections. Choose one or more
@@ -16,9 +28,6 @@ and still blocks conflicting skill target names before explicit apply approval.
 Registryless `SKILL.md` discovery now permits all supported built-in Agent Skills targets,
 including Claude Code, OpenCode, and Gemini CLI, instead of inferring Codex-only support.
 The fallback warning states this default; authored registry agent restrictions remain enforced.
-=======
-The three public packages are prepared for a coordinated `0.5.0` feature release.
-
 ### Registry v3
 
 - Registry v3 requires canonical SemVer for every skill and bundle, and version ranges for hard
@@ -66,7 +75,6 @@ The three public packages are prepared for a coordinated `0.5.0` feature release
 - The release introduces no automatic Registry migration and no mutable skillpack checkout work.
 
 ## 0.4.0 — Agent-native interface and intent-based skill installation
->>>>>>> c9dd549 (📝 docs: finalize registry v3 release readiness)
 
 Corvus Skill Manager becomes operable by a coding agent without the user knowing any Corvus
 commands, while retaining the human TUI.
