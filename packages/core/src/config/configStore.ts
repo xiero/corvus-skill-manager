@@ -77,7 +77,7 @@ export async function saveConfig(
       ? configWithoutAlias
       : {
           ...configWithoutAlias,
-          version: 3,
+          version: 4,
           skillpacks: {...config.skillpacks, [explicitLegacySkillpack.id]: explicitLegacySkillpack}
         }
   );
@@ -88,11 +88,12 @@ export async function saveConfig(
   assertPathInside(parsedConfig.managerStateDir, configPath);
   await fs.mkdir(path.dirname(configPath), {recursive: true});
   const persisted = {
-    version: 3 as const,
+    version: 4 as const,
     managerStateDir: parsedConfig.managerStateDir,
     createdAt: parsedConfig.createdAt,
     updatedAt: parsedConfig.updatedAt,
     skillpacks: parsedConfig.skillpacks,
+    projects: parsedConfig.projects ?? {},
     ...(parsedConfig.agents === undefined ? {} : {agents: parsedConfig.agents})
   };
   await fs.writeFile(configPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8');

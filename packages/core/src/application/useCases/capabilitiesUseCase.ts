@@ -43,6 +43,7 @@ export interface AgentCapability {
   displayName: string;
   supportStatus: string;
   defaultTargetPath?: string;
+  projectTargetPath?: string;
   notes: string[];
 }
 
@@ -108,7 +109,11 @@ const confirmOption: CommandOptionCapability = {
  * list, and a test asserts the CLI parser registers exactly these commands, so the two cannot
  * drift apart.
  */
+const projectOption: CommandOptionCapability = {flag: '--project <path>', description: 'Select a local project profile; omitted means user scope.', required: false, repeatable: false};
 export const commandCapabilities: readonly CommandCapability[] = [
+  {command: 'projects.list', cli: 'projects list', summary: 'List local project profiles.', mode: 'read-only', requiresConfirmation: false, options: []},
+  {command: 'projects.remove-plan', cli: 'projects remove-plan', summary: 'Preview removing a project profile and its owned links.', mode: 'read-only', requiresConfirmation: false, options: [{...projectOption, required: true}]},
+  {command: 'projects.remove-apply', cli: 'projects remove-apply', summary: 'Apply the confirmed project removal.', mode: 'write', requiresConfirmation: true, options: [planIdOption, confirmOption]},
   {
     command: 'capabilities',
     cli: 'capabilities',
@@ -394,6 +399,7 @@ export function capabilitiesUseCase(
       displayName: adapter.displayName,
       supportStatus: adapter.supportStatus,
       ...(adapter.defaultTargetPath === undefined ? {} : {defaultTargetPath: adapter.defaultTargetPath}),
+      ...(adapter.projectTargetPath === undefined ? {} : {projectTargetPath: adapter.projectTargetPath}),
       notes: [...(adapter.notes ?? [])]
     })
   );
@@ -425,7 +431,7 @@ export function capabilitiesUseCase(
         membersAreSkillsOnly: true,
         allCompatibleIncludesBundles: false
       },
-      commands: [...commandCapabilities],
+      commands: commandCapabilities.map((command) => ["status", "doctor", "agents.list", "install.plan"].includes(command.command) ? {...command, options: [...command.options, projectOption]} : command),
       agents,
       requestFormats: ['cli-flags', 'json-request-file', 'json-request-stdin'],
       selectionPolicies: [...selectionPolicies],

@@ -1,4 +1,6 @@
 import path from 'node:path';
+import {assertTargetOwnership, inspectTargetOwners} from '../../links/targetOwnership.js';
+import {adaptersForScope, assertProjectRootAllowed, assertProjectTarget, canonicalScope, configForScope, profileAgents, projectIdentity, sameScope, withProfileAgents, type ProfileScope} from '../../profiles/profileScope.js';
 import type {AgentId} from '../../agents/AgentAdapter.js';
 import {getAgentAdapters} from '../../agents/adapters.js';
 import {
@@ -146,6 +148,19 @@ export async function installPlanUseCase(
 
   const normalizedRequest = normalizeInstallRequest(request);
   const context = await loadContext(environment);
+  let identity: string | undefined;
+  try {
+    const scope = await canonicalScope(normalizedRequest.scope, environment.homeDir);
+    if (scope.kind === "project") {
+      normalizedRequest.scope = scope;
+      if (context.config !== undefined) await assertProjectRootAllowed(scope, context.config, environment.homeDir);
+      identity = await projectIdentity(scope);
+    }
+    scopeInstallContext(context, scope);
+  } catch (error) {
+    return failWith(createMachineError("INVALID_REQUEST", String(error), {field: "scope"}));
+  }
+  if (!context.manifestValid) return failWith(createMachineError("SAFETY_POLICY_BLOCKED", "Invalid ownership manifest; repair it manually before planning or applying."));
   const ready = requireReadySkillpack(context);
 
   if (isPrecondition(ready)) {
@@ -179,7 +194,7 @@ export async function installPlanUseCase(
     });
   }
 
-  const adapters = getAgentAdapters();
+  const adapters = adaptersForScope(getAgentAdapters(), normalizedRequest.scope);
   const resolved = resolveSelections({
     request: normalizedRequest,
     adapters,
@@ -193,13 +208,46 @@ export async function installPlanUseCase(
     return fail(resolved.errors, {nextActions: [listSkillsAction()]});
   }
 
+  try {
+    if (normalizedRequest.scope?.kind === "project") {
+      for (const agent of resolved.agents) {
+        agent.targetPath = path.resolve(normalizedRequest.scope.rootPath, agent.targetPath);
+        await assertProjectTarget(normalizedRequest.scope, path.join(agent.targetPath, "__target__"));
+        if (context.config) await assertProjectRootAllowed({kind: "project", rootPath: agent.targetPath}, context.config, environment.homeDir);
+      }
+    }
+  } catch (error) {
+    return failWith(createMachineError("INVALID_REQUEST", String(error), {field: "agentTargetPaths"}));
+  }
+
   const built = await buildInstallLinkPlan({
     agents: resolved.agents,
     adapters,
     skills: ready.discovery.skills,
-    manifest: context.manifest,
+    manifest: {...context.manifest, links: Object.fromEntries(Object.entries(context.manifest.links).filter(([, entry]) => sameScope(entry.scope, normalizedRequest.scope)))},
     homeDir: environment.homeDir
   });
+  try {
+    const targetOwners = await inspectTargetOwners(context.manifest, environment.homeDir);
+    for (const operation of built.linkPlan.operations) {
+      await assertTargetOwnership(targetOwners, {...operation, ...(normalizedRequest.scope === undefined ? {} : {scope: normalizedRequest.scope})}, environment.homeDir);
+      const owner = context.manifest.links[operation.targetPath];
+      if (owner !== undefined && (!sameScope(owner.scope, normalizedRequest.scope) || owner.agentId !== operation.agentId || owner.skillId !== operation.skillId)) throw new Error(`Target belongs to another profile: ${operation.targetPath}`);
+      if (normalizedRequest.scope?.kind === 'project') {
+        await assertProjectTarget(normalizedRequest.scope, operation.targetPath);
+        if (context.config) await assertProjectRootAllowed({kind: 'project', rootPath: operation.targetPath}, context.config, environment.homeDir);
+      }
+    }
+  } catch (error) {return failWith(createMachineError('SAFETY_POLICY_BLOCKED', String(error)));}
+  if (normalizedRequest.scope?.kind === "project") {
+    built.linkPlan.operations = built.linkPlan.operations.map((operation) => ({...operation, scope: normalizedRequest.scope!}));
+    for (const agent of resolved.agents) {
+      const global = context.fullConfig?.agents?.[agent.adapter.id];
+      if (global?.enabled && agent.effectiveSelectedSkillIds.some((id) => global.selectedSkillIds.includes(id))) {
+        built.linkPlan.warnings.push({severity: "warning", code: "also-enabled-globally", agentId: agent.adapter.id, message: "Some selected skills are also enabled globally; agent discovery rules determine precedence."});
+      }
+    }
+  }
   const summary = summarize({
     linkPlan: built.linkPlan,
     configChangeCount: built.configChanges.length,
@@ -211,6 +259,7 @@ export async function installPlanUseCase(
   });
   const payload: InstallPlanPayload = installPlanPayloadSchema.parse({
     request: normalizedRequest,
+    ...(identity === undefined ? {} : {projectIdentity: identity}),
     targetAgents: resolved.agents.map((agent) => agent.adapter.id),
     rootSelections: resolved.agents.map((agent) => ({
       agentId: agent.adapter.id,
@@ -404,6 +453,9 @@ export async function installApplyUseCase(
 
   const payload = loadedPlan.payload;
   const context = await loadContext(environment);
+  const scopeError = await preparePayloadScope(payload, context, environment);
+  if (scopeError !== undefined) return failWith(scopeError);
+  if (!context.manifestValid) return failWith(createMachineError("SAFETY_POLICY_BLOCKED", "Invalid ownership manifest; repair it manually before planning or applying."));
   const ready = requireReadySkillpack(context);
 
   if (isPrecondition(ready)) {
@@ -471,6 +523,7 @@ export async function installApplyUseCase(
 
   const applyResult = await applyLinkPlan({
     plan: {operations: payload.operations, conflicts: [], warnings: []} satisfies LinkPlan,
+    ...(payload.projectIdentity === undefined ? {} : {expectedProjectIdentity: payload.projectIdentity}),
     skillpackCheckoutPath: payload.skillpackCheckoutPath,
     ...(payload.skillpackCheckoutPaths === undefined ? {} : {skillpackCheckoutPaths: payload.skillpackCheckoutPaths}),
     homeDir: environment.homeDir,
@@ -493,7 +546,7 @@ export async function installApplyUseCase(
   const linkedSkillIdsByAgent = collectLinkedSkills(payload, operations);
   const configChanged = await persistSelections({
     environment,
-    config: context.config,
+    config: context.fullConfig ?? context.config,
     payload,
     linkedSkillIdsByAgent
   });
@@ -601,6 +654,8 @@ export async function installVerifyUseCase(
 
   const payload = loaded.plan.payload;
   const context = await loadContext(environment);
+  const scopeError = await preparePayloadScope(payload, context, environment);
+  if (scopeError !== undefined) return failWith(scopeError);
   const checks: InstallVerifyCheck[] = [];
   let blocked = false;
   let drift = false;
@@ -689,7 +744,7 @@ export async function installVerifyUseCase(
     const actualBundles = uniqueSorted(agentConfig?.selectedBundleIds ?? []);
     const expectedBundles = uniqueSorted(rootSelection.selectedBundleIds);
     const satisfied =
-      agentConfig?.enabled === true &&
+      agentConfig?.enabled === (payload.request.enabled ?? true) &&
       sameIds(actualSkills, expectedSkills) &&
       sameIds(actualBundles, expectedBundles);
 
@@ -710,7 +765,7 @@ export async function installVerifyUseCase(
 
   for (const selection of payload.selections) {
     const manifestEntry = Object.values(context.manifest.links).find(
-      (entry) => entry.agentId === selection.agentId && entry.skillId === selection.skillId
+      (entry) => sameScope(entry.scope, payload.request.scope) && entry.agentId === selection.agentId && entry.skillId === selection.skillId
     );
     const inspection = manifestEntry === undefined ? undefined : await inspectLinkTarget(manifestEntry.targetPath);
     const satisfied =
@@ -750,7 +805,7 @@ export async function installVerifyUseCase(
     const effectiveIds = new Set(effectiveSkills.map((selection) => selection.skillId));
     const managedSkillIds = uniqueSorted(
       Object.values(context.manifest.links)
-        .filter((entry) => entry.agentId === rootSelection.agentId)
+        .filter((entry) => sameScope(entry.scope, payload.request.scope) && entry.agentId === rootSelection.agentId)
         .map((entry) => entry.skillId)
     );
     const staleManagedSkillIds = managedSkillIds.filter((skillId) => !effectiveIds.has(skillId));
@@ -895,6 +950,7 @@ async function evaluatePlanSatisfaction(
         inspection.kind === 'link' &&
         !inspection.broken &&
         manifestEntry !== undefined &&
+        sameScope(manifestEntry.scope, payload.request.scope) &&
         manifestEntry.agentId === operation.agentId &&
         manifestEntry.skillId === operation.skillId &&
         manifestEntry.sourcePath === resolveUserPath(operation.sourcePath, environment.homeDir) &&
@@ -968,7 +1024,7 @@ const blockedCodes = new Set([
   'target-is-not-link',
   'link-target-mismatch'
 ]);
-const failedCodes = new Set(['missing-source', 'source-outside-skillpack']);
+const failedCodes = new Set(['missing-source', 'source-outside-skillpack', 'unsafe-project-target']);
 
 function operationStatusFor(action: ApplyActionResult): InstallOperationStatus {
   if (action.status === 'applied') {
@@ -1026,7 +1082,7 @@ async function persistSelections(options: {
     return false;
   }
 
-  const agents: Record<string, AgentConfig> = {...(options.config.agents ?? {})};
+  const agents: Record<string, AgentConfig> = {...profileAgents(options.config, options.payload.request.scope)};
   let changed = false;
 
   for (const configChange of options.payload.configChanges) {
@@ -1060,7 +1116,7 @@ async function persistSelections(options: {
   }
 
   await saveConfig(
-    {...options.config, updatedAt: options.environment.now().toISOString(), agents},
+    {...withProfileAgents(options.config, options.payload.request.scope, agents), updatedAt: options.environment.now().toISOString()},
     {configPath: options.environment.configPath}
   );
 
@@ -1068,7 +1124,7 @@ async function persistSelections(options: {
 }
 
 function agentInputsFromPayload(payload: InstallPlanPayload, context: ReportContext): AgentPlanInput[] {
-  const adapters = new Map(getAgentAdapters().map((adapter) => [adapter.id, adapter]));
+  const adapters = new Map(adaptersForScope(getAgentAdapters(), payload.request.scope).map((adapter) => [adapter.id, adapter]));
 
   return payload.rootSelections.flatMap((rootSelection): AgentPlanInput[] => {
     const adapter = adapters.get(rootSelection.agentId);
@@ -1079,6 +1135,7 @@ function agentInputsFromPayload(payload: InstallPlanPayload, context: ReportCont
 
     const configChange = payload.configChanges.find((change) => change.agentId === rootSelection.agentId);
     const agentConfig: AgentConfig | undefined = context.config?.agents?.[rootSelection.agentId];
+    const previousTargetPath = configChange === undefined ? agentConfig?.targetPath : configChange.targetPathFrom;
 
     return [
       {
@@ -1096,7 +1153,8 @@ function agentInputsFromPayload(payload: InstallPlanPayload, context: ReportCont
             .map((operation) => operation.skillId)
         ),
         previousEnabled: configChange?.enabledFrom ?? agentConfig?.enabled ?? false,
-        ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
+        nextEnabled: configChange?.enabledTo ?? agentConfig?.enabled ?? true,
+        ...(previousTargetPath === undefined ? {} : {previousTargetPath}),
         nextSelectedSkillIds: uniqueSorted(rootSelection.selectedSkillIds),
         nextSelectedBundleIds: uniqueSorted(rootSelection.selectedBundleIds),
         effectiveSelectedSkillIds: uniqueSorted(
@@ -1157,13 +1215,14 @@ function fingerprintFor(options: {
   );
 
   return computeStateFingerprint({
+    scope: options.context.scope ?? {kind: "user"},
     config: {skillpacks: options.context.config?.skillpacks ?? null},
     manifest: Object.fromEntries(
       Object.entries(options.context.manifest.links)
         .filter(([targetPath]) => !planTargetPaths.has(targetPath))
         .map(([targetPath, entry]): [string, unknown] => [
           targetPath,
-          {agentId: entry.agentId, skillId: entry.skillId, sourcePath: entry.sourcePath, linkType: entry.linkType}
+          {scope: entry.scope ?? {kind: "user"}, agentId: entry.agentId, skillId: entry.skillId, sourcePath: entry.sourcePath, linkType: entry.linkType}
         ])
         .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     ),
@@ -1204,23 +1263,29 @@ function fingerprintRootSelections(
       const actualSkills = uniqueSorted(current?.selectedSkillIds ?? []);
       const actualBundles = uniqueSorted(current?.selectedBundleIds ?? []);
       const before = {
+        enabled: agent.previousEnabled,
+        targetPath: agent.previousTargetPath ?? null,
         selectedSkillIds: uniqueSorted(agent.previousSelectedSkillIds),
         selectedBundleIds: uniqueSorted(agent.previousSelectedBundleIds)
       };
       const after = {
+        enabled: agent.nextEnabled ?? true,
+        targetPath: agent.targetPath,
         selectedSkillIds: uniqueSorted(agent.nextSelectedSkillIds),
         selectedBundleIds: uniqueSorted(agent.nextSelectedBundleIds)
       };
       const recognized =
-        (sameIds(actualSkills, before.selectedSkillIds) && sameIds(actualBundles, before.selectedBundleIds)) ||
-        (sameIds(actualSkills, after.selectedSkillIds) && sameIds(actualBundles, after.selectedBundleIds));
+        ((sameIds(actualSkills, before.selectedSkillIds) && sameIds(actualBundles, before.selectedBundleIds)) ||
+          (sameIds(actualSkills, after.selectedSkillIds) && sameIds(actualBundles, after.selectedBundleIds))) &&
+        [before.enabled, after.enabled].includes(current?.enabled ?? false) &&
+        [before.targetPath, after.targetPath].includes(current?.targetPath ?? null);
 
       return {
         agentId: agent.adapter.id,
         before,
         after,
         state: recognized ? 'recognized' : 'drift',
-        ...(recognized ? {} : {actual: {selectedSkillIds: actualSkills, selectedBundleIds: actualBundles}})
+        ...(recognized ? {} : {actual: {enabled: current?.enabled ?? false, targetPath: current?.targetPath ?? null, selectedSkillIds: actualSkills, selectedBundleIds: actualBundles}})
       };
     });
 }
@@ -1339,4 +1404,37 @@ function formatRequestError(error: unknown): string {
 
 export function planPathFor(plansDir: string, planId: string): string {
   return path.join(plansDir, `${planId}.json`);
+}
+
+function scopeInstallContext(context: ReportContext, scope?: ProfileScope): void {
+  if (context.config !== undefined) {
+    context.fullConfig = context.config;
+    context.config = configForScope(context.config, scope);
+  }
+  context.scope = scope ?? {kind: 'user'};
+}
+
+async function preparePayloadScope(payload: InstallPlanPayload, context: ReportContext, environment: ApplicationEnvironment): Promise<MachineError | undefined> {
+  const scope = payload.request.scope;
+  try {
+    scopeInstallContext(context, scope);
+    if (scope?.kind === 'project') {
+      if (await projectIdentity(scope) !== payload.projectIdentity) throw new Error('Project root changed since preview.');
+      if (context.config !== undefined) await assertProjectRootAllowed(scope, context.config, environment.homeDir);
+      for (const operation of payload.operations) {
+        if (!sameScope(scope, operation.scope)) throw new Error('Operation scope differs from plan scope.');
+        await assertProjectTarget(scope, operation.targetPath);
+        if (context.config) await assertProjectRootAllowed({kind: "project", rootPath: operation.targetPath}, context.config, environment.homeDir);
+        const owner = context.manifest.links[operation.targetPath];
+        if (owner !== undefined && (!sameScope(owner.scope, scope) || owner.agentId !== operation.agentId || owner.skillId !== operation.skillId)) throw new Error('Target belongs to another profile.');
+      }
+      for (const agent of agentInputsFromPayload(payload, context)) {
+        await assertProjectTarget(scope, path.join(agent.targetPath, '__target__'));
+        if (context.config) await assertProjectRootAllowed({kind: 'project', rootPath: agent.targetPath}, context.config, environment.homeDir);
+      }
+    }
+  } catch (error) {
+    return createMachineError('STALE_PLAN', String(error));
+  }
+  return undefined;
 }

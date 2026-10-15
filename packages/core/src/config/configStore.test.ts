@@ -30,7 +30,8 @@ describe('config store', () => {
     expect(result.managerStateDir).toBe(defaultManagerStateDir(tempHome));
     expect(result.configPath).toBe(defaultConfigPath(tempHome));
     expect(result.config).toEqual({
-      version: 3,
+      version: 4,
+      projects: {},
       managerStateDir: defaultManagerStateDir(tempHome),
       createdAt: '2026-01-02T03:04:05.000Z',
       updatedAt: '2026-01-02T03:04:05.000Z',
@@ -58,7 +59,7 @@ describe('config store', () => {
     const loadedConfig = await loadConfig(configPath);
 
     expect(loadedConfig).toEqual(config);
-    expect(JSON.parse(await fs.readFile(configPath, 'utf8')).version).toBe(3);
+    expect(JSON.parse(await fs.readFile(configPath, 'utf8')).version).toBe(4);
   });
 
   it('normalizes v2 configs so the protected default remains beside secondary skillpacks', () => {
@@ -85,7 +86,7 @@ describe('config store', () => {
       branch: defaultSkillpackBranch,
       checkoutPath: defaultSkillpackCheckoutPath(defaultSkillpackId, tempHome)
     });
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
   });
 
   it('migrates the legacy default skillpack checkout out of manager state', async () => {
@@ -242,7 +243,7 @@ describe('config store', () => {
     ).toThrow(ZodError);
   });
 
-  it('loads a legacy config through in-memory v3 migration without changing its bytes', async () => {
+  it('loads a legacy config through in-memory v4 migration without changing its bytes', async () => {
     const managerStateDir = defaultManagerStateDir(tempHome);
     const configPath = defaultConfigPath(tempHome);
     const persisted = `${JSON.stringify({
@@ -264,7 +265,7 @@ describe('config store', () => {
     const config = await loadConfig(configPath);
 
     expect(config).toMatchObject({
-      version: 3,
+      version: 4,
       agents: {
         codex: {
           selectedSkillIds: [`${defaultSkillpackId}:review`],

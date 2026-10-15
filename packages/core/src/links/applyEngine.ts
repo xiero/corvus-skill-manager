@@ -1,5 +1,7 @@
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
+import {assertTargetOwnership, inspectTargetOwners} from './targetOwnership.js';
+import {assertProjectTarget, projectIdentity, sameScope, type ProfileScope} from '../profiles/profileScope.js';
 import {type AgentId} from '../agents/AgentAdapter.js';
 import {isPathInside, resolveUserPath} from '../paths.js';
 import {
@@ -33,6 +35,7 @@ export interface ApplyLinkPlanResult {
 
 export interface ApplyLinkPlanOptions extends ManifestStoreOptions {
   plan: LinkPlan;
+  expectedProjectIdentity?: string;
   skillpackCheckoutPath: string;
   skillpackCheckoutPaths?: string[];
   dryRun?: boolean;
@@ -43,6 +46,7 @@ export async function applyLinkPlan(options: ApplyLinkPlanOptions): Promise<Appl
   const dryRun = options.dryRun ?? false;
   const loadedManifest = await loadManifestOrDefault(options);
   const manifest = cloneManifest(loadedManifest.manifest);
+  let targetOwners = await inspectTargetOwners(manifest, options.homeDir);
   const skillpackCheckoutPaths = [...new Set([
     options.skillpackCheckoutPath,
     ...(options.skillpackCheckoutPaths ?? [])
@@ -52,6 +56,28 @@ export async function applyLinkPlan(options: ApplyLinkPlanOptions): Promise<Appl
   const planned: ApplyActionResult[] = [];
 
   for (const operation of options.plan.operations) {
+    if (operation.scope?.kind === 'project') {
+      try {
+        if (options.expectedProjectIdentity !== undefined && await projectIdentity(operation.scope) !== options.expectedProjectIdentity) {
+          throw new Error('Project root changed before applying link operations.');
+        }
+        await assertProjectTarget(operation.scope, operation.targetPath);
+      } catch (error) {
+        skipped.push({operation, status: 'skipped', code: 'unsafe-project-target', message: String(error)});
+        continue;
+      }
+    }
+    try {
+      await assertTargetOwnership(targetOwners, operation, options.homeDir);
+    } catch (error) {
+      skipped.push({operation, status: 'skipped', code: 'manifest-mismatch', message: String(error)});
+      continue;
+    }
+    const owner = manifest.links[resolveUserPath(operation.targetPath, options.homeDir)];
+    if (owner !== undefined && (!sameScope(owner.scope, operation.scope) || owner.agentId !== operation.agentId || owner.skillId !== operation.skillId)) {
+      skipped.push({operation, status: "skipped", code: "manifest-mismatch", message: 'Target belongs to another profile or agent.'});
+      continue;
+    }
     const nowOption = options.now === undefined ? {} : {now: options.now};
     const result = operation.type === 'create-link' ?
       await planOrApplyCreate(operation, {
@@ -69,6 +95,7 @@ export async function applyLinkPlan(options: ApplyLinkPlanOptions): Promise<Appl
 
     if (result.status === 'applied') {
       applied.push(result);
+      targetOwners = await inspectTargetOwners(manifest, options.homeDir);
     } else if (result.status === 'planned') {
       planned.push(result);
     } else {
@@ -122,6 +149,7 @@ async function planOrApplyCreate(
     const linkType = await createManagedLink({sourcePath, targetPath});
     const nowOption = options.now === undefined ? {} : {now: options.now};
     upsertManifestEntry(options.manifest, {
+      ...(operation.scope === undefined ? {} : {scope: operation.scope}),
       agentId: operation.agentId,
       skillId: operation.skillId,
       sourcePath,
@@ -165,6 +193,7 @@ async function planOrApplyCreate(
     const linkType = await createManagedLink({sourcePath, targetPath});
     const nowOption = options.now === undefined ? {} : {now: options.now};
     upsertManifestEntry(options.manifest, {
+      ...(operation.scope === undefined ? {} : {scope: operation.scope}),
       agentId: operation.agentId,
       skillId: operation.skillId,
       sourcePath,
@@ -293,6 +322,7 @@ async function inspectTarget(targetPath: string): Promise<
 function upsertManifestEntry(
   manifest: ManagerManifest,
   options: {
+    scope?: ProfileScope;
     agentId: AgentId;
     skillId: string;
     targetPath: string;
@@ -306,6 +336,7 @@ function upsertManifestEntry(
   const separator = options.skillId.indexOf(':');
 
   manifest.links[options.targetPath] = {
+    ...(options.scope === undefined ? {} : {scope: options.scope}),
     agentId: options.agentId,
     ...(separator <= 0 ? {} : {skillpackId: options.skillId.slice(0, separator)}),
     skillId: options.skillId,

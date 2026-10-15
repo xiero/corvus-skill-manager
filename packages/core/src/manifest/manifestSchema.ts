@@ -1,10 +1,12 @@
 import {z} from 'zod';
+import {profileScopeSchema} from '../profiles/profileScope.js';
 import {agentIdSchema} from '../config/configSchema.js';
 
 export const managedLinkTypeSchema = z.enum(['symlink', 'junction']);
 
 export const managedLinkManifestEntrySchema = z
   .object({
+    scope: profileScopeSchema.optional(),
     agentId: agentIdSchema,
     skillpackId: z.string().min(1).optional(),
     skillId: z.string().min(1),

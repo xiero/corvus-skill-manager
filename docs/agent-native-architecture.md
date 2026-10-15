@@ -41,7 +41,7 @@ support and conflicts only after this full expansion, so bundles are atomic at p
 recommendations from any effective skill are reported but never selected automatically.
 
 Install request v2 transports explicit skill and bundle roots and keeps request v1 readable with
-legacy bundle-preservation semantics. Persisted plan schema v3 records final roots separately
+legacy bundle-preservation semantics. Persisted plan schema v4 records final roots separately
 from effective provenance and link operations. Apply writes Config v3 roots only after exact
 confirmation; the unchanged manifest records link ownership only. Verification reconstructs an
 explainable root/effective/managed view and never repairs drift.
@@ -204,3 +204,16 @@ codes. Corvus never auto-regenerates and silently applies a plan.
 `install verify` is strictly read-only and never repairs. It reports an objective status
 (`verified`, `verified-no-op`, `partially-applied`, `drift-detected`, `blocked`) plus
 actionable next steps, so a calling agent can conclude a workflow without parsing TUI output.
+
+## Project scope
+
+The shared application layer supports global and local project profiles. Install requests
+accept `scope: {kind: "project", rootPath: "/absolute/project"}` (or omitted/user scope).
+Status, Doctor and agent listing accept scope too. Projects use shared skillpack revisions
+with independent agent/skill/bundle roots. Profile metadata remains in the manager state
+folder; confirmed project-contained links are the only project writes.
+
+`projects list` is read-only. `projects remove-plan` persists a reviewed removal artifact;
+`projects remove-apply` requires its exact confirmation token. Plan format v4 records scope
+and project identity, rejects old plans with a regeneration hint and protects other profiles'
+links. See [project profiles](project-profiles.md) for request examples and migration details.

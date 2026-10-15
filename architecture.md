@@ -86,7 +86,7 @@ The required local layout is:
 
 Initial clone is allowed only when the active `current` path does not exist. Existing active checkouts and existing revisions are inspected and reported; they are not repaired, updated, formatted, reset, re-cloned over, committed, pulled, or pushed.
 
-Manager Config v3 retains the ID-keyed collection of skillpacks introduced in v2.
+Manager Config v4 retains the ID-keyed collection of skillpacks introduced in v2.
 `corvus-skillpack` remains the protected default and additional packs use the same independent
 revision layout. Skills retain their
 repository-local ID for the target directory and gain a qualified
@@ -110,7 +110,7 @@ The public authoring contract is [`docs/skillpack-contract.md`](docs/skillpack-c
   remains the exact physical reproducibility lock. Corvus is not a multi-version resolver.
 - Bundles contain only skills from their declaring skillpack. Nested bundles, cross-skillpack
   members, and bundle-owned workflow execution are outside Registry v3.
-- Manager Config v3 persists **root selections** (explicit skills and bundles) separately. The
+- Manager Config v4 persists **root selections** (explicit skills and bundles) separately. The
   **effective selection** is derived from those roots, bundle members, and transitive hard
   dependencies; it is not persisted in config or manifest. Existing Config v1/v2 skill
   selections migrate conservatively as explicit skill roots.
@@ -150,7 +150,7 @@ The public authoring contract is [`docs/skillpack-contract.md`](docs/skillpack-c
   until discovery finishes. Setup/update activation refreshes discovery even when `current`
   retains the same configured path.
 - Install request v2 accepts explicit skill and bundle roots while preserving v1 skill-only
-  reads. Persisted plan schema v3 shows final roots, effective provenance, and link operations
+  reads. Persisted plan schema v4 shows final roots, effective provenance, and link operations
   independently; replacement recomputes the effective set instead of maintaining refcounts.
 - Stale-plan fingerprints cover selected bundle definitions, relevant versioned skill metadata,
   and recognized before/after root state. Confirmed apply persists Config v3 roots while the
@@ -214,3 +214,13 @@ to assert that read-only commands write nothing. Shared deterministic fixtures c
 v1/v2/v3, overlapping bundles, transitive dependencies, recommendations, conflicts, and
 duplicate local IDs across skillpacks. Platform-decision tests exercise POSIX directory
 symlinks and injected Windows junction behavior without requiring both operating systems in CI.
+
+## Local project profiles
+
+Config v4 stores independent project agent roots under canonical project paths alongside
+global `agents`. `ProfileScope` identifies user or project operations. The application layer
+owns canonicalization, containment checks, scoped planning/reporting, and confirmed removal;
+TUI and CLI call the same project use cases. Ownership manifests tag project links, and plan
+format v4 binds scope plus project filesystem identity to confirmation. Older configs are
+normalized without read-time writes; old plan formats require regeneration. Skillpack
+revisions remain shared across profiles. See [project profiles](docs/project-profiles.md).

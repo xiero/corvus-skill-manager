@@ -282,3 +282,14 @@ repository. It reports this as a `remote-head-unreadable` warning and omits
 `data.plan.expectedCommitHash`; the failure would otherwise only surface at `setup-apply`
 (exit 6). If you see that warning, confirm the repository and branch with the user before
 applying.
+
+## Project profiles
+
+Use `--project /path/to/project` with `install plan`, `status`, `doctor` or `agents list`.
+With an install request document, set `scope: {"kind":"project","rootPath":"/path/to/project"}`
+in the document instead. Omitted scope remains global. Apply and verify use the scope stored
+in the plan. `projects list` lists local profiles; `projects remove-plan --project <path>` and
+`projects remove-apply --plan-id <id> --confirm <id>` remove only a reviewed profile and its
+owned links. All commands support `--json`.
+
+See [project profiles](project-profiles.md) for the TUI flow, storage and compatibility details.

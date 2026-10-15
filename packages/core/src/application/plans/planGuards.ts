@@ -133,6 +133,7 @@ function regeneratePlanAction(regenerateCommand: string) {
 }
 
 function applyCommandFor(kind: PlanKind): string {
+  if (kind === "project-remove") return "projects remove-apply";
   if (kind === 'install') {
     return 'install apply';
   }

@@ -511,7 +511,7 @@ describe('install plan', () => {
     const apply = await app.installApply({planId: plan.data.planId, confirm: plan.data.planId});
     expect(apply.ok).toBe(true);
     const config = await loadConfig(home.configPath);
-    expect(config.version).toBe(3);
+    expect(config.version).toBe(4);
     expect(config.agents?.codex).toMatchObject({
       selectedSkillIds: [],
       selectedBundleIds: ['corvus-skillpack:default']
@@ -985,7 +985,7 @@ describe('install apply', () => {
       agents?: Record<string, {enabled: boolean; selectedSkillIds: string[]; selectedBundleIds: string[]}>;
     };
 
-    expect(config.version).toBe(3);
+    expect(config.version).toBe(4);
     expect(config.agents?.codex).toMatchObject({
       enabled: true,
       selectedSkillIds: ['corvus-skillpack:git-commit'],

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type {ProfileScope} from '../profiles/profileScope.js';
 import type {AgentAdapter, AgentId} from '../agents/AgentAdapter.js';
 import {resolveUserPath} from '../paths.js';
 
@@ -27,6 +28,7 @@ export interface TargetState {
 
 export interface LinkCreateOperation {
   type: 'create-link';
+  scope?: ProfileScope | undefined;
   agentId: AgentId;
   skillId: string;
   sourcePath: string;
@@ -35,6 +37,7 @@ export interface LinkCreateOperation {
 
 export interface LinkRemoveOperation {
   type: 'remove-link';
+  scope?: ProfileScope | undefined;
   agentId: AgentId;
   skillId: string;
   targetPath: string;

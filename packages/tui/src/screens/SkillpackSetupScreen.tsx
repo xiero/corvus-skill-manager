@@ -66,6 +66,7 @@ interface SetupPreviewState {
 }
 
 interface UpdatePreviewState {
+  affectedProjects?: string[];
   planId?: string;
   status: string;
   message: string;
@@ -412,6 +413,7 @@ export function SkillpackSetupScreen({
       removedSkillIds: result.data.plan?.removedSkillIds ?? [],
       skillDeltas: result.data.plan?.skillDeltas ?? [],
       bundleDeltas: result.data.plan?.bundleDeltas ?? [],
+      affectedProjects: result.data.plan?.affectedProjects ?? [],
       affectedBundles: result.data.plan?.affectedBundles ?? []
     });
     setMode('update-preview');
@@ -725,6 +727,7 @@ function UpdatePreview({preview}: {preview: UpdatePreviewState}): React.ReactEle
       <SemanticUpdateSummaryView
         skillDeltas={preview.skillDeltas}
         bundleDeltas={preview.bundleDeltas}
+        affectedProjects={preview.affectedProjects ?? []}
         affectedBundles={preview.affectedBundles}
       />
       {preview.planId === undefined ? <Text dimColor>No activation is required.</Text> : null}
@@ -794,7 +797,7 @@ function configWithSkillpack(config: ManagerConfig, candidate: SkillpackConfig):
   const primary = skillpacks[defaultSkillpackId] ?? protectedDefaultSkillpack();
   return {
     ...config,
-    version: 3,
+    version: 4,
     skillpack: primary,
     skillpacks,
     updatedAt: new Date().toISOString()
@@ -807,7 +810,7 @@ function configWithoutSkillpack(config: ManagerConfig, skillpackId: string): Man
   const primary = skillpacks[defaultSkillpackId] ?? protectedDefaultSkillpack();
   return {
     ...config,
-    version: 3,
+    version: 4,
     skillpack: primary,
     skillpacks,
     updatedAt: new Date().toISOString()

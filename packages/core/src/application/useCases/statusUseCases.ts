@@ -1,3 +1,4 @@
+import type {ProfileScope} from '../../profiles/profileScope.js';
 import type {AgentAdapter, AgentId, AgentSupportStatus} from '../../agents/AgentAdapter.js';
 import type {DoctorIssue, DoctorReport, StatusReport} from '../../reports/reportTypes.js';
 import {buildDoctorReport} from '../../reports/doctorReport.js';
@@ -27,6 +28,7 @@ export interface AgentListEntry {
   effectiveTargetPath?: string;
   enabled: boolean;
   selectedSkillIds: string[];
+  selectedBundleIds?: string[];
   notes: string[];
   warnings: string[];
 }
@@ -45,6 +47,7 @@ export interface SkillpackStatusData {
 }
 
 export interface StatusUseCaseOptions {
+  scope?: ProfileScope;
   checkRemote?: boolean;
   skillpackId?: string;
 }
@@ -73,6 +76,7 @@ export async function doctorUseCase(
     managerStateDir: environment.managerStateDir,
     configPath: environment.configPath,
     git: environment.git,
+    scope: options.scope ?? {kind: "user"},
     ...(options.checkRemote === undefined ? {} : {checkRemote: options.checkRemote})
   });
 
@@ -88,9 +92,10 @@ export async function doctorUseCase(
 }
 
 export async function agentsListUseCase(
-  environment: ApplicationEnvironment
+  environment: ApplicationEnvironment,
+  options: StatusUseCaseOptions = {}
 ): Promise<UseCaseResult<AgentListData>> {
-  const context = await loadContext(environment);
+  const context = await loadContext(environment, contextOptions(options));
   const agents = context.adapters.map((adapter) => toAgentListEntry(adapter, context));
 
   return succeed(
@@ -137,8 +142,8 @@ export async function skillpackStatusUseCase(
   );
 }
 
-function contextOptions(options: StatusUseCaseOptions): {checkRemote?: boolean} {
-  return options.checkRemote === undefined ? {} : {checkRemote: options.checkRemote};
+function contextOptions(options: StatusUseCaseOptions): {checkRemote?: boolean; scope: ProfileScope} {
+  return {scope: options.scope ?? {kind: "user"}, ...(options.checkRemote === undefined ? {} : {checkRemote: options.checkRemote})};
 }
 
 function toAgentListEntry(adapter: AgentAdapter, context: ReportContext): AgentListEntry {
@@ -155,6 +160,7 @@ function toAgentListEntry(adapter: AgentAdapter, context: ReportContext): AgentL
     ...(effectiveTargetPath === undefined ? {} : {effectiveTargetPath}),
     enabled: agentConfig?.enabled ?? false,
     selectedSkillIds: [...(agentConfig?.selectedSkillIds ?? [])].sort((left, right) => left.localeCompare(right)),
+    selectedBundleIds: [...(agentConfig?.selectedBundleIds ?? [])].sort(),
     notes: [...(adapter.notes ?? [])],
     warnings: [...(adapter.warnings ?? [])]
   };

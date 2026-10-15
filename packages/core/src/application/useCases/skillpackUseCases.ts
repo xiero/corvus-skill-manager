@@ -1,3 +1,4 @@
+import type {ReportContext} from '../../reports/reportInternals.js';
 import path from 'node:path';
 import {
   type ManagerConfig,
@@ -412,10 +413,12 @@ export async function skillpackUpdatePreviewUseCase(
     skillDeltas: preview.skillDeltas,
     bundleDeltas: preview.bundleDeltas,
     affectedBundles: preview.affectedBundles,
+    affectedProjects: affectedProjects(context, skillpack.id),
     managerStateDir: context.config?.managerStateDir ?? environment.managerStateDir,
     stateFingerprint: computeStateFingerprint({
       active: {commitHash: preview.activeCommitHash, checkoutPath: preview.checkoutPath},
-      remote: {commitHash: preview.remoteCommitHash}
+      remote: {commitHash: preview.remoteCommitHash},
+      usage: skillpackUsage(context.config, context.manifest.links, skillpack.id, skillpack.checkoutPath)
     })
   });
 
@@ -483,7 +486,8 @@ export async function skillpackUpdateApplyUseCase(
     expected: payload.stateFingerprint,
     actual: computeStateFingerprint({
       active: {commitHash: inspection.activeCommitHash ?? null, checkoutPath: inspection.checkoutPath},
-      remote: {commitHash: inspection.remoteCommitHash ?? null}
+      remote: {commitHash: inspection.remoteCommitHash ?? null},
+      usage: skillpackUsage(context.config, context.manifest.links, skillpack.id, skillpack.checkoutPath)
     }),
     regenerateCommand: 'skillpack update-preview'
   });
@@ -622,7 +626,7 @@ export async function skillpackRemoveApplyUseCase(
   const skillpacks = {...context.config.skillpacks};
   delete skillpacks[payload.skillpackId];
   await saveConfig(
-    {...context.config, version: 3, skillpacks, updatedAt: environment.now().toISOString()},
+    {...context.config, version: 4, skillpacks, updatedAt: environment.now().toISOString()},
     {configPath: environment.configPath}
   );
 
@@ -640,7 +644,7 @@ function skillpackUsage(
 ): {selectedByAgents: string[]; managedTargets: string[]} {
   const prefix = `${skillpackId}:`;
   return {
-    selectedByAgents: Object.entries(config?.agents ?? {})
+    selectedByAgents: [...Object.entries(config?.agents ?? {}), ...Object.entries(config?.projects ?? {}).flatMap(([root, project]) => Object.entries(project.agents).map(([id, agent]) => [`${root}:${id}`, agent] as const))]
       .filter(([, agent]) =>
         [...agent.selectedSkillIds, ...agent.selectedBundleIds].some((ref) => ref.startsWith(prefix))
       )
@@ -756,11 +760,19 @@ async function persistSkillpackConfig(
   await saveConfig(
     {
       ...existingConfig,
-      version: 3,
+      version: 4,
       updatedAt: timestamp,
       skillpacks: {...existingConfig.skillpacks, [skillpack.id]: skillpack}
     },
     {configPath: environment.configPath}
   );
   return true;
+}
+
+function affectedProjects(context: ReportContext, skillpackId: string): string[] {
+  const prefix = `${skillpackId}:`;
+  return [...new Set([
+    ...Object.values(context.config?.projects ?? {}).filter((project) => Object.values(project.agents).some((agent) => [...agent.selectedSkillIds, ...agent.selectedBundleIds].some((ref) => ref.startsWith(prefix)))).map((project) => project.rootPath),
+    ...Object.values(context.manifest.links).filter((entry) => entry.scope?.kind === 'project' && entry.skillId.startsWith(prefix)).flatMap((entry) => entry.scope?.kind === 'project' ? [entry.scope.rootPath] : [])
+  ])].sort();
 }

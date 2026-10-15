@@ -15,11 +15,21 @@ runs a deterministic JSON command interface built for coding agents — see
 - Discovers skills from `registry.json`, or from `SKILL.md` files in read-only fallback mode when a registry is missing.
 - Reads Registry v1/v2 unchanged and supports Registry v3 canonical skill versions, versioned
   dependencies, and maintained bundles alongside the v2 semantic metadata used for intent search.
-- Lets you enable supported agents and select skills per agent.
+- Lets you enable supported agents and select skills or bundles globally or per project.
 - Generates a deterministic dry-run link plan.
 - Applies confirmed plans by creating/removing manager-owned symlinks or Windows junctions.
 - Shows read-only Status, Doctor, and Help views.
 - Exposes the same workflows to coding agents as a deterministic JSON CLI, with plan-then-apply confirmation.
+
+## Project Profiles
+
+Choose **Global / Project** on Home to select a saved project or enter an existing directory.
+Then use **Guided Flow** or **Configure Agents** to choose that project's agents, skills and
+bundles. Preview with `p` and approve with `a`; configuration is saved only after approval.
+Status and Doctor follow the selected profile. Skillpack versions remain shared.
+
+Project settings stay on your machine. See [project profiles](docs/project-profiles.md) for
+agent directories, machine commands, removal and compatibility details.
 
 ## What It Does Not Do
 
@@ -249,7 +259,7 @@ ranges are checked against the single version in the active snapshot; Corvus doe
 or choose among versions. SemVer communicates compatibility and upgrade meaning, while the
 skillpack Git commit remains the exact physical reproducibility lock.
 
-Config v3 stores only qualified **root selections**: skills chosen directly and bundles chosen
+Config v4 stores only qualified **root selections**: skills chosen directly and bundles chosen
 directly. The **effective selection** is derived deterministically from those roots, bundle
 members, and transitive hard dependencies. It is not persisted in config or the link-ownership
 manifest. Removing a bundle root therefore recomputes the effective set and retains a shared

@@ -683,3 +683,48 @@ describe('exit-code contract', () => {
     }
   });
 });
+
+describe('project profile commands', () => {
+  it('plans, applies, reports and removes a project with clean JSON and explicit approval', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const project = path.join(home.homeDir, 'company project');
+    await fs.mkdir(project);
+    const before = await fs.readFile(home.configPath, 'utf8');
+    const empty = await run(['projects', 'list', '--json'], {home});
+    expectCleanJsonOutput(empty);
+    expect(empty.json).toMatchObject({ok: true, data: {projects: []}});
+    expect(await fs.readFile(home.configPath, 'utf8')).toBe(before);
+    const planned = await run(['install', 'plan', '--project', project, '--agent', 'codex', '--bundle', 'documentation', '--json'], {home});
+    expectCleanJsonOutput(planned);
+    expect(planned.exitCode).toBe(0);
+    const planId = (planned.json as {data: {planId: string}}).data.planId;
+    expect(await listTree(project)).toEqual([]);
+    const rejected = await run(['install', 'apply', '--plan-id', planId, '--confirm', 'wrong', '--json'], {home});
+    expect(rejected.exitCode).not.toBe(0);
+    const applied = await run(['install', 'apply', '--plan-id', planId, '--confirm', planId, '--json'], {home});
+    expectCleanJsonOutput(applied); expect(applied.exitCode).toBe(0);
+    const status = await run(['status', '--project', project, '--json'], {home});
+    expect(status.json).toMatchObject({ok: true, data: {report: {scope: {kind: 'project', rootPath: project}, managedLinkCount: 1}}});
+    const global = await run(['status', '--json'], {home});
+    expect(global.json).toMatchObject({data: {report: {managedLinkCount: 0}}});
+    const agents = await run(['agents', 'list', '--project', project, '--json'], {home});
+    expect(agents.json).toMatchObject({ok: true, data: {agents: expect.arrayContaining([expect.objectContaining({id: 'codex', enabled: true})])}});
+    const removed = await run(['projects', 'remove-plan', '--project', project, '--json'], {home});
+    expect(removed.exitCode).toBe(0);
+    const removeId = (removed.json as {data: {planId: string}}).data.planId;
+    const removal = await run(['projects', 'remove-apply', '--plan-id', removeId, '--confirm', removeId, '--json'], {home});
+    expectCleanJsonOutput(removal); expect(removal.exitCode).toBe(0);
+    expect((await loadConfig(home.configPath)).projects?.[project]).toBeUndefined();
+  });
+
+  it('accepts project scope in a request and rejects ambiguous request/flag combinations', async () => {
+    const home = await newHome({skillpack: v3BundleSkillpackFixture});
+    const project = path.join(home.homeDir, 'project'); await fs.mkdir(project);
+    const stdin = JSON.stringify({schemaVersion: 2, scope: {kind: 'project', rootPath: project}, targetAgents: ['codex'], selectedSkills: []});
+    const result = await run(['install', 'plan', '--request', '-', '--json'], {home, stdin});
+    expect(result.exitCode).toBe(0);
+    const ambiguous = await run(['install', 'plan', '--request', '-', '--project', project, '--json'], {home, stdin});
+    expect(ambiguous.exitCode).toBe(2);
+    expect(await listTree(project)).toEqual([]);
+  });
+});

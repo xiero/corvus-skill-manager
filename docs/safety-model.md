@@ -84,3 +84,19 @@ Gemini CLI is supported through Agent Skills directory links. The default user-s
 ## Failure Handling
 
 The TUI includes a safe fallback screen for unexpected render/runtime failures. The fallback reports the error and does not attempt repair or apply actions.
+
+## Project profile boundaries
+
+Config v4 keeps all project metadata inside manager state. Project selections never rewrite
+global selections, and manifest scope prevents cross-profile adoption or deletion. Canonical
+project roots deduplicate aliases. Project targets reject directory traversal, redirected
+parents, unmanaged overwrites and writes into manager state or skillpack directories.
+
+Plan format v4 captures the project identity and scope. Apply rechecks identity, selections,
+manifest ownership and target containment; missing or replaced projects are not recreated.
+Project removal is separately planned and confirmed and leaves project content and other
+profiles intact. Read-only profile listing, selection validation, Status and Doctor do not
+create directories or write config. Shared skillpack update previews list affected projects;
+removal checks roots from all profiles, including disabled agents.
+
+See [project profiles](project-profiles.md) for defaults and agent discovery limitations.

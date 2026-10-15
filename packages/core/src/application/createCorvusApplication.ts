@@ -1,3 +1,7 @@
+import {failWith, type UseCaseResult} from './protocol/result.js';
+import {createMachineError} from './protocol/errors.js';
+import type {ProfileScope} from '../profiles/profileScope.js';
+import {listProjectsUseCase, resolveProjectUseCase, projectRemovePlanUseCase, projectRemoveApplyUseCase} from './useCases/projectUseCases.js';
 import type {CorvusApplication} from './CorvusApplication.js';
 import {type CorvusApplicationOptions, resolveApplicationEnvironment} from './ports.js';
 import {capabilitiesUseCase} from './useCases/capabilitiesUseCase.js';
@@ -42,10 +46,14 @@ export function createCorvusApplication(options: CorvusApplicationOptions = {}):
 
   return {
     environment,
+    listProjects: () => listProjectsUseCase(environment),
+    resolveProject: (options) => resolveProjectUseCase(environment, options),
+    projectRemovePlan: (options) => projectRemovePlanUseCase(environment, options),
+    projectRemoveApply: (options) => projectRemoveApplyUseCase(environment, options),
     capabilities: () => capabilitiesUseCase(environment),
-    status: (statusOptions) => statusUseCase(environment, statusOptions),
-    doctor: (statusOptions) => doctorUseCase(environment, statusOptions),
-    listAgents: () => agentsListUseCase(environment),
+    status: (statusOptions) => scopeRead(() => statusUseCase(environment, statusOptions), statusOptions?.scope),
+    doctor: (statusOptions) => scopeRead(() => doctorUseCase(environment, statusOptions), statusOptions?.scope),
+    listAgents: (options) => scopeRead(() => agentsListUseCase(environment, options), options?.scope),
     skillpackStatus: (statusOptions) => skillpackStatusUseCase(environment, statusOptions),
     skillpackSetupPlan: (planOptions) => skillpackSetupPlanUseCase(environment, planOptions),
     skillpackSetupApply: (applyOptions) => skillpackSetupApplyUseCase(environment, applyOptions),
@@ -67,4 +75,11 @@ export function createCorvusApplication(options: CorvusApplicationOptions = {}):
     installApply: (applyOptions) => installApplyUseCase(environment, applyOptions),
     installVerify: (verifyOptions) => installVerifyUseCase(environment, verifyOptions)
   };
+}
+
+async function scopeRead<T>(read: () => Promise<UseCaseResult<T>>, scope?: ProfileScope): Promise<UseCaseResult<T>> {
+  try {return await read();} catch (error) {
+    if (scope?.kind !== 'project') throw error;
+    return failWith(createMachineError('INVALID_REQUEST', String(error), {field: 'scope', path: scope.rootPath}));
+  }
 }

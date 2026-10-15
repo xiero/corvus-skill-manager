@@ -3,18 +3,21 @@ import type {AgentAdapter, AgentId} from './AgentAdapter.js';
 export const agentAdapters = [
   {
     id: 'codex',
+    projectTargetPath: '.agents/skills',
     displayName: 'OpenAI Codex CLI',
     supportStatus: 'supported',
     defaultTargetPath: '~/.agents/skills'
   },
   {
     id: 'claude',
+    projectTargetPath: '.claude/skills',
     displayName: 'Claude Code',
     supportStatus: 'supported',
     defaultTargetPath: '~/.claude/skills'
   },
   {
     id: 'copilot',
+    projectTargetPath: '.github/skills',
     displayName: 'GitHub Copilot CLI',
     supportStatus: 'supported',
     defaultTargetPath: '~/.copilot/skills',
@@ -22,6 +25,7 @@ export const agentAdapters = [
   },
   {
     id: 'opencode',
+    projectTargetPath: '.opencode/skills',
     displayName: 'OpenCode',
     supportStatus: 'supported',
     defaultTargetPath: '~/.config/opencode/skills',
@@ -29,6 +33,7 @@ export const agentAdapters = [
   },
   {
     id: 'pi',
+    projectTargetPath: '.pi/skills',
     displayName: 'Pi Agent',
     supportStatus: 'supported',
     defaultTargetPath: '~/.pi/agent/skills',
@@ -42,6 +47,7 @@ export const agentAdapters = [
   },
   {
     id: 'gemini',
+    projectTargetPath: '.gemini/skills',
     displayName: 'Gemini CLI',
     supportStatus: 'supported',
     defaultTargetPath: '~/.gemini/skills',

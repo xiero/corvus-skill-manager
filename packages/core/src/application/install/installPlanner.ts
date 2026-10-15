@@ -38,6 +38,7 @@ export interface AgentPlanInput {
   previousSelectedBundleIds: string[];
   previousEffectiveSkillIds: string[];
   previousEnabled: boolean;
+  nextEnabled?: boolean;
   previousTargetPath?: string;
   /** The final explicit/root skill selection persisted in Manager Config v3. */
   nextSelectedSkillIds: string[];
@@ -259,11 +260,12 @@ export function resolveSelections(options: {
         .filter((selection) => skillsById.has(selection.skillRef))
         .map((selection) => selection.skillRef),
       previousEnabled: agentConfig?.enabled ?? false,
+      nextEnabled: options.request.enabled ?? true,
       ...(agentConfig?.targetPath === undefined ? {} : {previousTargetPath: agentConfig.targetPath}),
       nextSelectedSkillIds,
       nextSelectedBundleIds,
-      effectiveSelectedSkillIds: uniqueSorted(effectiveSelectedSkillIds),
-      selections: resolution.selection.effectiveSkills.map(toResolvedSelection)
+      effectiveSelectedSkillIds: options.request.enabled === false ? [] : uniqueSorted(effectiveSelectedSkillIds),
+      selections: options.request.enabled === false ? [] : resolution.selection.effectiveSkills.map(toResolvedSelection)
     });
   }
 
@@ -444,6 +446,18 @@ export async function buildInstallLinkPlan(options: {
     targetStates
   });
 
+  const desiredTargets = new Set(options.agents.flatMap((agent) => agent.effectiveSelectedSkillIds.map((skillId) => path.join(resolveUserPath(agent.targetPath, options.homeDir), options.skills.find((skill) => (skill.ref ?? skill.id) === skillId)?.id ?? parseSkillReference(skillId)?.skillId ?? skillId))));
+  const targetedAgents = new Set(options.agents.map((agent) => agent.adapter.id));
+  for (const entry of Object.values(options.manifest.links)) {
+    if (!targetedAgents.has(entry.agentId) || desiredTargets.has(entry.targetPath) || linkPlan.operations.some((operation) => operation.targetPath === entry.targetPath)) continue;
+    const state = await inspectTargetState(entry.targetPath, options.manifest);
+    if (state.exists && !state.managed) {
+      linkPlan.conflicts.push({severity: 'conflict', code: 'unmanaged-target-exists', agentId: entry.agentId, skillId: entry.skillId, path: entry.targetPath, message: `Owned target was replaced: ${entry.targetPath}`});
+    } else {
+      linkPlan.operations.push({type: 'remove-link', agentId: entry.agentId, skillId: entry.skillId, targetPath: entry.targetPath});
+    }
+  }
+
   return {
     linkPlan,
     targetStates,
@@ -452,7 +466,7 @@ export async function buildInstallLinkPlan(options: {
       .map((agent): AgentConfigChange => ({
         agentId: agent.adapter.id,
         enabledFrom: agent.previousEnabled,
-        enabledTo: true,
+        enabledTo: agent.nextEnabled ?? true,
         ...(agent.previousTargetPath === undefined ? {} : {targetPathFrom: agent.previousTargetPath}),
         targetPathTo: agent.targetPath,
         selectedSkillIdsFrom: agent.previousSelectedSkillIds,
@@ -478,7 +492,7 @@ export async function buildInstallLinkPlan(options: {
 
 function hasConfigChange(agent: AgentPlanInput): boolean {
   return (
-    !agent.previousEnabled ||
+    agent.previousEnabled !== (agent.nextEnabled ?? true) ||
     agent.previousTargetPath !== agent.targetPath ||
     !sameStringList(agent.previousSelectedSkillIds, agent.nextSelectedSkillIds) ||
     !sameStringList(agent.previousSelectedBundleIds, agent.nextSelectedBundleIds)
@@ -511,21 +525,26 @@ async function inspectTargetStates(
       }
 
       seenPaths.add(targetPath);
-      states.push(await inspectTargetState(targetPath, manifest));
+      states.push(await inspectTargetState(targetPath, manifest, {agentId: agent.adapter.id, skillId}));
     }
   }
 
   return states.sort((left, right) => left.path.localeCompare(right.path));
 }
 
-async function inspectTargetState(targetPath: string, manifest: ManagerManifest): Promise<TargetState> {
+async function inspectTargetState(targetPath: string, manifest: ManagerManifest, expected?: {agentId: AgentId; skillId: string}): Promise<TargetState> {
   const manifestEntry = manifest.links[targetPath];
   const exists = await pathLinkExists(targetPath);
+  let managed = manifestEntry !== undefined && (expected === undefined || (manifestEntry.agentId === expected.agentId && manifestEntry.skillId === expected.skillId));
+  if (exists && managed) {
+    const stat = await fs.lstat(targetPath);
+    managed = stat.isSymbolicLink() && path.resolve(path.dirname(targetPath), await fs.readlink(targetPath)) === manifestEntry!.sourcePath;
+  }
 
   return {
     path: targetPath,
     exists,
-    managed: manifestEntry !== undefined,
+    managed,
     ...(manifestEntry?.sourcePath === undefined ? {} : {sourcePath: manifestEntry.sourcePath})
   };
 }

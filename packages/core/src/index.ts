@@ -490,3 +490,6 @@ export {
   inspectManagerSelfUpdate,
   isNewerVersion
 } from './selfUpdate/managerPackageUpdate.js';
+
+export * from './profiles/profileScope.js';
+export type {ProjectsData, ProjectResolveData, ProjectRemovePlanData, ProjectRemoveApplyData} from './application/useCases/projectUseCases.js';

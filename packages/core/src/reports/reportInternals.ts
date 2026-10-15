@@ -1,6 +1,7 @@
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {ZodError} from 'zod';
+import {adaptersForScope, canonicalScope, configForScope, sameScope, type ProfileScope} from '../profiles/profileScope.js';
 import type {AgentAdapter, AgentId} from '../agents/AgentAdapter.js';
 import {getAgentAdapters} from '../agents/adapters.js';
 import {aggregateSkillpackDiscoveries, qualifySkillpackDiscovery} from '../application/catalogDiscovery.js';
@@ -31,6 +32,9 @@ import type {SkillDiscoveryResult} from '../skills/skillDiscovery.js';
 import {discoverSkillsFromCheckout} from '../skills/skillDiscovery.js';
 
 export interface ReportOptions {
+  /** Internal: installation and collection operations need the complete ownership map. */
+  allProfiles?: boolean;
+  scope?: ProfileScope;
   homeDir?: string;
   managerStateDir?: string;
   configPath?: string;
@@ -39,6 +43,8 @@ export interface ReportOptions {
 }
 
 export interface ReportContext {
+  scope?: ProfileScope;
+  fullConfig?: ManagerConfig;
   homeDir?: string;
   configPath: string;
   managerStateDir: string;
@@ -101,6 +107,19 @@ export async function buildReportContext(options: ReportOptions = {}): Promise<R
     skillpacks: [],
     targetStates: []
   };
+
+  if (options.allProfiles !== true) {
+    const scope = await canonicalScope(options.scope, homeDir);
+    context.scope = scope;
+    if (context.config !== undefined) {
+      context.fullConfig = context.config;
+      context.config = configForScope(context.config, scope);
+    }
+    context.adapters = adaptersForScope(context.adapters, scope);
+    context.manifest = {...context.manifest, links: Object.fromEntries(Object.entries(context.manifest.links).filter(([, entry]) => sameScope(entry.scope, scope)))};
+  } else {
+    context.scope = {kind: "user"};
+  }
 
   const configuredSkillpacks = getSkillpacks(context.config);
 

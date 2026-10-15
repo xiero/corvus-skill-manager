@@ -2,7 +2,7 @@
 
 Every JSON command shares one versioned envelope. `schemaVersion` is the protocol version and is
 independent of the install-request and persisted-plan versions. The envelope remains v1; the
-current install request is v2 and the current persisted plan is v3.
+current install request is v2 and the current persisted plan is v4.
 
 ## Envelope
 
@@ -49,7 +49,7 @@ skill IDs, new plans expose:
 - `affectedBundles`: configured bundle roots affected directly or through effective members,
   with structured reasons.
 
-These fields do not change envelope schema v1 or persisted plan schema v3. They are comparison
+These fields do not change envelope schema v1 or persisted plan schema v4. They are comparison
 data only; `skillpack.update-apply` still requires the plan id as an exact confirmation token and
 revalidates the state fingerprint before activation.
 
@@ -145,7 +145,7 @@ Every write is two-phase.
 **Plan.** A plan command persists an artifact under
 `~/.agents/corvus-skill-manager/plans/<plan-id>.json` containing the plan schema version, its
 kind, its digest, normalized request provenance, final root skill/bundle selections, effective
-skills with origins, the intended Config v3 mutation, ordered link operations, warnings and
+skills with origins, the intended Config v4 mutation, ordered link operations, warnings and
 conflicts, and a state fingerprint. `createdAt` is recorded for audit and deliberately excluded
 from the digest, so identical input and state yield the same plan id.
 
@@ -218,7 +218,7 @@ corvus-skills install plan --agent codex --bundle team:review-workflow --json
 mutually exclusive with `--all-compatible`. Bundle discovery is read-only; the install flag
 creates a persisted plan and is not an apply shortcut. Bundles have no executable workflow or
 filesystem target: apply links only the derived skills. Bundle-root removal uses request v2 with
-the full desired root sets plus `replaceSelection: true`; plan v3 then shows which links are
+the full desired root sets plus `replaceSelection: true`; plan v4 then shows which links are
 removed and which shared effective skills remain before exact-confirmation apply.
 
 See `docs/examples/agent-install-requests.json` for validated examples.
@@ -233,3 +233,16 @@ Legacy unqualified IDs deterministically mean `corvus-skillpack:<id>`.
 `skillpack remove-plan --skillpack-id <id>` refuses the default pack and any pack still used by
 agent selections or managed links. Confirmed `remove-apply` unregisters the source without
 deleting its immutable revision snapshots.
+
+## Project scope
+
+The shared application layer supports global and local project profiles. Install requests
+accept `scope: {kind: "project", rootPath: "/absolute/project"}` (or omitted/user scope).
+Status, Doctor and agent listing accept scope too. Projects use shared skillpack revisions
+with independent agent/skill/bundle roots. Profile metadata remains in the manager state
+folder; confirmed project-contained links are the only project writes.
+
+`projects list` is read-only. `projects remove-plan` persists a reviewed removal artifact;
+`projects remove-apply` requires its exact confirmation token. Plan format v4 records scope
+and project identity, rejects old plans with a regeneration hint and protects other profiles'
+links. See [project profiles](project-profiles.md) for request examples and migration details.

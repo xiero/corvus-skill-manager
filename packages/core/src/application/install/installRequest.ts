@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {profileScopeSchema, type ProfileScope} from '../../profiles/profileScope.js';
 import {agentIdSchema} from '../../config/configSchema.js';
 
 /** Current emitted request version. Persisted request v1 documents remain readable. */
@@ -44,6 +45,8 @@ export const selectedSkillRequestSchema = z
 export const selectedBundleRequestSchema = z.object({id: selectableReferenceSchema}).strict();
 
 const commonRequestFields = {
+  scope: profileScopeSchema.optional(),
+  enabled: z.boolean().optional(),
   /** The user's original natural-language intent, kept purely as audit provenance. */
   intent: trimmedString(installRequestLimits.intentLength).optional(),
   /** Records how broadly the caller interpreted intent; Corvus never makes that choice. */
@@ -110,6 +113,8 @@ export interface NormalizedSelectedBundle {
 
 /** Canonical v2 form used by planning and persisted plan digests. */
 export interface NormalizedInstallRequest {
+  scope?: ProfileScope;
+  enabled?: boolean;
   schemaVersion: typeof installRequestSchemaVersion;
   intent?: string;
   selectionPolicy?: SelectionPolicy;
@@ -136,6 +141,8 @@ export function normalizeInstallRequest(request: InstallRequest): NormalizedInst
 
   return {
     schemaVersion: installRequestSchemaVersion,
+    ...(request.scope === undefined ? {} : {scope: request.scope}),
+    ...(request.enabled === undefined ? {} : {enabled: request.enabled}),
     ...(intent === undefined || intent === '' ? {} : {intent}),
     ...(request.selectionPolicy === undefined ? {} : {selectionPolicy: request.selectionPolicy}),
     targetAgents,
@@ -191,6 +198,8 @@ function normalizeAgentTargetPaths(
 }
 
 export interface InstallRequestFlags {
+  scope?: ProfileScope;
+  enabled?: boolean;
   agents?: string[];
   skills?: string[];
   bundles?: string[];
@@ -209,6 +218,8 @@ export function installRequestFromFlags(flags: InstallRequestFlags): unknown {
 
   return {
     schemaVersion: installRequestSchemaVersion,
+    ...(flags.scope === undefined ? {} : {scope: flags.scope}),
+    ...(flags.enabled === undefined ? {} : {enabled: flags.enabled}),
     ...(flags.intent === undefined ? {} : {intent: flags.intent}),
     ...(flags.selectionPolicy === undefined ? {} : {selectionPolicy: flags.selectionPolicy}),
     targetAgents: flags.agents ?? [],

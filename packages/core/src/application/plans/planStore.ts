@@ -89,7 +89,11 @@ export async function loadPlan(plansDir: string, planId: string): Promise<PlanLo
   let plan: PersistedPlan;
 
   try {
-    plan = parsePersistedPlan(JSON.parse(rawPlan));
+    const value: unknown = JSON.parse(rawPlan);
+    if (typeof value === "object" && value !== null && "planSchemaVersion" in value && value.planSchemaVersion !== 4) {
+      return {status: "invalid", planPath, message: "This plan uses an older format. Regenerate the plan and review it before applying."};
+    }
+    plan = parsePersistedPlan(value);
   } catch (error) {
     return {status: 'invalid', planPath, message: error instanceof Error ? error.message : String(error)};
   }

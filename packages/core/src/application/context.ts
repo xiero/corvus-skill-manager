@@ -1,3 +1,4 @@
+import type {ProfileScope} from '../profiles/profileScope.js';
 import {type ManagerConfig, type SkillpackConfig, getSkillpacks} from '../config/configSchema.js';
 import {type ReportContext, buildReportContext} from '../reports/reportInternals.js';
 import type {SkillDiscoveryResult} from '../skills/skillDiscovery.js';
@@ -6,6 +7,7 @@ import {type MachineError, createMachineError} from './protocol/errors.js';
 import {type NextAction, createNextAction} from './protocol/nextActions.js';
 
 export interface LoadContextOptions {
+  scope?: ProfileScope;
   /** Perform the read-only `git ls-remote` update check. Off by default: it needs network. */
   checkRemote?: boolean;
 }
@@ -23,6 +25,8 @@ export async function loadContext(
     managerStateDir: environment.managerStateDir,
     configPath: environment.configPath,
     git: environment.git,
+    allProfiles: options.scope === undefined,
+    ...(options.scope === undefined ? {} : {scope: options.scope}),
     ...(options.checkRemote === undefined ? {} : {checkRemote: options.checkRemote})
   });
 }

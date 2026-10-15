@@ -1,7 +1,9 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Box, useApp, useInput} from 'ink';
+import {Box, Text, useApp, useInput} from 'ink';
 import {
   type ConfigLoadResult,
+  type ProfileScope,
+  loadConfig as readSavedConfig,
   type CorvusApplication,
   type ManagerPackageRuntime,
   type ManagerConfig,
@@ -26,8 +28,10 @@ import {PlaceholderScreen} from './screens/PlaceholderScreen.js';
 import {SkillpackSetupScreen} from './screens/SkillpackSetupScreen.js';
 import {StatusScreen} from './screens/StatusScreen.js';
 import {WizardScreen} from './screens/WizardScreen.js';
+import {ProjectsScreen} from './screens/ProjectsScreen.js';
+import {ProjectSkillsScreen} from './screens/ProjectSkillsScreen.js';
 
-type View = 'wizard' | 'home' | 'setup' | 'settings' | 'status' | 'doctor' | 'help';
+type View = 'projects' | 'wizard' | 'home' | 'setup' | 'settings' | 'status' | 'doctor' | 'help';
 
 interface MenuItem extends HomeMenuItem {
   action: View | 'exit';
@@ -55,6 +59,7 @@ const menuItems: MenuItem[] = [
   {label: 'Configure Agents', hint: '(manual plan/apply)', action: 'settings'},
   {label: 'Status', hint: '(read-only report)', action: 'status'},
   {label: 'Doctor', hint: '(read-only checks)', action: 'doctor'},
+  {label: 'Global / Project', hint: '(select a profile)', action: 'projects'},
   {label: 'Help', hint: '(workflow guide)', action: 'help'},
   {label: 'Exit', hint: '', action: 'exit'}
 ];
@@ -68,6 +73,7 @@ export function App({
 }: AppProps): React.ReactElement {
   const {exit} = useApp();
   const [view, setView] = useState<View>('home');
+  const [scope, setScope] = useState<ProfileScope>({kind: 'user'});
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [configState, setConfigState] = useState<ConfigState>(
     initialConfigState ?? {
@@ -162,6 +168,7 @@ export function App({
       (view === 'wizard' && configState.config !== undefined) ||
       (view === 'setup' && configState.config !== undefined) ||
       (view === 'settings' && configState.config !== undefined) ||
+      view === 'projects' ||
       view === 'status' ||
       view === 'doctor' ||
       view === 'help'
@@ -217,9 +224,19 @@ export function App({
   );
   const renderWithCorvusHeader = (screen: React.ReactElement): React.ReactElement => (
     <CorvusApplicationContext.Provider value={application}>
-      {withCorvusHeader(screen, managerPackage?.currentVersion)}
+      {withCorvusHeader(<Box flexDirection="column" gap={1}><Text color="cyan">{scope.kind === "project" ? `Project: ${scope.rootPath}` : "Global profile"}</Text>{screen}</Box>, managerPackage?.currentVersion)}
     </CorvusApplicationContext.Provider>
   );
+
+  if (view === 'projects') {
+    return renderWithCorvusHeader(<ProjectsScreen onBack={() => setView('home')} onSelect={(nextScope) => {setScope(nextScope); setView('home');}} onChanged={() => {
+      setScope({kind: 'user'});
+      void readSavedConfig(configState.configPath).then((config) => setConfigState((state) => ({...state, config}))).catch(() => undefined);
+    }} />);
+  }
+  if ((view === 'wizard' || view === 'settings') && scope.kind === 'project' && configState.config !== undefined) {
+    return renderWithCorvusHeader(<ProjectSkillsScreen key={scope.rootPath} scope={scope} config={configState.config} guided={view === 'wizard'} onBack={() => setView('home')} onConfigSaved={(config) => setConfigState((state) => ({...state, config}))} />);
+  }
 
   if (view === 'wizard') {
     if (configState.config === undefined) {
@@ -308,6 +325,7 @@ export function App({
   if (view === 'status') {
     return renderWithCorvusHeader(
       <StatusScreen
+        scope={scope}
         configPath={configState.configPath}
         onBack={() => {
           setView('home');
@@ -319,6 +337,7 @@ export function App({
   if (view === 'doctor') {
     return renderWithCorvusHeader(
       <DoctorScreen
+        scope={scope}
         configPath={configState.configPath}
         onBack={() => {
           setView('home');

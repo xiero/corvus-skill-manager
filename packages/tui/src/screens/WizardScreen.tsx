@@ -884,7 +884,7 @@ export function WizardScreen({
       const skillpackConfig = parseSkillpackForm(form);
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
-        version: 3,
+        version: 4,
         skillpack: skillpackConfig,
         skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
@@ -920,7 +920,7 @@ export function WizardScreen({
     try {
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
-        version: 3,
+        version: 4,
         skillpack: skillpackConfig,
         skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
@@ -1005,7 +1005,7 @@ export function WizardScreen({
     try {
       const updatedConfig: ManagerConfig = {
         ...workingConfig,
-        version: 3,
+        version: 4,
         skillpack: skillpackConfig,
         skillpacks: {...(workingConfig.skillpacks ?? {}), [skillpackConfig.id]: skillpackConfig},
         updatedAt: new Date().toISOString()
@@ -1185,7 +1185,9 @@ export function WizardScreen({
             />
           ) : null}
           {currentStep === 'update' ? (
-            <UpdateStepView remoteUpdate={remoteUpdate} updatePreview={updatePreview} updateResult={updateResult} />
+            <Box flexDirection="column"><UpdateStepView remoteUpdate={remoteUpdate} updatePreview={updatePreview} updateResult={updateResult} />
+              {Object.values(workingConfig.projects ?? {}).filter((project) => Object.values(project.agents).some((agent) => [...agent.selectedSkillIds, ...agent.selectedBundleIds].some((ref) => ref.startsWith(`${form.id}:`)))).map((project) => <Text key={project.rootPath}>Affected project: {project.rootPath}</Text>)}
+            </Box>
           ) : null}
           {currentStep === 'agents' ? (
             <WizardAgentListView

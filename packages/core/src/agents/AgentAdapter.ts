@@ -7,6 +7,7 @@ export interface AgentAdapter {
   displayName: string;
   supportStatus: AgentSupportStatus;
   defaultTargetPath?: string;
+  projectTargetPath?: string;
   notes?: string[];
   warnings?: string[];
 }

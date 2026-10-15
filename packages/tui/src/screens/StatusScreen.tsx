@@ -11,11 +11,12 @@ type StatusScreenState =
   | {status: 'error'; message: string};
 
 export interface StatusScreenProps {
+  scope?: import("@corvus-tools/skill-manager-core").ProfileScope;
   configPath: string;
   onBack: () => void;
 }
 
-export function StatusScreen({configPath, onBack}: StatusScreenProps): React.ReactElement {
+export function StatusScreen({configPath, onBack, scope}: StatusScreenProps): React.ReactElement {
   const [state, setState] = useState<StatusScreenState>({status: 'loading'});
   const application = useCorvusApplication(configPath);
 
@@ -24,7 +25,7 @@ export function StatusScreen({configPath, onBack}: StatusScreenProps): React.Rea
     setState({status: 'loading'});
 
     application
-      .status({checkRemote: true})
+      .status({checkRemote: true, ...(scope === undefined ? {} : {scope})})
       .then((result) => {
         if (!active) {
           return;
@@ -45,7 +46,7 @@ export function StatusScreen({configPath, onBack}: StatusScreenProps): React.Rea
     return () => {
       active = false;
     };
-  }, [application]);
+  }, [application, scope]);
 
   useInput((input) => {
     if (input === 'q' || input === 'h') {
@@ -138,7 +139,8 @@ export function StatusReportView({report}: {report: StatusReport}): React.ReactE
             <Text color="green">{agent.displayName}</Text>
             {' -> '}
             {agent.targetPath ?? '(default)'} ::{' '}
-            {agent.selectedSkillIds.length === 0 ? '(no skills)' : agent.selectedSkillIds.join(', ')}
+            {agent.selectedSkillIds.length === 0 ? '(no explicit skills)' : agent.selectedSkillIds.join(', ')}
+            {(agent.selectedBundleIds?.length ?? 0) > 0 ? ` · bundles: ${agent.selectedBundleIds!.join(', ')}` : ''}
           </Text>
         ))}
       </Box>

@@ -224,7 +224,7 @@ describe('agent documentation', () => {
     );
 
     expect(readme).toContain('Registry v3 bundles and versions');
-    expect(readme).toContain('Config v3 stores only qualified **root selections**');
+    expect(readme).toContain('Config v4 stores only qualified **root selections**');
     expect(architecture).toContain('Registry v1/v2 remain readable');
     expect(architecture).toContain('Install request v2');
     expect(contract).toContain('### Registry v3');
@@ -232,7 +232,7 @@ describe('agent documentation', () => {
     expect(contract).toContain('"bundles": [');
     expect(agentInterface).toContain('--bundle corvus-skillpack:review-workflow');
     expect(protocol).toContain('current install request is v2');
-    expect(protocol).toContain('current persisted plan is v3');
+    expect(protocol).toContain('current persisted plan is v4');
     expect(migration).toContain('Config v1/v2 remains readable');
 
     for (const document of [readme, architecture, contract, agentInterface, protocol, migration]) {

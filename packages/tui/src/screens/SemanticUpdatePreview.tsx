@@ -8,11 +8,13 @@ import type {
 export function SemanticUpdateSummaryView({
   skillDeltas,
   bundleDeltas,
-  affectedBundles
+  affectedBundles,
+  affectedProjects = []
 }: {
   skillDeltas: RevisionEntityDelta[];
   bundleDeltas: RevisionEntityDelta[];
   affectedBundles: AffectedBundleUpdate[];
+  affectedProjects?: string[];
 }): React.ReactElement {
   const majorRisk =
     skillDeltas.some((delta) => delta.breakingRisk) ||
@@ -45,6 +47,7 @@ export function SemanticUpdateSummaryView({
           </Box>
         ))}
       </Box>
+      {affectedProjects.length > 0 ? <Box flexDirection="column"><Text bold>Affected Projects</Text>{affectedProjects.map((root) => <Text key={root}>{root}</Text>)}</Box> : null}
       <Text dimColor>Semantic risk is advisory; activation still requires explicit approval.</Text>
     </Box>
   );

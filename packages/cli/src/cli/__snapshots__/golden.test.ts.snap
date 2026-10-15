@@ -13,6 +13,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "enabled": true,
         "id": "codex",
         "notes": [],
+        "selectedBundleIds": [],
         "selectedSkillIds": [
           "corvus-skillpack:git-commit",
         ],
@@ -26,6 +27,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "enabled": false,
         "id": "claude",
         "notes": [],
+        "selectedBundleIds": [],
         "selectedSkillIds": [],
         "supportStatus": "supported",
         "warnings": [],
@@ -39,6 +41,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "notes": [
           "Uses the implementation-plan Copilot CLI skill path strategy.",
         ],
+        "selectedBundleIds": [],
         "selectedSkillIds": [],
         "supportStatus": "supported",
         "warnings": [],
@@ -52,6 +55,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "notes": [
           "Uses the implementation-plan OpenCode skill path strategy.",
         ],
+        "selectedBundleIds": [],
         "selectedSkillIds": [],
         "supportStatus": "supported",
         "warnings": [],
@@ -65,6 +69,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "notes": [
           "Uses the implementation-plan Pi Agent skill path strategy.",
         ],
+        "selectedBundleIds": [],
         "selectedSkillIds": [],
         "supportStatus": "supported",
         "warnings": [],
@@ -76,6 +81,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "notes": [
           "Set a target path before planning links.",
         ],
+        "selectedBundleIds": [],
         "selectedSkillIds": [],
         "supportStatus": "custom",
         "warnings": [],
@@ -89,6 +95,7 @@ exports[`golden protocol fixtures > agents list 1`] = `
         "notes": [
           "Uses Gemini CLI Agent Skills directory support.",
         ],
+        "selectedBundleIds": [],
         "selectedSkillIds": [],
         "supportStatus": "supported",
         "warnings": [],

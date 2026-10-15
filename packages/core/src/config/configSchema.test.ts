@@ -28,7 +28,7 @@ describe('Manager Config v3 schema', () => {
       }
     });
 
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.agents?.codex).toEqual({
       enabled: true,
       selectedSkillIds: ['team:a-skill', 'team:z-skill'],
@@ -112,7 +112,7 @@ describe('legacy config normalization', () => {
       }
     });
 
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.agents?.codex).toEqual({
       enabled: true,
       selectedSkillIds: ['legacy-team:review', 'legacy-team:test'],
@@ -122,7 +122,7 @@ describe('legacy config normalization', () => {
     expect(parsed.skillpacks['legacy-team']).toBeDefined();
   });
 
-  it('normalizes v2 selections once and is idempotent as v3', () => {
+  it('normalizes v2 selections once and is idempotent as v4', () => {
     const v2 = {
       version: 2,
       managerStateDir,

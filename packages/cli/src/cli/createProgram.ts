@@ -73,23 +73,30 @@ export function createProgram(options: {
   register(
     program
       .command('status')
+      .option('--project <path>', 'Read one project profile instead of global settings.')
       .description('Report config, skillpack, agent, and managed-link state.')
       .option('--check-remote', 'Also run the read-only remote update check.'),
-    async (opts) => options.executor.status({checkRemote: opts.checkRemote === true})
+    async (opts) => options.executor.status({checkRemote: opts.checkRemote === true, ...projectFlag(opts)})
   );
 
   register(
     program
       .command('doctor')
+      .option('--project <path>', 'Check one project profile instead of global settings.')
       .description('Report health issues with stable codes. Never repairs anything.')
       .option('--check-remote', 'Also run the read-only remote update check.'),
-    async (opts) => options.executor.doctor({checkRemote: opts.checkRemote === true})
+    async (opts) => options.executor.doctor({checkRemote: opts.checkRemote === true, ...projectFlag(opts)})
   );
 
   const agents = program.command('agents').description('Agent adapter commands.');
-  register(agents.command('list').description('List agent adapters and their current selections.'), async () =>
-    options.executor.agentsList()
+  register(agents.command('list').description('List agent adapters and their current selections.').option('--project <path>', 'Read a project profile.'), async (opts) =>
+    options.executor.agentsList(projectFlag(opts))
   );
+
+  const projects = program.command('projects').description('Local project profiles.');
+  register(projects.command('list').description('List saved projects without writing state.'), () => options.executor.projectsList());
+  register(projects.command('remove-plan').description('Preview removing a project and its owned links.').requiredOption('--project <path>', 'Project root.'), (opts) => options.executor.projectRemovePlan({rootPath: String(opts.project)}));
+  register(projects.command('remove-apply').description('Apply the reviewed project removal.').requiredOption('--plan-id <id>', 'Persisted plan.').requiredOption('--confirm <id>', 'Must repeat the exact plan id.'), (opts) => options.executor.projectRemoveApply({planId: String(opts.planId), confirm: String(opts.confirm)}));
 
   const skillpack = program.command('skillpack').description('Skillpack snapshot commands.');
 
@@ -287,6 +294,7 @@ export function createProgram(options: {
     install
       .command('plan')
       .description('Produce a persisted, digest-identified installation plan.')
+      .option('--project <path>', 'Install into this project instead of user scope.')
       .option('--agent <id>', 'Target agent id.', collect, [])
       .option('--skill <id>', 'Exact skill id to install.', collect, [])
       .option('--bundle <id>', 'Exact bundle root to install.', collect, [])
@@ -299,6 +307,7 @@ export function createProgram(options: {
       .option('--request <path>', 'Read a JSON request document from a file, or - for stdin.'),
     async (opts) =>
       options.executor.installPlan({
+        ...projectFlag(opts),
         agent: asStringArray(opts.agent),
         skill: asStringArray(opts.skill),
         bundle: asStringArray(opts.bundle),
@@ -352,4 +361,8 @@ function asStringArray(value: unknown): string[] {
 
 function version(value: string): string {
   return value === '' ? '0.0.0' : value;
+}
+
+function projectFlag(opts: Record<string, unknown>): {project?: string} {
+  return typeof opts.project === 'string' ? {project: opts.project} : {};
 }

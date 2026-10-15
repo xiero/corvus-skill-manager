@@ -1,5 +1,6 @@
 import {
   type CorvusApplication,
+  type ProfileScope,
   type CorvusApplicationOptions,
   type MachineCommand,
   type MachineEnvelope,
@@ -37,6 +38,7 @@ export interface PlanRefFlags {
 }
 
 export interface InstallPlanFlags {
+  project?: string;
   agent?: string[];
   skill?: string[];
   bundle?: string[];
@@ -52,9 +54,12 @@ export interface InstallPlanFlags {
 export interface Executor {
   readonly app: CorvusApplication;
   capabilities(): MachineEnvelope;
-  status(options: {checkRemote?: boolean}): Promise<MachineEnvelope>;
-  doctor(options: {checkRemote?: boolean}): Promise<MachineEnvelope>;
-  agentsList(): Promise<MachineEnvelope>;
+  status(options: {checkRemote?: boolean; project?: string}): Promise<MachineEnvelope>;
+  doctor(options: {checkRemote?: boolean; project?: string}): Promise<MachineEnvelope>;
+  agentsList(options?: {project?: string}): Promise<MachineEnvelope>;
+  projectsList(): Promise<MachineEnvelope>;
+  projectRemovePlan(options: {rootPath: string}): Promise<MachineEnvelope>;
+  projectRemoveApply(options: PlanRefFlags): Promise<MachineEnvelope>;
   skillpackStatus(options: {checkRemote?: boolean; skillpackId?: string}): Promise<MachineEnvelope>;
   skillpackSetupPlan(flags: SkillpackSetupPlanFlags): Promise<MachineEnvelope>;
   skillpackSetupApply(flags: PlanRefFlags): Promise<MachineEnvelope>;
@@ -97,9 +102,12 @@ export function createExecutor(options: ExecutorOptions): Executor {
   return {
     app,
     capabilities: () => toMachineEnvelope('capabilities', app.capabilities()),
-    status: async (flags) => toMachineEnvelope('status', await app.status(checkRemote(flags))),
-    doctor: async (flags) => toMachineEnvelope('doctor', await app.doctor(checkRemote(flags))),
-    agentsList: async () => toMachineEnvelope('agents.list', await app.listAgents()),
+    status: async (flags) => toMachineEnvelope('status', await app.status({...checkRemote(flags), ...scopeOptions(flags)})),
+    doctor: async (flags) => toMachineEnvelope('doctor', await app.doctor({...checkRemote(flags), ...scopeOptions(flags)})),
+    agentsList: async (flags = {}) => toMachineEnvelope('agents.list', await app.listAgents(scopeOptions(flags))),
+    projectsList: async () => toMachineEnvelope('projects.list', await app.listProjects()),
+    projectRemovePlan: async (flags) => toMachineEnvelope('projects.remove-plan', await app.projectRemovePlan(flags)),
+    projectRemoveApply: async (flags) => toMachineEnvelope('projects.remove-apply', await app.projectRemoveApply(flags)),
     skillpackStatus: async (flags) =>
       toMachineEnvelope('skillpack.status', await app.skillpackStatus({
         ...checkRemote(flags),
@@ -233,6 +241,7 @@ async function buildInstallRequest(
   io: CliIo
 ): Promise<{ok: true; value: unknown} | {ok: false; message: string}> {
   if (flags.request !== undefined) {
+    if (flags.project !== undefined) return {ok: false, message: "Put scope in the request document; --project cannot be combined with --request."};
     return readRequestDocument(flags.request, io);
   }
 
@@ -275,6 +284,7 @@ async function buildInstallRequest(
   return {
     ok: true,
     value: installRequestFromFlags({
+      ...scopeOptions(flags),
       agents,
       skills,
       bundles,
@@ -344,4 +354,8 @@ function readManagerPackageInfo(entryUrl: string | undefined) {
   } catch {
     return undefined;
   }
+}
+
+function scopeOptions(flags: {project?: string}): {scope?: ProfileScope} {
+  return flags.project === undefined ? {} : {scope: {kind: 'project', rootPath: flags.project}};
 }

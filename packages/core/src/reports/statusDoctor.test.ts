@@ -93,9 +93,11 @@ describe('status and doctor reports', () => {
     await writeHealthyFixture();
     const persisted = JSON.parse(await fs.readFile(configPath, 'utf8')) as {
       version: number;
+      projects?: unknown;
       agents?: Record<string, {selectedBundleIds?: string[]}>;
     };
     persisted.version = 2;
+    delete persisted.projects;
     for (const agent of Object.values(persisted.agents ?? {})) {
       delete agent.selectedBundleIds;
     }

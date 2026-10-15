@@ -43,7 +43,7 @@ const legacyAgentConfigSchema = z
 
 type LegacyAgentConfig = z.infer<typeof legacyAgentConfigSchema>;
 
-/** Manager Config v3 stores only explicit skill and bundle roots. */
+/** Manager Config v4 stores explicit skill and bundle roots per profile. */
 export const agentConfigSchema = z
   .object({
     enabled: z.boolean(),
@@ -80,6 +80,25 @@ const persistedManagerConfigV2Schema = z
   .strict()
   .superRefine(validateSkillpackMapKeys);
 
+export const projectProfileSchema = z.object({
+  rootPath: z.string().min(1),
+  agents: z.record(agentIdSchema, agentConfigSchema).default({})
+}).strict();
+
+const persistedManagerConfigV4Schema = z.object({
+  version: z.literal(4),
+  ...managerConfigFields,
+  skillpacks: z.record(skillpackConfigSchema),
+  agents: z.record(agentIdSchema, agentConfigSchema).optional(),
+  projects: z.record(projectProfileSchema).default({})
+}).strict().superRefine(validateSkillpackMapKeys).superRefine((value, context) => {
+  for (const [key, project] of Object.entries(value.projects)) {
+    if (key !== project.rootPath || !path.isAbsolute(key) || path.resolve(key) !== key) {
+      context.addIssue({code: z.ZodIssueCode.custom, path: ["projects", key], message: "Project key must equal its normalized absolute rootPath."});
+    }
+  }
+});
+
 const persistedManagerConfigV3Schema = z
   .object({
     version: z.literal(3),
@@ -91,17 +110,19 @@ const persistedManagerConfigV3Schema = z
   .superRefine(validateSkillpackMapKeys);
 
 /**
- * Persisted v1/v2/v3 inputs are accepted. `parseManagerConfig` always returns the normalized v3
+ * Persisted v1/v2/v3/v4 inputs are accepted. `parseManagerConfig` always returns the normalized v4
  * shape without writing it back, keeping read-only commands side-effect free.
  */
 const persistedManagerConfigSchema = z.union([
   persistedManagerConfigV1Schema,
   persistedManagerConfigV2Schema,
-  persistedManagerConfigV3Schema
+  persistedManagerConfigV3Schema,
+  persistedManagerConfigV4Schema
 ]);
 
 export interface ManagerConfig {
-  version: 3;
+  version: 3 | 4;
+  projects?: Record<string, z.infer<typeof projectProfileSchema>>;
   managerStateDir: string;
   createdAt: string;
   updatedAt: string;
@@ -116,7 +137,7 @@ export type AgentIdConfig = z.infer<typeof agentIdSchema>;
 export type SkillpackConfig = z.infer<typeof skillpackConfigSchema>;
 export type PersistedManagerConfig = z.input<typeof persistedManagerConfigSchema>;
 
-// Kept as the public schema export. Parsing through it accepts persisted v1/v2/v3 data.
+// Kept as the public schema export. Parsing through it accepts persisted v1/v2/v3/v4 data.
 export const managerConfigSchema = persistedManagerConfigSchema;
 
 export function qualifySkillId(skillpackId: string, skillId: string): string {
@@ -165,7 +186,7 @@ export function getSelectedBundleIdsForSkillpack(
 ): string[] {
   const selected = new Set<string>();
 
-  for (const agent of Object.values(config?.agents ?? {})) {
+  for (const agent of [...Object.values(config?.agents ?? {}), ...Object.values(config?.projects ?? {}).flatMap((project) => Object.values(project.agents))]) {
     if (agent?.enabled !== true) continue;
     for (const bundleRef of agent?.selectedBundleIds ?? []) {
       const parsed = parseBundleReference(bundleRef);
@@ -179,13 +200,14 @@ export function getSelectedBundleIdsForSkillpack(
 export function parseManagerConfig(value: unknown): ManagerConfig {
   const parsed = persistedManagerConfigSchema.parse(value);
 
-  if (parsed.version === 3) {
+  if (parsed.version === 3 || parsed.version === 4) {
     return withPrimaryAlias({
-      version: 3,
+      version: 4,
       managerStateDir: parsed.managerStateDir,
       createdAt: parsed.createdAt,
       updatedAt: parsed.updatedAt,
       skillpacks: {...parsed.skillpacks},
+      projects: parsed.version === 4 ? parsed.projects : {},
       ...(parsed.agents === undefined ? {} : {agents: parsed.agents})
     });
   }
@@ -201,7 +223,8 @@ export function parseManagerConfig(value: unknown): ManagerConfig {
     }
     const agents = normalizeLegacyAgentSelections(parsed.agents, defaultSkillpackId);
     return withPrimaryAlias({
-      version: 3,
+      version: 4,
+      projects: {},
       managerStateDir: parsed.managerStateDir,
       createdAt: parsed.createdAt,
       updatedAt: parsed.updatedAt,
@@ -225,7 +248,8 @@ export function parseManagerConfig(value: unknown): ManagerConfig {
   const agents = normalizeLegacyAgentSelections(parsed.agents, legacySelectionPackId);
 
   return withPrimaryAlias({
-    version: 3,
+    version: 4,
+    projects: {},
     managerStateDir: parsed.managerStateDir,
     createdAt: parsed.createdAt,
     updatedAt: parsed.updatedAt,
@@ -275,7 +299,8 @@ export function createDefaultManagerConfig(options: {
   const defaultSkillpack = createDefaultSkillpackConfig(options.homeDir);
 
   return withPrimaryAlias({
-    version: 3,
+    version: 4,
+    projects: {},
     managerStateDir: options.managerStateDir,
     createdAt: timestamp,
     updatedAt: timestamp,

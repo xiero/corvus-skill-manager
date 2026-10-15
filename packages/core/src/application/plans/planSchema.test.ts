@@ -51,7 +51,7 @@ describe('plan schema v3 root and effective selections', () => {
     );
   });
 
-  it('creates schema v3 artifacts and rejects schema v2 artifacts', () => {
+  it('creates schema v4 artifacts and rejects schema v3 artifacts', () => {
     const artifact = createPlanArtifact({
       kind: 'skillpack-remove',
       now: new Date('2026-08-24T20:00:00.000Z'),
@@ -65,9 +65,9 @@ describe('plan schema v3 root and effective selections', () => {
       }
     });
 
-    expect(planSchemaVersion).toBe(3);
-    expect(parsePersistedPlan(artifact).planSchemaVersion).toBe(3);
-    expect(() => parsePersistedPlan({...artifact, planSchemaVersion: 2})).toThrow();
+    expect(planSchemaVersion).toBe(4);
+    expect(parsePersistedPlan(artifact).planSchemaVersion).toBe(4);
+    expect(() => parsePersistedPlan({...artifact, planSchemaVersion: 3})).toThrow();
   });
 
   it('accepts bundle-member provenance and retains multiple canonical origins', () => {

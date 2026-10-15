@@ -11,11 +11,12 @@ type DoctorScreenState =
   | {status: 'error'; message: string};
 
 export interface DoctorScreenProps {
+  scope?: import("@corvus-tools/skill-manager-core").ProfileScope;
   configPath: string;
   onBack: () => void;
 }
 
-export function DoctorScreen({configPath, onBack}: DoctorScreenProps): React.ReactElement {
+export function DoctorScreen({configPath, onBack, scope}: DoctorScreenProps): React.ReactElement {
   const [state, setState] = useState<DoctorScreenState>({status: 'loading'});
   const application = useCorvusApplication(configPath);
 
@@ -24,7 +25,7 @@ export function DoctorScreen({configPath, onBack}: DoctorScreenProps): React.Rea
     setState({status: 'loading'});
 
     application
-      .doctor()
+      .doctor(scope === undefined ? {} : {scope})
       .then((result) => {
         if (!active) {
           return;
@@ -45,7 +46,7 @@ export function DoctorScreen({configPath, onBack}: DoctorScreenProps): React.Rea
     return () => {
       active = false;
     };
-  }, [application]);
+  }, [application, scope]);
 
   useInput((input) => {
     if (input === 'q' || input === 'h') {

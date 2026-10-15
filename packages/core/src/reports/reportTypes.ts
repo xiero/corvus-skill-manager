@@ -1,3 +1,4 @@
+import type {ProfileScope} from '../profiles/profileScope.js';
 import type {AgentId, AgentSupportStatus} from '../agents/AgentAdapter.js';
 
 export interface StatusReportAgent {
@@ -7,6 +8,7 @@ export interface StatusReportAgent {
   enabled: boolean;
   targetPath?: string;
   selectedSkillIds: string[];
+  selectedBundleIds?: string[];
 }
 
 export interface StatusReportSkillpack {
@@ -31,6 +33,7 @@ export interface StatusReportSkillpack {
 }
 
 export interface StatusReport {
+  scope?: ProfileScope;
   configPath: string;
   configExists: boolean;
   configValid: boolean;

@@ -41,6 +41,7 @@ describe('help output', () => {
         doctor [options]        Report health issues with stable codes. Never repairs
                                 anything.
         agents                  Agent adapter commands.
+        projects                Local project profiles.
         skillpack               Skillpack snapshot commands.
         skills                  Skill catalog commands.
         bundles                 Bundle catalog commands.

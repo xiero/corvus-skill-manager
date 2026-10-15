@@ -15,6 +15,7 @@ export function statusReportFromContext(context: ReportContext): StatusReport {
   const primary = skillpacks.find((item) => item.id === 'corvus-skillpack') ?? skillpacks[0];
 
   return {
+    scope: context.scope ?? {kind: "user"},
     configPath: context.configPath,
     configExists: context.configExists,
     configValid: context.config !== undefined,
@@ -31,7 +32,8 @@ export function statusReportFromContext(context: ReportContext): StatusReport {
         supportStatus: adapter.supportStatus,
         enabled: agentConfig?.enabled ?? false,
         ...(agentConfig?.targetPath === undefined ? {} : {targetPath: agentConfig.targetPath}),
-        selectedSkillIds: agentConfig?.selectedSkillIds ?? []
+        selectedSkillIds: agentConfig?.selectedSkillIds ?? [],
+        selectedBundleIds: agentConfig?.selectedBundleIds ?? []
       };
     }),
     managedLinkCount: Object.keys(context.manifest.links).length,

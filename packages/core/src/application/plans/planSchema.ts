@@ -1,13 +1,14 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
+import {profileScopeSchema} from '../../profiles/profileScope.js';
 import {agentIdSchema, skillReferencePattern} from '../../config/configSchema.js';
 import {selectionProvenanceKinds} from '../../skills/selectionModel.js';
 import {canonicalJsonStringify} from '../protocol/canonicalJson.js';
 
 /** Version of the persisted plan artifact format. */
-export const planSchemaVersion = 3;
+export const planSchemaVersion = 4;
 
-export const planKinds = ['skillpack-setup', 'skillpack-update', 'skillpack-remove', 'install'] as const;
+export const planKinds = ['skillpack-setup', 'skillpack-update', 'skillpack-remove', 'install', 'project-remove'] as const;
 
 export type PlanKind = (typeof planKinds)[number];
 
@@ -58,6 +59,7 @@ export function diffStateFingerprints(expected: StateFingerprint, actual: StateF
 export const linkCreateOperationSchema = z
   .object({
     type: z.literal('create-link'),
+    scope: profileScopeSchema.optional(),
     agentId: agentIdSchema,
     skillId: z.string().min(1),
     sourcePath: z.string().min(1),
@@ -68,6 +70,7 @@ export const linkCreateOperationSchema = z
 export const linkRemoveOperationSchema = z
   .object({
     type: z.literal('remove-link'),
+    scope: profileScopeSchema.optional(),
     agentId: agentIdSchema,
     skillId: z.string().min(1),
     targetPath: z.string().min(1)
@@ -173,6 +176,8 @@ const normalizedSelectedBundleSchema = z.object({id: z.string().min(1)}).strict(
 export const normalizedInstallRequestSchema = z
   .object({
     schemaVersion: z.literal(2),
+    scope: profileScopeSchema.optional(),
+    enabled: z.boolean().optional(),
     intent: z.string().min(1).optional(),
     selectionPolicy: z.enum(['minimal', 'balanced', 'complete']).optional(),
     targetAgents: z.array(z.string().min(1)),
@@ -188,6 +193,7 @@ export const normalizedInstallRequestSchema = z
 export const installPlanPayloadSchema = z
   .object({
     request: normalizedInstallRequestSchema,
+    projectIdentity: z.string().optional(),
     targetAgents: z.array(agentIdSchema),
     rootSelections: z.array(agentRootSelectionSchema),
     selections: z.array(resolvedSkillSelectionSchema),
@@ -282,6 +288,7 @@ export const skillpackUpdatePlanPayloadSchema = z
     skillDeltas: z.array(revisionEntityDeltaSchema).optional(),
     bundleDeltas: z.array(revisionEntityDeltaSchema).optional(),
     affectedBundles: z.array(affectedBundleUpdateSchema).optional(),
+    affectedProjects: z.array(z.string()).optional(),
     managerStateDir: z.string().min(1),
     stateFingerprint: stateFingerprintSchema
   })
@@ -302,6 +309,14 @@ export const skillpackRemovePlanPayloadSchema = z
 
 export type SkillpackRemovePlanPayload = z.infer<typeof skillpackRemovePlanPayloadSchema>;
 
+export const projectRemovePlanPayloadSchema = z.object({
+  scope: z.object({kind: z.literal('project'), rootPath: z.string().min(1)}).strict(),
+  projectIdentity: z.string(),
+  operations: z.array(linkRemoveOperationSchema),
+  stateFingerprint: stateFingerprintSchema
+}).strict();
+export type ProjectRemovePlanPayload = z.infer<typeof projectRemovePlanPayloadSchema>;
+
 const planBaseShape = {
   planSchemaVersion: z.literal(planSchemaVersion),
   planId: planIdSchema,
@@ -312,6 +327,7 @@ const planBaseShape = {
 };
 
 export const persistedPlanSchema = z.discriminatedUnion('kind', [
+  z.object({...planBaseShape, kind: z.literal('project-remove'), payload: projectRemovePlanPayloadSchema}).strict(),
   z.object({...planBaseShape, kind: z.literal('install'), payload: installPlanPayloadSchema}).strict(),
   z
     .object({...planBaseShape, kind: z.literal('skillpack-setup'), payload: skillpackSetupPlanPayloadSchema})

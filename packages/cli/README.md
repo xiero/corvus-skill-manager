@@ -48,3 +48,14 @@ reading, protocol serialization, and exit-code mapping. All workflow logic lives
 `@corvus-tools/skill-manager-core`, which the TUI calls too.
 
 The active skillpack checkout is read-only. Updates use immutable `revisions/<commit>/repo` snapshots and an approved `current` link switch; the manager does not pull, reset, repair, edit, install dependencies, or execute scripts inside the checkout.
+
+## Project profiles
+
+Use `--project /path/to/project` with `install plan`, `status`, `doctor` or `agents list`.
+With an install request document, set `scope: {"kind":"project","rootPath":"/path/to/project"}`
+in the document instead. Omitted scope remains global. Apply and verify use the scope stored
+in the plan. `projects list` lists local profiles; `projects remove-plan --project <path>` and
+`projects remove-apply --plan-id <id> --confirm <id>` remove only a reviewed profile and its
+owned links. All commands support `--json`.
+
+See [project profiles](../../docs/project-profiles.md) for the TUI flow, storage and compatibility details.

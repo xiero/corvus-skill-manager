@@ -1,3 +1,4 @@
+import type {ProjectsData, ProjectResolveData, ProjectRemovePlanData, ProjectRemoveApplyData} from './useCases/projectUseCases.js';
 import type {ApplicationEnvironment} from './ports.js';
 import type {UseCaseResult} from './protocol/result.js';
 import type {CapabilitiesData} from './useCases/capabilitiesUseCase.js';
@@ -53,11 +54,15 @@ import type {
 export interface CorvusApplication {
   readonly environment: ApplicationEnvironment;
 
+  listProjects(): Promise<UseCaseResult<ProjectsData>>;
+  resolveProject(options: {rootPath: string}): Promise<UseCaseResult<ProjectResolveData>>;
+  projectRemovePlan(options: {rootPath: string}): Promise<UseCaseResult<ProjectRemovePlanData>>;
+  projectRemoveApply(options: {planId: string; confirm: string}): Promise<UseCaseResult<ProjectRemoveApplyData>>;
   capabilities(): UseCaseResult<CapabilitiesData>;
 
   status(options?: StatusUseCaseOptions): Promise<UseCaseResult<StatusData>>;
   doctor(options?: StatusUseCaseOptions): Promise<UseCaseResult<DoctorData>>;
-  listAgents(): Promise<UseCaseResult<AgentListData>>;
+  listAgents(options?: StatusUseCaseOptions): Promise<UseCaseResult<AgentListData>>;
 
   skillpackStatus(options?: StatusUseCaseOptions): Promise<UseCaseResult<SkillpackStatusData>>;
   skillpackSetupPlan(options?: SkillpackSetupPlanOptions): Promise<UseCaseResult<SkillpackSetupPlanData>>;
